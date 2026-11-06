@@ -36,7 +36,9 @@ kernel, written line by line, so that what we give away is truly ours to give.
    and writes to the screen.
 2. **Speak** — keyboard in, text out; a simple shell.
    *(Done with milestone 3 — the shell answers help, about, verse,
-   and clear.)*
+   and clear. Milestone 4 then changed how the kernel waits:
+   interrupts, a 100 Hz heartbeat, and an `uptime` command that
+   reads it.)*
 3. **Remember** — memory management and a filesystem.
 4. **Work** — run programs; one thing at a time, then many.
 5. **Dress** — a simple graphical face.
@@ -56,22 +58,33 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 3 stands (November 6, 2026): the prompt now answers. The
-kernel reads the finished line straight off the screen, trims it, folds
-capitals down, and answers four commands — `help` lists them, `about`
-says what Cardnull OS is, `verse` prints John 1:1 (Douay-Rheims), and
-`clear` wipes the screen to a fresh prompt; anything else is answered
-plainly as unknown, and an empty line earns only a fresh prompt. The
-keyboard is finished, too: the whole main block of a US keyboard —
-letters, digits, space, and every punctuation key in its plain and
-shifted face — with Caps Lock latching the letters as it should. And
-the screen is a true terminal now: output past the last row scrolls
-the page upward instead of waiting for room. The keyboard is still
-polled (status port 0x64, data port 0x60) — interrupts remain a later
-milestone, taken on purpose, one thing at a time. Verified in QEMU,
-with commands typed through the emulator's keyboard answered on the
-kernel's screen; the same ISO is the one tested in UTM.
+Milestone 4 stands (November 6, 2026): the kernel no longer asks —
+it is told. The boot floor carries a stub for every exception vector
+and both hardware IRQs the kernel takes; support.c builds the IDT
+from them, remaps the 8259 PIC pair to vectors 0x20/0x28 (clear of
+the exceptions the BIOS left them sitting on), and sets the PIT
+ticking at a 100 Hz heartbeat. The timer interrupt only counts;
+the keyboard interrupt only takes the scancode into a small ring
+buffer; and the shell — the same scrolling terminal answering the
+same commands — drains the ring at its leisure and sleeps in `hlt`
+between keystrokes instead of spinning on the ports. Exceptions are
+no longer silent: a fault prints "Exception - halting." and rests
+the machine. A fifth command joins the shell: `uptime` reads the
+heartbeat and answers, e.g., "Awake 1 minute 14 seconds."
 
-Not yet, honestly: interrupts and an IDT, memory management, a
-filesystem, UEFI boot, and USB input. Those are milestones 4 and
-onward, taken one at a time.
+Before that, milestone 3 gave the prompt its answers: the kernel
+reads the finished line straight off the screen, trims it, folds
+capitals down, and answers `help`, `about` (what Cardnull OS is),
+`verse` (John 1:1, Douay-Rheims), and `clear`; anything else is
+answered plainly as unknown, and an empty line earns only a fresh
+prompt. The keyboard is the whole main block of a US keyboard —
+letters, digits, space, and every punctuation key in its plain and
+shifted face — with Caps Lock latching the letters as it should,
+and output past the last row scrolls the page upward. Verified in
+QEMU on the q35 machine with the PS/2 keyboard present — commands
+typed through the emulator's keyboard, answered on the kernel's
+screen, and the two uptime readings advancing with the wall clock
+between them; the same ISO is the one tested in UTM.
+
+Not yet, honestly: memory management, a filesystem, UEFI boot, and
+USB input. Those are the milestones onward, taken one at a time.

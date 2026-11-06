@@ -37,8 +37,14 @@ it bends.*
    *(Done — November 6, 2026: milestone 2 brought polled PS/2 keyboard
    input echoing at a prompt; milestone 3 finished the keyboard
    (punctuation, Caps Lock), made the screen scroll, and gave the
-   prompt a shell that answers — help, about, verse, clear. Interrupts
-   still wait for when polling is outgrown.)*
+   prompt a shell that answers — help, about, verse, clear.
+   Milestone 4 — also November 6, 2026 — retired the polling:
+   an IDT with a stub for every exception vector, the PIC pair
+   remapped to 0x20/0x28, a 100 Hz PIT heartbeat counted by IRQ0,
+   the keyboard taken by IRQ1 into a ring buffer, and the kernel
+   resting in `hlt` between events instead of spinning. A new
+   command, `uptime`, reads the heartbeat aloud. Exceptions now
+   print "Exception - halting." rather than dying in silence.)*
 3. Memory management; a filesystem that remembers.
 4. Running programs.
 5. A simple graphical interface.

@@ -29,6 +29,34 @@ func cardnullInb(_ port: UInt16) -> UInt8
 @_silgen_name("cardnull_outb")
 func cardnullOutb(_ port: UInt16, _ value: UInt8)
 
+/// Provided by the boot floor (support.c): raises the whole interrupt
+/// machinery of milestone 4 — builds the IDT from the assembly stub
+/// table, remaps the PIC pair to vectors 0x20/0x28, sets the PIT
+/// ticking at 100 Hz, drains the keyboard controller, and opens the
+/// interrupt gate (sti). Called once, before the shell's first sleep.
+@_silgen_name("cardnull_setup_interrupts")
+func cardnullSetupInterrupts()
+
+/// Provided by the boot floor (support.c): one honest sleep — `hlt`
+/// until the next interrupt arrives, then return. The shell loop
+/// rests here between keystrokes instead of spinning on the ports.
+@_silgen_name("cardnull_hlt_once")
+func cardnullHltOnce()
+
+/// Provided by the boot floor (support.c): closes the interrupt gate
+/// (cli) and keeps it closed. The exception handler calls this before
+/// its last words, so nothing can interrupt a halt.
+@_silgen_name("cardnull_cli")
+func cardnullCli()
+
+/// Provided by the boot floor (support.c): the raw storage of the
+/// keyboard ring buffer — 64 bytes the floor lends, because Embedded
+/// Swift cannot name a fixed mutable byte array without a heap. Every
+/// decision about those bytes is the kernel's, below; the floor only
+/// keeps the memory.
+@_silgen_name("cardnull_key_ring")
+func cardnullKeyRing() -> UnsafeMutablePointer<UInt8>
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -216,10 +244,13 @@ func backspace() {
 // ---------------------------------------------------------------------------
 // The keyboard.
 //
-// The kernel listens to a PS/2 keyboard by *polling*: it asks the
-// controller, over and over, whether a key has spoken. No interrupts,
-// no IDT — those are a later milestone, and the README says so. The
-// controller answers through two ports:
+// What a key *means* is decided here: the translation of scancodes
+// into characters. How a scancode *arrives* changed with milestone 4
+// — it comes by interrupt now, through the ring buffer in the next
+// section — but the meaning of each code is exactly what milestones 2
+// and 3 taught the kernel, and it lives here unchanged.
+//
+// The controller speaks through two ports:
 //
 //   0x64  status: its lowest bit is set while a byte waits.
 //   0x60  data:   the byte itself — a scancode, set 1.
@@ -229,13 +260,15 @@ func backspace() {
 // its makes set the flag, its breaks clear it. Caps Lock is a toggle:
 // each press flips it, and it joins with Shift the way typewriters
 // taught us — a letter is capital when exactly one of them is active.
-// Milestone 3 completes the typewriter: every punctuation key of the
+// Milestone 3 completed the typewriter: every punctuation key of the
 // main block, plain and shifted, joins the letters, digits, and space
 // that milestone 2 took.
 // ---------------------------------------------------------------------------
 
-/// The keyboard controller's two doors.
-let keyboardStatusPort: UInt16 = 0x64
+/// The keyboard controller's data door — the port the IRQ1 handler
+/// takes each scancode from. (The status port, 0x64, belonged to the
+/// polling years; nothing reads it now but the floor's one drain
+/// before the interrupt gate opens.)
 let keyboardDataPort: UInt16 = 0x60
 
 /// Is either Shift key currently held?
@@ -324,6 +357,109 @@ func ascii(forScancode code: UInt8) -> UInt8 {
 }
 
 // ---------------------------------------------------------------------------
+// Interrupts (milestone 4).
+//
+// Until now the kernel asked; now it is told. The floor has built an
+// IDT, moved the PIC pair to vectors 0x20/0x28 where they no longer
+// collide with the exceptions, and set the PIT ticking at 100 Hz.
+// Two interrupts does the kernel take, and a third company it keeps
+// against its will:
+//
+//   IRQ0  the timer: the machine's heartbeat, counted and nothing
+//         more — everything time means is reckoned from the count,
+//         outside the handler.
+//   IRQ1  the keyboard: the handler takes the scancode out of the
+//         controller and lays it in a small ring buffer, and the
+//         shell drains the ring at its leisure through the same
+//         handleScancode the polling years used.
+//   0-31  the exceptions: a stub per vector, all ending here, in a
+//         handler that prints one plain line and halts — a fault is
+//         spoken aloud, never a silent triple fault in the dark.
+//
+// A handler's law in this kernel: touch only static state, do little,
+// and always thank the PIC — an interrupt not acknowledged is the
+// last one the machine will ever deliver.
+// ---------------------------------------------------------------------------
+
+/// The master PIC's command port. IRQ0 and IRQ1 both live on the
+/// master, so both handlers send their thanks here; the word 0x20 is
+/// the EOI command. (That it equals the port's number is a small
+/// coincidence of the old design, nothing more.)
+let picCommandPort: UInt16 = 0x20
+let picEOI: UInt8 = 0x20
+
+/// The heartbeat's count: ticks since boot, one per timer interrupt,
+/// a hundred to the second. Written by the timer handler alone; read
+/// by the uptime command. Everything time means in Cardnull OS today
+/// is this one honest number.
+var ticks: UInt64 = 0
+
+/// IRQ0's whole work: count the tick, thank the PIC. Nothing else
+/// happens in here — scheduling, sleeping, and everything yet
+/// unbuilt will read the count from outside, at their leisure.
+@_cdecl("cardnull_timer_interrupt")
+public func timerInterrupt() {
+    ticks &+= 1
+    cardnullOutb(picCommandPort, picEOI)
+}
+
+/// The keyboard ring's shape: 64 slots, the number agreed with the
+/// floor's storage in support.c. A power of two, so the wrap is a
+/// mask, not a division.
+let keyRingSize = 64
+
+/// The ring's two hands. The keyboard handler fills at the head; the
+/// shell drains at the tail. One slot is always left empty, so head
+/// meeting tail unambiguously means "nothing waiting".
+var keyRingHead = 0
+var keyRingTail = 0
+
+/// IRQ1's whole work: take the scancode out of the controller — the
+/// read itself is what clears the controller to speak again — lay it
+/// in the ring if there is room (if the ring is full, the byte is
+/// let go; fingers are slower than this kernel, and a dropped
+/// keystroke beats a wedged one), and thank the PIC.
+@_cdecl("cardnull_keyboard_interrupt")
+public func keyboardInterrupt() {
+    let code = cardnullInb(keyboardDataPort)
+    let next = (keyRingHead + 1) & (keyRingSize - 1)
+    if next != keyRingTail {
+        cardnullKeyRing()[keyRingHead] = code
+        keyRingHead = next
+    }
+    cardnullOutb(picCommandPort, picEOI)
+}
+
+/// Takes one waiting scancode out of the ring, or nil when the
+/// keyboard has said nothing since the last look.
+func nextScancode() -> UInt8? {
+    if keyRingTail == keyRingHead { return nil }
+    let code = cardnullKeyRing()[keyRingTail]
+    keyRingTail = (keyRingTail + 1) & (keyRingSize - 1)
+    return code
+}
+
+/// The exceptions' one answer. A fault leaves no promise standing —
+/// not the cursor's bookkeeping, not the screen's story — so the
+/// line is written straight into the top row's cells, over whatever
+/// was there, and then the machine rests with its gate closed. No
+/// vector number, no register dump: one plain sentence, honestly.
+let exceptionLine: StaticString = "Exception - halting."
+
+@_cdecl("cardnull_exception_handler")
+public func exceptionHandler(_ vector: UInt64) {
+    cardnullCli()
+    var index = 0
+    while true {
+        let character = exceptionLine.utf8Start[index]
+        if character == 0 { break }
+        vgaWrite(cell: index, character: character, attribute: textAttribute)
+        index += 1
+    }
+    cardnullHalt()
+}
+
+// ---------------------------------------------------------------------------
 // The shell.
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
@@ -337,6 +473,8 @@ func ascii(forScancode code: UInt8) -> UInt8 {
 //   about   what this operating system is
 //   verse   a verse of Scripture (John 1:1, Douay-Rheims)
 //   clear   a clean screen and a fresh prompt
+//   uptime  how long the kernel has been awake (milestone 4: the
+//           answer is read off the timer interrupt's tick count)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -349,6 +487,7 @@ let helpCommand: StaticString = "help"
 let aboutCommand: StaticString = "about"
 let verseCommand: StaticString = "verse"
 let clearCommand: StaticString = "clear"
+let uptimeCommand: StaticString = "uptime"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -356,6 +495,7 @@ let helpHelpLine: StaticString = "  help    show this list"
 let helpAboutLine: StaticString = "  about   what Cardnull OS is"
 let helpVerseLine: StaticString = "  verse   a verse of Scripture"
 let helpClearLine: StaticString = "  clear   clear the screen"
+let helpUptimeLine: StaticString = "  uptime  how long the kernel has been awake"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -378,6 +518,55 @@ let verseAttribution: StaticString = "- John 1:1 (Douay-Rheims)"
 /// The answer to everything else.
 let unknownLine: StaticString =
     "Unknown command. Type 'help' and press Enter."
+
+/// uptime's vocabulary. The units are whole words with their plural
+/// kept beside them, because "1 seconds" is not how this house talks.
+let awakeWord: StaticString = "Awake"
+let hourWord: StaticString = " hour"
+let hoursWord: StaticString = " hours"
+let minuteWord: StaticString = " minute"
+let minutesWord: StaticString = " minutes"
+let secondWord: StaticString = " second"
+let secondsWord: StaticString = " seconds"
+
+/// Writes a number in decimal, through the one output door. The
+/// digits are reckoned by recursion — divide away the higher places,
+/// then speak the lowest — so no scratch storage is needed, only the
+/// stack, and never more than twenty calls deep.
+func writeNumber(_ value: UInt64) {
+    if value >= 10 {
+        writeNumber(value / 10)
+    }
+    writeChar(0x30 + UInt8(value % 10))
+}
+
+/// uptime's answer: the tick count, read once and rendered as the
+/// time it is — "Awake 3 minutes 12 seconds", with the singular
+/// where the count is one and the hours named when there are any.
+/// A hundred ticks to the second is the heartbeat's rate, set by
+/// the floor's divisor when the PIT was programmed.
+func printUptime() {
+    let totalSeconds = ticks / 100
+    let hours = totalSeconds / 3600
+    let minutes = (totalSeconds % 3600) / 60
+    let seconds = totalSeconds % 60
+
+    writeStatic(awakeWord)
+    if hours > 0 {
+        writeChar(0x20)
+        writeNumber(hours)
+        writeStatic(hours == 1 ? hourWord : hoursWord)
+    }
+    if hours > 0 || minutes > 0 {
+        writeChar(0x20)
+        writeNumber(minutes)
+        writeStatic(minutes == 1 ? minuteWord : minutesWord)
+    }
+    writeChar(0x20)
+    writeNumber(seconds)
+    writeStatic(seconds == 1 ? secondWord : secondsWord)
+    writeNewline()
+}
 
 /// True when the typed line is nothing but spaces — the typist
 /// pressed Enter on an empty line, which earns only a fresh prompt.
@@ -439,6 +628,7 @@ func submitLine() {
     let isHelp = commandMatches(helpCommand)
     let isAbout = commandMatches(aboutCommand)
     let isVerse = commandMatches(verseCommand)
+    let isUptime = commandMatches(uptimeCommand)
 
     writeNewline()
     if !blank {
@@ -448,6 +638,7 @@ func submitLine() {
             writeLine(helpAboutLine)
             writeLine(helpVerseLine)
             writeLine(helpClearLine)
+            writeLine(helpUptimeLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -456,6 +647,8 @@ func submitLine() {
         } else if isVerse {
             writeLine(verseLine)
             writeLine(verseAttribution)
+        } else if isUptime {
+            printUptime()
         } else {
             writeLine(unknownLine)
         }
@@ -503,10 +696,13 @@ func handleScancode(_ code: UInt8) {
 /// an operating system that finishes has stopped being one.
 ///
 /// Milestone 1 put CARDNULL on the screen; milestone 2 left it there
-/// and listened; milestone 3 makes the screen a scrolling terminal and
-/// the prompt a shell that answers. The banner stands, a prompt opens
-/// beneath it, and the kernel spends its life asking the keyboard what
-/// was typed — echoing the typing, and answering the finished lines.
+/// and listened; milestone 3 made the screen a scrolling terminal and
+/// the prompt a shell that answers. Milestone 4 changes how the
+/// kernel waits: the interrupt machinery is raised after the first
+/// prompt, and from then on the kernel *rests* — sleeping in `hlt`
+/// until the timer's heartbeat or a keypress wakes it, draining the
+/// keyboard ring through the same hands the polling years used. The
+/// commands do not change; the waiting does.
 @_cdecl("kmain")
 public func kmain() {
     // Wipe the screen the bootloader left behind: 80 x 25 blank cells,
@@ -531,13 +727,23 @@ public func kmain() {
     startLine()
     moveHardwareCursor()
 
-    // The kernel's whole work, from here on: poll the keyboard. While
-    // the status port says a byte waits, read it and answer it on the
-    // screen. There are no interrupts to wake us, so we ask, and ask,
-    // and ask — simple, honest, and fast enough for fingers.
+    // Raise the interrupts: IDT, PICs, the 100 Hz heartbeat, and an
+    // open gate. From here the machine can speak first — a keypress
+    // no longer waits to be asked after, and the tick counts whether
+    // anyone is watching or not.
+    cardnullSetupInterrupts()
+
+    // The kernel's whole work, from here on: drain whatever the
+    // keyboard handler has laid in the ring — echoing the typing and
+    // answering the finished lines, exactly as the polling loop did —
+    // and when the ring is empty, sleep until the next interrupt. A
+    // keystroke that lands in the breath between the last look and
+    // the sleep waits at most for the next heartbeat, a hundredth of
+    // a second away, which no finger will ever notice.
     while true {
-        if cardnullInb(keyboardStatusPort) & 0x01 != 0 {
-            handleScancode(cardnullInb(keyboardDataPort))
+        while let code = nextScancode() {
+            handleScancode(code)
         }
+        cardnullHltOnce()
     }
 }

@@ -9,6 +9,9 @@
 #      paging, a 64-bit GDT, and a far jump.
 #   3. Set up a stack and call the Swift kernel's kmain.
 #   4. Provide cardnull_halt, the hlt-loop the kernel rests in.
+#   5. Carry the interrupt stubs (milestone 4): one door per exception
+#      vector, one per hardware IRQ the kernel takes, and the table of
+#      their addresses the IDT is built from.
 #
 # Everything above this floor is Swift. Written by hand, in the open,
 # in the public domain.
@@ -133,6 +136,183 @@ long_mode_start:
 cardnull_halt:
     hlt
     jmp     cardnull_halt
+
+# ---------------------------------------------------------------------------
+# Interrupt stubs (milestone 4).
+#
+# The processor speaks to the kernel through gates in the IDT, and
+# every gate lands on one of these stubs — the floor's half of every
+# interrupt. What a stub may do is narrow: exceptions go to a Swift
+# handler that speaks once and halts; the two hardware IRQs we take
+# (timer, keyboard) save every register, call their Swift handler, and
+# return through iretq as if nothing had happened. The IDT itself is
+# built in support.c from cardnull_stub_table, below.
+#
+# Exception stubs: some vectors arrive with a CPU-pushed error code,
+# some do not. The ones that do not get a dummy 0 pushed here, so
+# every frame has the same shape: [ error code ][ vector ] <- rsp.
+# ---------------------------------------------------------------------------
+
+# Save / restore every general-purpose register around an IRQ handler.
+.macro PUSH_ALL
+    push    %rax
+    push    %rbx
+    push    %rcx
+    push    %rdx
+    push    %rsi
+    push    %rdi
+    push    %rbp
+    push    %r8
+    push    %r9
+    push    %r10
+    push    %r11
+    push    %r12
+    push    %r13
+    push    %r14
+    push    %r15
+.endm
+
+.macro POP_ALL
+    pop     %r15
+    pop     %r14
+    pop     %r13
+    pop     %r12
+    pop     %r11
+    pop     %r10
+    pop     %r9
+    pop     %r8
+    pop     %rbp
+    pop     %rdi
+    pop     %rsi
+    pop     %rdx
+    pop     %rcx
+    pop     %rbx
+    pop     %rax
+.endm
+
+# IRQ0 — the timer. Fires 100 times a second; the Swift handler counts
+# the tick and thanks the PIC. The one pad: the interrupt frame (40
+# bytes) plus fifteen pushes leave rsp eight bytes off the ABI's call
+# alignment on the idle path, so one slot is padded before the call.
+    .globl  cardnull_irq0_stub
+cardnull_irq0_stub:
+    PUSH_ALL
+    cld
+    sub     $8, %rsp
+    call    cardnull_timer_interrupt
+    add     $8, %rsp
+    POP_ALL
+    iretq
+
+# IRQ1 — the keyboard. The Swift handler takes the scancode out of
+# the controller and into the kernel's ring buffer; the shell reads
+# it later, at its leisure.
+    .globl  cardnull_irq1_stub
+cardnull_irq1_stub:
+    PUSH_ALL
+    cld
+    sub     $8, %rsp
+    call    cardnull_keyboard_interrupt
+    add     $8, %rsp
+    POP_ALL
+    iretq
+
+# The exceptions share one door: the vector number is the Swift
+# handler's argument, and the handler never returns — it prints one
+# plain sentence and halts. A clean, aligned stack is all it needs.
+exception_common:
+    mov     (%rsp), %rdi                        # the vector number
+    and     $-16, %rsp                          # a fresh, aligned stack
+    call    cardnull_exception_handler
+    jmp     cardnull_halt                       # unreachable, by contract
+
+# One stub per exception vector. The second argument says whether the
+# processor itself pushes an error code for this vector (the Intel
+# list: 8, 10, 11, 12, 13, 14, 17, 21, 30); the others get the dummy.
+.macro EXCEPTION_STUB num, has_error
+    .globl  cardnull_isr\num
+cardnull_isr\num:
+    .if \has_error == 0
+    push    $0                                  # dummy error code
+    .endif
+    push    $\num                               # the vector number
+    jmp     exception_common
+.endm
+
+    EXCEPTION_STUB 0, 0
+    EXCEPTION_STUB 1, 0
+    EXCEPTION_STUB 2, 0
+    EXCEPTION_STUB 3, 0
+    EXCEPTION_STUB 4, 0
+    EXCEPTION_STUB 5, 0
+    EXCEPTION_STUB 6, 0
+    EXCEPTION_STUB 7, 0
+    EXCEPTION_STUB 8, 1
+    EXCEPTION_STUB 9, 0
+    EXCEPTION_STUB 10, 1
+    EXCEPTION_STUB 11, 1
+    EXCEPTION_STUB 12, 1
+    EXCEPTION_STUB 13, 1
+    EXCEPTION_STUB 14, 1
+    EXCEPTION_STUB 15, 0
+    EXCEPTION_STUB 16, 0
+    EXCEPTION_STUB 17, 1
+    EXCEPTION_STUB 18, 0
+    EXCEPTION_STUB 19, 0
+    EXCEPTION_STUB 20, 0
+    EXCEPTION_STUB 21, 1
+    EXCEPTION_STUB 22, 0
+    EXCEPTION_STUB 23, 0
+    EXCEPTION_STUB 24, 0
+    EXCEPTION_STUB 25, 0
+    EXCEPTION_STUB 26, 0
+    EXCEPTION_STUB 27, 0
+    EXCEPTION_STUB 28, 0
+    EXCEPTION_STUB 29, 0
+    EXCEPTION_STUB 30, 1
+    EXCEPTION_STUB 31, 0
+
+# The stub address table: support.c builds the IDT from these.
+# Entries 0..31 are the exception vectors in order; entry 32 is IRQ0
+# (IDT vector 0x20) and entry 33 is IRQ1 (IDT vector 0x21).
+    .section .rodata
+    .align 8
+    .globl  cardnull_stub_table
+cardnull_stub_table:
+    .quad   cardnull_isr0
+    .quad   cardnull_isr1
+    .quad   cardnull_isr2
+    .quad   cardnull_isr3
+    .quad   cardnull_isr4
+    .quad   cardnull_isr5
+    .quad   cardnull_isr6
+    .quad   cardnull_isr7
+    .quad   cardnull_isr8
+    .quad   cardnull_isr9
+    .quad   cardnull_isr10
+    .quad   cardnull_isr11
+    .quad   cardnull_isr12
+    .quad   cardnull_isr13
+    .quad   cardnull_isr14
+    .quad   cardnull_isr15
+    .quad   cardnull_isr16
+    .quad   cardnull_isr17
+    .quad   cardnull_isr18
+    .quad   cardnull_isr19
+    .quad   cardnull_isr20
+    .quad   cardnull_isr21
+    .quad   cardnull_isr22
+    .quad   cardnull_isr23
+    .quad   cardnull_isr24
+    .quad   cardnull_isr25
+    .quad   cardnull_isr26
+    .quad   cardnull_isr27
+    .quad   cardnull_isr28
+    .quad   cardnull_isr29
+    .quad   cardnull_isr30
+    .quad   cardnull_isr31
+    .quad   cardnull_irq0_stub
+    .quad   cardnull_irq1_stub
 
 # ---------------------------------------------------------------------------
 # The 64-bit GDT. Long mode mostly ignores segmentation, but the processor

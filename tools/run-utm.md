@@ -42,17 +42,22 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Four commands, for now:
+Press Enter and the prompt answers. Five commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
 - `verse` — John 1:1, in the Douay-Rheims wording
 - `clear` — a clean screen and a fresh prompt
+- `uptime` — how long the kernel has been awake
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
-the ends forgiven. Anything else is answered plainly as unknown. (The
-UTM settings, settled milestone 2: UEFI boot off, Force PS/2
-Controller on, USB input disabled — the kernel polls the PS/2
-keyboard; there are no interrupts yet.)
+the ends forgiven. Anything else is answered plainly as unknown.
+Try `uptime` twice, a little while apart: the second reading is
+larger by the wait — the kernel counts a 100 Hz heartbeat by
+interrupt now, and rests in between instead of polling. (The UTM
+settings, settled milestone 2: UEFI boot off, Force PS/2 Controller
+on, USB input disabled — the keyboard is still a PS/2 device; what
+changed in milestone 4 is that it speaks by IRQ1, not by being
+asked.)
 
 Shut the VM down whenever you like; nothing persists, nothing can break.
