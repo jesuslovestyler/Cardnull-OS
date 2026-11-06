@@ -54,6 +54,8 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-The foundation stone only: repository, license, design notes, and the kernel
-skeleton. The first milestone is boot — a Swift kernel that starts and puts
-**CARDNULL** on the screen.
+Milestone 1 stands: the boot floor (Multiboot2 header, long-mode entry,
+linker script) and the Swift kernel are written, and the hand-rolled build
+in `tools/` produces a bootable ISO whose Swift kernel starts and puts
+**CARDNULL** on the screen — verified in QEMU on November 6, 2026. Next:
+try it in UTM, then milestone 2 — keyboard input and a simple shell.

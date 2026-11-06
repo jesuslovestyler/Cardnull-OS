@@ -4,3 +4,6 @@ build/
 *.iso
 *.elf
 .DS_Store
+
+# Local build output: the ISO is built here, never committed.
+dist/
