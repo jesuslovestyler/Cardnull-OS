@@ -37,11 +37,22 @@ CARDNULL
 That is the Swift kernel running: the boot floor woke the processor,
 walked it into 64-bit long mode, and handed control to `kmain`, which
 cleared the screen, wrote the banner into the VGA text buffer, and
-opened a prompt. Click into the machine's window and type — letters,
-digits, and space echo at the prompt, Shift makes capitals, Enter
-opens a fresh line, and Backspace takes back what you typed (never the
-prompt). The kernel polls the keyboard; there are no commands yet —
-the prompt echoes, it does not answer. That answering is the shell,
-and it is still ahead.
+opened a prompt. Click into the machine's window and type — the whole
+keyboard answers: letters, digits, punctuation, Shift and Caps Lock
+for capitals, Backspace to take back what you typed (never the
+prompt). Fill the screen and it scrolls, like any terminal.
+
+Press Enter and the prompt answers. Four commands, for now:
+
+- `help` — the list of commands
+- `about` — what Cardnull OS is
+- `verse` — John 1:1, in the Douay-Rheims wording
+- `clear` — a clean screen and a fresh prompt
+
+Commands are matched kindly: capitals or lowercase, stray spaces at
+the ends forgiven. Anything else is answered plainly as unknown. (The
+UTM settings, settled milestone 2: UEFI boot off, Force PS/2
+Controller on, USB input disabled — the kernel polls the PS/2
+keyboard; there are no interrupts yet.)
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

@@ -35,7 +35,8 @@ kernel, written line by line, so that what we give away is truly ours to give.
 1. **Boot** — a Swift kernel that starts on x86-64 (tested in UTM/QEMU on a Mac)
    and writes to the screen.
 2. **Speak** — keyboard in, text out; a simple shell.
-   *(Keyboard input landed with milestone 2; the shell is still ahead.)*
+   *(Done with milestone 3 — the shell answers help, about, verse,
+   and clear.)*
 3. **Remember** — memory management and a filesystem.
 4. **Work** — run programs; one thing at a time, then many.
 5. **Dress** — a simple graphical face.
@@ -55,19 +56,22 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 2 stands (November 6, 2026): the kernel now listens to the
-keyboard. Milestone 1's boot floor and CARDNULL banner are unchanged;
-above them, the Swift kernel polls the PS/2 keyboard controller (status
-port 0x64, data port 0x60 — polling, no interrupts yet), translates
-scancode set 1 into letters, digits, and space, and echoes what is
-typed at a `> ` prompt under the banner — Shift gives capitals and the
-shifted digits, Enter opens a fresh line, and Backspace takes back a
-typed character but never the prompt. Verified in QEMU, with words
-typed through the emulator's keyboard appearing on the kernel's screen;
-the same ISO that does this is the one tested in UTM.
+Milestone 3 stands (November 6, 2026): the prompt now answers. The
+kernel reads the finished line straight off the screen, trims it, folds
+capitals down, and answers four commands — `help` lists them, `about`
+says what Cardnull OS is, `verse` prints John 1:1 (Douay-Rheims), and
+`clear` wipes the screen to a fresh prompt; anything else is answered
+plainly as unknown, and an empty line earns only a fresh prompt. The
+keyboard is finished, too: the whole main block of a US keyboard —
+letters, digits, space, and every punctuation key in its plain and
+shifted face — with Caps Lock latching the letters as it should. And
+the screen is a true terminal now: output past the last row scrolls
+the page upward instead of waiting for room. The keyboard is still
+polled (status port 0x64, data port 0x60) — interrupts remain a later
+milestone, taken on purpose, one thing at a time. Verified in QEMU,
+with commands typed through the emulator's keyboard answered on the
+kernel's screen; the same ISO is the one tested in UTM.
 
-Not yet, honestly: interrupts and an IDT, Caps Lock and the rest of
-the punctuation, screen scrolling (when the page fills, typing waits
-until Backspace makes room), a shell that answers commands, memory
-management, and a filesystem. Those are milestones 3 and onward, taken
-one at a time.
+Not yet, honestly: interrupts and an IDT, memory management, a
+filesystem, UEFI boot, and USB input. Those are milestones 4 and
+onward, taken one at a time.
