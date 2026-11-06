@@ -13,6 +13,10 @@
  *     lets go of nothing. Kernel code at this milestone allocates
  *     nothing; if a future call ever reached these, it would fail
  *     loudly rather than pretend.
+ *   - Port I/O: Swift cannot emit the processor's `in`/`out`
+ *     instructions, so the floor lends cardnull_inb / cardnull_outb.
+ *     Milestone 2's keyboard hangs off them: the PS/2 controller is
+ *     spoken to through ports 0x64 (status) and 0x60 (data).
  *
  * Written by hand, in the open, in the public domain.
  */
@@ -40,4 +44,15 @@ int posix_memalign(void **memptr, size_t alignment, size_t size) {
 /* Pairs with the allocator above: nothing was ever handed out. */
 void free(void *ptr) {
     (void)ptr;
+}
+
+/* Port I/O hands: read and write one byte at a processor I/O port. */
+unsigned char cardnull_inb(unsigned short port) {
+    unsigned char value;
+    __asm__ volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
+    return value;
+}
+
+void cardnull_outb(unsigned short port, unsigned char value) {
+    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
 }

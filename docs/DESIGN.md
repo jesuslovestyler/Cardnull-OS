@@ -32,7 +32,11 @@ it bends.*
 ## Milestones
 
 1. Boot to a screen that says CARDNULL. *(The "hello, world" of an OS.)*
+   *(Done — November 6, 2026.)*
 2. Keyboard input and a simple shell.
+   *(Keyboard input done — November 6, 2026: the kernel polls the PS/2
+   controller and echoes typing at a prompt. The shell that answers
+   commands is still ahead, as are interrupts, when polling is outgrown.)*
 3. Memory management; a filesystem that remembers.
 4. Running programs.
 5. A simple graphical interface.

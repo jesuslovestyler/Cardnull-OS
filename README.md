@@ -35,6 +35,7 @@ kernel, written line by line, so that what we give away is truly ours to give.
 1. **Boot** — a Swift kernel that starts on x86-64 (tested in UTM/QEMU on a Mac)
    and writes to the screen.
 2. **Speak** — keyboard in, text out; a simple shell.
+   *(Keyboard input landed with milestone 2; the shell is still ahead.)*
 3. **Remember** — memory management and a filesystem.
 4. **Work** — run programs; one thing at a time, then many.
 5. **Dress** — a simple graphical face.
@@ -54,8 +55,19 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 1 stands: the boot floor (Multiboot2 header, long-mode entry,
-linker script) and the Swift kernel are written, and the hand-rolled build
-in `tools/` produces a bootable ISO whose Swift kernel starts and puts
-**CARDNULL** on the screen — verified in QEMU on November 6, 2026. Next:
-try it in UTM, then milestone 2 — keyboard input and a simple shell.
+Milestone 2 stands (November 6, 2026): the kernel now listens to the
+keyboard. Milestone 1's boot floor and CARDNULL banner are unchanged;
+above them, the Swift kernel polls the PS/2 keyboard controller (status
+port 0x64, data port 0x60 — polling, no interrupts yet), translates
+scancode set 1 into letters, digits, and space, and echoes what is
+typed at a `> ` prompt under the banner — Shift gives capitals and the
+shifted digits, Enter opens a fresh line, and Backspace takes back a
+typed character but never the prompt. Verified in QEMU, with words
+typed through the emulator's keyboard appearing on the kernel's screen;
+the same ISO that does this is the one tested in UTM.
+
+Not yet, honestly: interrupts and an IDT, Caps Lock and the rest of
+the punctuation, screen scrolling (when the page fills, typing waits
+until Backspace makes room), a shell that answers commands, memory
+management, and a filesystem. Those are milestones 3 and onward, taken
+one at a time.

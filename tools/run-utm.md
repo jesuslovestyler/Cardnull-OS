@@ -30,12 +30,18 @@ one word at the top left:
 
 ```
 CARDNULL
+
+> 
 ```
 
 That is the Swift kernel running: the boot floor woke the processor,
 walked it into 64-bit long mode, and handed control to `kmain`, which
-cleared the screen and wrote the banner into the VGA text buffer. The
-machine then rests in a halt loop. There is nothing to type yet —
-keyboard input is milestone 2.
+cleared the screen, wrote the banner into the VGA text buffer, and
+opened a prompt. Click into the machine's window and type — letters,
+digits, and space echo at the prompt, Shift makes capitals, Enter
+opens a fresh line, and Backspace takes back what you typed (never the
+prompt). The kernel polls the keyboard; there are no commands yet —
+the prompt echoes, it does not answer. That answering is the shell,
+and it is still ahead.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.
