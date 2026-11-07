@@ -12,6 +12,11 @@
 #   5. Carry the interrupt stubs (milestone 4): one door per exception
 #      vector, one per hardware IRQ the kernel takes, and the table of
 #      their addresses the IDT is built from.
+#   6. Keep the bootloader's word (milestone 5): the Multiboot2 header
+#      asks for a linear framebuffer — the UEFI door has no text grid
+#      to write in, only pixels — and the entry stub preserves EBX,
+#      the Multiboot2 information pointer, and hands it to `kmain`,
+#      so the kernel can read where the screen actually lives.
 #
 # Everything above this floor is Swift. Written by hand, in the open,
 # in the public domain.
@@ -31,7 +36,27 @@ header_start:
     .long   0                                   # architecture: i386 (32-bit entry)
     .long   header_end - header_start           # header length
     .long   -(0xe85250d6 + (header_end - header_start))  # checksum: magic + arch + length + checksum == 0
+    # Framebuffer tag (type 5, milestone 5): ask for a linear
+    # framebuffer. Under UEFI the firmware's graphics protocol is
+    # the only screen there is; under BIOS, GRUB answers with a VBE
+    # mode. The mode is deliberately unpreferred — width, height,
+    # and depth all zero — because a bootloader that must match an
+    # exact mode can fail to find one (UEFI GRUB, asked for
+    # 1024x768x32 by name, answered "no suitable video mode found"
+    # on a machine whose graphics offered other modes only). Any
+    # direct-color mode it can set is welcome; the kernel reads the
+    # mode it actually got from the framebuffer tag of the
+    # information structure — the tag, not the request, is believed.
+    # Flags 0: a framebuffer itself is not optional.
+    .align 8
+    .word   5                                   # type: framebuffer
+    .word   0                                   # flags: none (required)
+    .long   20                                  # size of this tag
+    .long   0                                   # width: no preference
+    .long   0                                   # height: no preference
+    .long   0                                   # depth: no preference
     # End tag: type 0, no flags, size 8.
+    .align 8
     .word   0
     .word   0
     .long   8
@@ -40,20 +65,29 @@ header_end:
 # ---------------------------------------------------------------------------
 # Entry point. GRUB lands here in 32-bit protected mode:
 #   EAX = Multiboot2 magic, EBX = address of the Multiboot2 info structure.
-# We do not read either yet — milestone 1 needs nothing from them — but
-# they are preserved by the ABI if a later milestone wants them.
+# EAX's magic we have never needed; EBX is kept from this milestone
+# on — the information structure carries the framebuffer tag that
+# says where the screen lives, and the kernel reads it.
 # ---------------------------------------------------------------------------
     .section .text
     .code32
     .globl  _start
 _start:
+    # Keep the bootloader's word before anything can clobber EBX:
+    # one absolute store into a .bss slot, read back in long mode
+    # and handed to kmain as its argument.
+    mov     %ebx, cardnull_multiboot_info
+
     # Our own stack, before anything else.
     mov     $stack_top, %esp
 
-    # --- Build the page tables (identity map of the first 1 GiB) --------
-    # PML4[0] -> PDPT, PDPT[0] -> PD, and the PD holds 512 entries of
-    # 2 MiB each. The kernel lives at 0x100000 and the VGA text buffer at
-    # 0xB8000; both sit inside that first gigabyte.
+    # --- Build the page tables (identity map of the first 4 GiB) ------
+    # PML4[0] -> PDPT, PDPT[0..3] -> four PDs, and each PD holds 512
+    # entries of 2 MiB: 4 GiB of the world, mapped as itself. The
+    # kernel lives at 0x100000 and the VGA text buffer at 0xB8000,
+    # both in the first gigabyte; the framebuffer GRUB parks in PCI
+    # space — near 0x80000000 on the machines we run on — sits in the
+    # second, and the wider map keeps both doors' screens reachable.
     mov     $page_table_pd, %edi
     xor     %ecx, %ecx                          # entry index / running address
 1:
@@ -63,12 +97,21 @@ _start:
     mov     %eax, (%edi, %ecx, 8)
     movl    $0, 4(%edi, %ecx, 8)                # high dword: no flags above 4 GiB
     inc     %ecx
-    cmp     $512, %ecx
+    cmp     $2048, %ecx
     jne     1b
 
     mov     $page_table_pd, %eax
     or      $0x3, %eax                          # present | writable
-    mov     %eax, page_table_pdpt               # PDPT[0] -> PD
+    mov     %eax, page_table_pdpt               # PDPT[0] -> PD #0 (0 .. 1 GiB)
+    mov     $page_table_pd + 4096, %eax
+    or      $0x3, %eax
+    mov     %eax, page_table_pdpt + 8           # PDPT[1] -> PD #1 (1 .. 2 GiB)
+    mov     $page_table_pd + 8192, %eax
+    or      $0x3, %eax
+    mov     %eax, page_table_pdpt + 16          # PDPT[2] -> PD #2 (2 .. 3 GiB)
+    mov     $page_table_pd + 12288, %eax
+    or      $0x3, %eax
+    mov     %eax, page_table_pdpt + 24          # PDPT[3] -> PD #3 (3 .. 4 GiB)
     mov     $page_table_pdpt, %eax
     or      $0x3, %eax
     mov     %eax, page_table_pml4               # PML4[0] -> PDPT
@@ -123,7 +166,12 @@ long_mode_start:
     or      $0x600, %rax                        # CR4.OSFXSR | CR4.OSXMMEXCPT
     mov     %rax, %cr4
 
-    # Hand over to Swift. kmain never returns; if it somehow did, rest.
+    # Hand over to Swift. The Multiboot2 information address rides
+    # in RDI, the ABI's first argument: where the bootloader left
+    # its word about the machine — above all, the framebuffer tag.
+    # kmain never returns; if it somehow did, rest.
+    mov     $cardnull_multiboot_info, %rax
+    mov     (%rax), %edi
     call    kmain
     jmp     cardnull_halt
 
@@ -333,13 +381,18 @@ gdt64_pointer:
 # The tables must be 4 KiB-aligned; the linker keeps .bss page-aligned.
 # ---------------------------------------------------------------------------
     .section .bss
+    .align 4
+    .globl  cardnull_multiboot_info
+cardnull_multiboot_info:
+    .skip   4                                   # the Multiboot2 info address (EBX, kept)
+
     .align 4096
 page_table_pml4:
     .skip   4096
 page_table_pdpt:
     .skip   4096
 page_table_pd:
-    .skip   4096
+    .skip   16384                               # four PDs, back to back (4 GiB of map)
 
     .align 16
 stack_bottom:

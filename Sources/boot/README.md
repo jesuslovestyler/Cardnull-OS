@@ -9,10 +9,18 @@ every line says why it exists.
 ## What is here
 
 - **`boot.S`** — the floor itself, in assembly:
-  - a **Multiboot2 header**, so GRUB can load the kernel;
-  - the entry stub (`_start`): GRUB hands over a 32-bit processor, so
-    the stub builds identity-mapped page tables (first 1 GiB, 2 MiB
-    pages), enables PAE and the long-mode bit, turns paging on, loads a
+  - a **Multiboot2 header**, so GRUB can load the kernel — carrying,
+    since milestone 5, a framebuffer tag that asks the bootloader
+    for a linear framebuffer (no particular mode: a bootloader that
+    must match an exact mode can fail to find one, as UEFI GRUB
+    did when asked for 1024x768 by name);
+  - the entry stub (`_start`): GRUB hands over a 32-bit processor
+    and the address of its information structure in EBX — preserved
+    now in `cardnull_multiboot_info` and passed on to `kmain`, so
+    the kernel can read the framebuffer tag — so the stub builds
+    identity-mapped page tables (first 4 GiB, 2 MiB pages; wide
+    enough for a firmware framebuffer wherever it honestly sits),
+    enables PAE and the long-mode bit, turns paging on, loads a
     64-bit GDT, and far-jumps into long mode;
   - data-segment setup, a clean stack, and **SSE enablement** — Swift's
     compiler emits SSE instructions for ordinary work, and the first
@@ -39,7 +47,20 @@ every line says why it exists.
   100 Hz heartbeat, drains the keyboard controller, and opens the
   gate with `sti`; plus the `hlt`-once and `cli` hands the shell's
   sleep and the exception handler rest on, and 64 bytes of raw
-  storage the kernel uses as its scancode ring buffer.
+  storage the kernel uses as its scancode ring buffer. Milestone 5
+  added two lendings of storage: 2,000 bytes the kernel keeps its
+  own 80x25 character grid in (`cardnull_text_grid`) — the grid is
+  the screen's truth now, painted through whichever backend the
+  boot provided — and the plain `memset` / `memcpy` / `memmove`
+  every C floor owes, which Swift's grip on that grid reaches for
+  by name.
+- **`font8x8.c`** — the letters for the framebuffer screen: the
+  public-domain 8x8 bitmap font from Daniel Hepper's font8x8
+  project (built on the public-domain IBM VGA font heritage),
+  fetched from GitHub and held here as a table of 128 glyphs, with
+  its provenance written in the file's own header. The kernel
+  draws with it wherever the boot provided pixels instead of a
+  text grid — behind UEFI, always.
 - **`linker.ld`** — lays the kernel at 1 MiB (0x100000) with the
   Multiboot2 header first in the image, each section on its own page.
 

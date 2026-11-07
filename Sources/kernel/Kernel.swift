@@ -57,6 +57,24 @@ func cardnullCli()
 @_silgen_name("cardnull_key_ring")
 func cardnullKeyRing() -> UnsafeMutablePointer<UInt8>
 
+/// Provided by the boot floor (support.c): the raw storage of the
+/// screen's character grid — 80 x 25 bytes the floor lends, for the
+/// same reason as the key ring. Milestones 1-4 kept the characters
+/// in the VGA text buffer itself and read typed lines back out of
+/// the hardware; the framebuffer screen of milestone 5 holds pixels,
+/// not letters, so the kernel keeps the grid itself now, and every
+/// screen behind the one door reads and paints from it.
+@_silgen_name("cardnull_text_grid")
+func cardnullTextGrid() -> UnsafeMutablePointer<UInt8>
+
+/// Provided by the boot floor (font8x8.c): the 8x8 bitmap font the
+/// framebuffer backend draws letters from — 128 glyphs of 8 bytes,
+/// one byte per row, bit 0 the leftmost pixel. Daniel Hepper's
+/// font8x8_basic, drawn from the public-domain IBM VGA fonts and
+/// public domain itself, as everything here is.
+@_silgen_name("cardnull_font8x8")
+func cardnullFont8x8() -> UnsafePointer<UInt8>
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -68,14 +86,29 @@ public let cardnullBanner: StaticString = "CARDNULL"
 // ---------------------------------------------------------------------------
 // The screen.
 //
-// The PC text screen is a memory-mapped grid at physical address
-// 0xB8000: 80 columns x 25 rows, two bytes per cell — the character,
-// then its attribute (color). Milestone 1 wrote the banner and rested;
-// milestone 2 kept a small conversation with the grid. Milestone 3
-// makes it a true terminal: one door for all output (typed echo and
-// the shell's answers walk through the same writeChar), and when the
-// last row fills, the whole page lifts — scrolling, the way every
-// terminal since the teletype has made room for the next line.
+// Two doors, one room (milestone 5). Behind the BIOS door the screen
+// is the PC text grid: a memory-mapped array at physical address
+// 0xB8000, 80 columns x 25 rows, two bytes per cell — the character,
+// then its attribute (color). Behind the UEFI door there is no text
+// grid at all: the firmware's graphics protocol hands over a linear
+// framebuffer, a field of pixels, and letters must be drawn into it
+// glyph by glyph from the floor's bitmap font.
+//
+// The kernel therefore keeps the characters itself now, in a grid
+// the floor lends, and paints that grid through whichever screen is
+// live. The choice is made once, at boot, from the Multiboot2
+// information the floor preserved: a usable direct-color framebuffer
+// tag means the framebuffer is the screen; otherwise the VGA text
+// grid is. Everything above this layer — the echo, the scrolling,
+// the shell reading its typed lines back — reads the kernel's grid
+// and neither knows nor cares which door the machine came through.
+//
+// Milestone 1 wrote the banner and rested; milestone 2 kept a small
+// conversation with the grid. Milestone 3 made it a true terminal:
+// one door for all output (typed echo and the shell's answers walk
+// through the same writeChar), and when the last row fills, the
+// whole page lifts — scrolling, the way every terminal since the
+// teletype has made room for the next line.
 // ---------------------------------------------------------------------------
 
 /// The screen's shape, named once so the code below reads plainly.
@@ -104,38 +137,241 @@ var cursorCol = 0
 var lineStartRow = typingTopRow
 var lineStartCol = 2
 
-/// Writes one character cell into the VGA text buffer, through a raw
-/// pointer; on bare metal, that is not recklessness, it is the
-/// hardware manual.
+// ---------------------------------------------------------------------------
+// Which screen is live, and the framebuffer's shape when it is.
+//
+// The boot floor preserved EBX: the address of the Multiboot2
+// information structure GRUB built. It is a row of tags; the
+// framebuffer tag (type 8) names the pixel field GRUB set up for us
+// — its address, the bytes in one row of it (the pitch, which may
+// pad past the visible width), its width and height in pixels, its
+// depth, and where the red, green, and blue fields sit inside each
+// pixel. The header asked for no particular mode; what GRUB
+// actually set is what the tag says, and the kernel believes the
+// tag, not the request.
+// ---------------------------------------------------------------------------
+
+/// True when the framebuffer is the screen (the UEFI door, or a BIOS
+/// boot where GRUB set a graphics mode); false for the VGA text grid.
+var useFramebuffer = false
+
+/// The framebuffer's facts, read from the tag. The address is a
+/// physical address inside the floor's 4 GiB identity map.
+var framebufferAddress: UInt64 = 0
+var framebufferPitch = 0
+var framebufferWidth = 0
+var framebufferHeight = 0
+var framebufferBpp = 0
+
+/// White, packed in the mode's own channel fields — each channel at
+/// its full brightness, wherever the mode keeps it. Black is 0 in
+/// any packing, so only white needs reckoning.
+var framebufferWhite: UInt32 = 0
+
+/// The glyph magnification: 2 when the pixel field is roomy enough
+/// (a cell becomes 16x16 pixels, near the text grid's own stature),
+/// else 1 (8x8 cells, small but honest).
+var glyphScale = 1
+
+/// Little-endian readers for the boot information's raw bytes.
 @inline(__always)
-func vgaWrite(cell offset: Int, character: UInt8, attribute: UInt8) {
-    let buffer = UnsafeMutablePointer<UInt16>(bitPattern: 0xB8000)!
-    buffer[offset] = UInt16(attribute) << 8 | UInt16(character)
+func bootInfoU32(_ base: UnsafeMutablePointer<UInt8>, _ offset: Int) -> UInt32 {
+    UInt32(base[offset])
+        | UInt32(base[offset + 1]) << 8
+        | UInt32(base[offset + 2]) << 16
+        | UInt32(base[offset + 3]) << 24
 }
 
-/// Reads back the character half of one cell of the text buffer. The
-/// shell reads the typed line straight off the screen this way — what
-/// the typist sees is literally what the kernel obeys, and no separate
-/// line buffer exists to disagree with it.
 @inline(__always)
-func vgaChar(cell offset: Int) -> UInt8 {
-    let buffer = UnsafeMutablePointer<UInt16>(bitPattern: 0xB8000)!
-    return UInt8(truncatingIfNeeded: buffer[offset])
+func bootInfoU64(_ base: UnsafeMutablePointer<UInt8>, _ offset: Int) -> UInt64 {
+    UInt64(bootInfoU32(base, offset)) | UInt64(bootInfoU32(base, offset + 4)) << 32
 }
 
-/// Writes one character at a row and column of the text grid.
+/// Reads one channel's full-brightness contribution to the packed
+/// white pixel: its field filled with ones, shifted to its place.
+@inline(__always)
+func channelWhite(_ position: UInt8, _ size: UInt8) -> UInt32 {
+    if size == 0 { return 0 }
+    if size >= 32 { return UInt32.max }
+    return ((UInt32(1) << UInt32(size)) - 1) << UInt32(position)
+}
+
+/// Walks the Multiboot2 information tags and chooses the screen. A
+/// direct-color (RGB) framebuffer of 24 or 32 bits per pixel, large
+/// enough to hold the 80x25 grid of 8x8 glyphs, becomes the screen;
+/// anything else — no tag, an indexed palette, a postage stamp —
+/// leaves the VGA text grid in charge, exactly as milestones 1-4
+/// found it.
+func chooseScreen(infoAddress: UInt64) {
+    if infoAddress == 0 { return }
+    let base = UnsafeMutablePointer<UInt8>(bitPattern: UInt(infoAddress))!
+    let totalSize = Int(bootInfoU32(base, 0))
+    var offset = 8
+    while offset + 8 <= totalSize {
+        let type = bootInfoU32(base, offset)
+        let size = Int(bootInfoU32(base, offset + 4))
+        if type == 0 || size < 8 { break }
+        if type == 8 && size >= 38 {
+            let address = bootInfoU64(base, offset + 8)
+            let pitch = bootInfoU32(base, offset + 16)
+            let width = bootInfoU32(base, offset + 20)
+            let height = bootInfoU32(base, offset + 24)
+            let bpp = base[offset + 28]
+            let colorType = base[offset + 29]
+            if address != 0 && colorType == 1 && (bpp == 32 || bpp == 24)
+                && width >= UInt32(screenColumns * 8)
+                && height >= UInt32(screenRows * 8) {
+                framebufferAddress = address
+                framebufferPitch = Int(pitch)
+                framebufferWidth = Int(width)
+                framebufferHeight = Int(height)
+                framebufferBpp = Int(bpp)
+                // The channel fields begin after a TWO-byte reserved
+                // field (offsets 30-31) — the spec's quiet trap, and
+                // the one this kernel fell into first: read a byte
+                // early and red is reckoned from the reserved zero,
+                // painting the whole screen cyan. Red at 32, green
+                // at 34, blue at 36, each a position and a size.
+                framebufferWhite =
+                    channelWhite(base[offset + 32], base[offset + 33])
+                    | channelWhite(base[offset + 34], base[offset + 35])
+                    | channelWhite(base[offset + 36], base[offset + 37])
+                useFramebuffer = true
+            }
+        }
+        offset += (size + 7) & ~7
+    }
+    if useFramebuffer {
+        glyphScale = framebufferWidth >= screenColumns * 16
+            && framebufferHeight >= screenRows * 16 ? 2 : 1
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Painting: the grid the kernel keeps, drawn through the live screen.
+// ---------------------------------------------------------------------------
+
+/// Reads back one character of the grid the kernel keeps. The shell
+/// reads the typed line straight off this grid — what the typist
+/// sees is literally what the kernel obeys, and no separate line
+/// buffer exists to disagree with it.
+@inline(__always)
+func screenChar(cell offset: Int) -> UInt8 {
+    cardnullTextGrid()[offset]
+}
+
+/// Writes one pixel of the framebuffer: white or black, at the
+/// mode's own depth. At 24 bits the three channel bytes are simply
+/// all-on or all-off — for pure white and pure black, the order of
+/// the channels cannot matter, so no packing is needed there.
+@inline(__always)
+func putPixel(x: Int, y: Int, white on: Bool) {
+    let rowStart = framebufferAddress + UInt64(y * framebufferPitch)
+    if framebufferBpp == 32 {
+        let pixel = UnsafeMutablePointer<UInt32>(
+            bitPattern: UInt(rowStart + UInt64(x * 4)))!
+        pixel.pointee = on ? framebufferWhite : 0
+    } else {
+        let pixel = UnsafeMutablePointer<UInt8>(
+            bitPattern: UInt(rowStart + UInt64(x * 3)))!
+        let value: UInt8 = on ? 0xFF : 0x00
+        pixel[0] = value
+        pixel[1] = value
+        pixel[2] = value
+    }
+}
+
+/// Draws one grid cell into the framebuffer: the glyph the grid
+/// holds there, white on black, magnified by the glyph scale. The
+/// cursor, when asked for, is an honest underline — the cell's
+/// bottom two glyph rows lit solid, the way terminals have always
+/// marked the place where the next letter lands.
+func paintCellFramebuffer(row: Int, col: Int, underline: Bool) {
+    let glyph = Int(screenChar(cell: row * screenColumns + col) & 0x7F)
+    let font = cardnullFont8x8()
+    let originX = col * 8 * glyphScale
+    let originY = row * 8 * glyphScale
+    for glyphY in 0 ..< 8 {
+        let bits = font[glyph * 8 + glyphY]
+        for glyphX in 0 ..< 8 {
+            var on = bits & (UInt8(1) << UInt8(glyphX)) != 0
+            if underline && glyphY >= 6 { on = true }
+            for stepX in 0 ..< glyphScale {
+                for stepY in 0 ..< glyphScale {
+                    putPixel(x: originX + glyphX * glyphScale + stepX,
+                             y: originY + glyphY * glyphScale + stepY,
+                             white: on)
+                }
+            }
+        }
+    }
+}
+
+/// Paints one grid cell through whichever screen is live: a word
+/// written into the VGA text buffer, or a glyph drawn into the
+/// framebuffer. No cursor mark — the cursor is moveHardwareCursor's
+/// affair.
+func paintCell(row: Int, col: Int) {
+    if useFramebuffer {
+        paintCellFramebuffer(row: row, col: col, underline: false)
+    } else {
+        let buffer = UnsafeMutablePointer<UInt16>(bitPattern: 0xB8000)!
+        buffer[row * screenColumns + col] =
+            UInt16(textAttribute) << 8
+            | UInt16(screenChar(cell: row * screenColumns + col))
+    }
+}
+
+/// Paints the whole grid, cell by cell. Scrolling and clearing both
+/// end here: the grid is the truth, and the screen is made to match
+/// it, so the two can never drift apart.
+func repaintScreen() {
+    for row in 0 ..< screenRows {
+        for col in 0 ..< screenColumns {
+            paintCell(row: row, col: col)
+        }
+    }
+    framebufferCursorRow = -1
+    framebufferCursorCol = -1
+}
+
+/// Writes one character into the grid and paints the cell it lands
+/// in — the single act every screen change in the kernel is built
+/// from, through either door.
 @inline(__always)
 func putCell(row: Int, col: Int, character: UInt8) {
-    vgaWrite(cell: row * screenColumns + col,
-             character: character, attribute: textAttribute)
+    cardnullTextGrid()[row * screenColumns + col] = character
+    paintCell(row: row, col: col)
 }
 
+/// Where the framebuffer cursor's underline is currently drawn, or
+/// -1 when it is nowhere (after a repaint, before its first move).
+/// The VGA text screen has its own hardware cursor and needs no
+/// such bookkeeping.
+var framebufferCursorRow = -1
+var framebufferCursorCol = -1
+
 /// Moves the screen's own blinking cursor to the typing position, so
-/// the eye can see where the next letter will land. The cursor's
-/// address lives in the display controller, spoken to through ports
-/// 0x3D4 (which register) and 0x3D5 (its value): register 0x0F takes
-/// the low byte of the cell offset, 0x0E the high byte.
+/// the eye can see where the next letter will land. In the text grid
+/// the cursor's address lives in the display controller, spoken to
+/// through ports 0x3D4 (which register) and 0x3D5 (its value):
+/// register 0x0F takes the low byte of the cell offset, 0x0E the
+/// high byte. In the framebuffer there is no hardware cursor, so
+/// the kernel draws its own: the old cell repainted plain, the new
+/// cell repainted with its underline.
 func moveHardwareCursor() {
+    if useFramebuffer {
+        if framebufferCursorRow == cursorRow
+            && framebufferCursorCol == cursorCol { return }
+        if framebufferCursorRow >= 0 {
+            paintCellFramebuffer(row: framebufferCursorRow,
+                                 col: framebufferCursorCol, underline: false)
+        }
+        paintCellFramebuffer(row: cursorRow, col: cursorCol, underline: true)
+        framebufferCursorRow = cursorRow
+        framebufferCursorCol = cursorCol
+        return
+    }
     let position = cursorRow * screenColumns + cursorCol
     cardnullOutb(0x3D4, 0x0F)
     cardnullOutb(0x3D5, UInt8(truncatingIfNeeded: position))
@@ -143,27 +379,28 @@ func moveHardwareCursor() {
     cardnullOutb(0x3D5, UInt8(truncatingIfNeeded: position >> 8))
 }
 
-/// Lifts the whole page by one row: every row takes the row beneath
-/// it, and the last row is wiped clean for whatever comes next. The
-/// banner scrolls away with everything else when the conversation
-/// outgrows one screen — a real terminal keeps no favorites.
+/// Lifts the whole page by one row: every row of the grid takes the
+/// row beneath it, the last row is wiped clean for whatever comes
+/// next, and the screen is repainted from the grid. The banner
+/// scrolls away with everything else when the conversation outgrows
+/// one screen — a real terminal keeps no favorites.
 func scrollUp() {
-    let buffer = UnsafeMutablePointer<UInt16>(bitPattern: 0xB8000)!
+    let grid = cardnullTextGrid()
     for row in 1 ..< screenRows {
         for col in 0 ..< screenColumns {
-            buffer[(row - 1) * screenColumns + col] =
-                buffer[row * screenColumns + col]
+            grid[(row - 1) * screenColumns + col] =
+                grid[row * screenColumns + col]
         }
     }
     for col in 0 ..< screenColumns {
-        buffer[(screenRows - 1) * screenColumns + col] =
-            UInt16(textAttribute) << 8 | 0x20
+        grid[(screenRows - 1) * screenColumns + col] = 0x20
     }
     if lineStartRow > 0 {
         lineStartRow -= 1
     } else {
         lineStartCol = 0
     }
+    repaintScreen()
 }
 
 /// Writes one character at the cursor and advances — the kernel's one
@@ -441,9 +678,10 @@ func nextScancode() -> UInt8? {
 
 /// The exceptions' one answer. A fault leaves no promise standing —
 /// not the cursor's bookkeeping, not the screen's story — so the
-/// line is written straight into the top row's cells, over whatever
-/// was there, and then the machine rests with its gate closed. No
-/// vector number, no register dump: one plain sentence, honestly.
+/// line is written into the top row of the grid, over whatever was
+/// there, and painted through whichever screen is live; then the
+/// machine rests with its gate closed. No vector number, no register
+/// dump: one plain sentence, honestly.
 let exceptionLine: StaticString = "Exception - halting."
 
 @_cdecl("cardnull_exception_handler")
@@ -453,7 +691,7 @@ public func exceptionHandler(_ vector: UInt64) {
     while true {
         let character = exceptionLine.utf8Start[index]
         if character == 0 { break }
-        vgaWrite(cell: index, character: character, attribute: textAttribute)
+        putCell(row: 0, col: index, character: character)
         index += 1
     }
     cardnullHalt()
@@ -509,8 +747,9 @@ let aboutLine4: StaticString =
 
 /// verse's answer: John 1:1 in the Douay-Rheims wording, with its
 /// attribution beneath. The attribution's dash is a plain hyphen —
-/// the VGA text font this kernel writes in carries no em dash, and
-/// the verse itself loses nothing by its citation wearing ASCII.
+/// neither the VGA text font nor the 8x8 framebuffer font carries an
+/// em dash, and the verse itself loses nothing by its citation
+/// wearing ASCII.
 let verseLine: StaticString =
     "In the beginning was the Word, and the Word was with God, and the Word was God."
 let verseAttribution: StaticString = "- John 1:1 (Douay-Rheims)"
@@ -575,7 +814,7 @@ func lineIsBlank() -> Bool {
     let end = cursorRow * screenColumns + cursorCol
     var cell = start
     while cell < end {
-        if vgaChar(cell: cell) != 0x20 { return false }
+        if screenChar(cell: cell) != 0x20 { return false }
         cell += 1
     }
     return true
@@ -588,11 +827,11 @@ func commandMatches(_ command: StaticString) -> Bool {
     let start = lineStartRow * screenColumns + lineStartCol
     let end = cursorRow * screenColumns + cursorCol
     var cell = start
-    while cell < end && vgaChar(cell: cell) == 0x20 { cell += 1 }
+    while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     var index = 0
     while command.utf8Start[index] != 0 {
         if cell >= end { return false }
-        var character = vgaChar(cell: cell)
+        var character = screenChar(cell: cell)
         if character >= 0x41 && character <= 0x5A {
             character += 0x20   // A ... Z -> a ... z
         }
@@ -600,16 +839,28 @@ func commandMatches(_ command: StaticString) -> Bool {
         cell += 1
         index += 1
     }
-    while cell < end && vgaChar(cell: cell) == 0x20 { cell += 1 }
+    while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     return cell == end
 }
 
 /// The clear command's work: wipe the whole screen and open a fresh
-/// prompt at the very top. Nothing is kept — that is what clear means.
+/// prompt at the very top. The grid is emptied and repainted; on the
+/// framebuffer the whole pixel field is blackened first, margins
+/// included, so nothing of the old conversation survives anywhere.
+/// Nothing is kept — that is what clear means.
 func clearScreen() {
+    let grid = cardnullTextGrid()
     for cell in 0 ..< (screenColumns * screenRows) {
-        vgaWrite(cell: cell, character: 0x20, attribute: textAttribute)
+        grid[cell] = 0x20
     }
+    if useFramebuffer {
+        for y in 0 ..< framebufferHeight {
+            for x in 0 ..< framebufferWidth {
+                putPixel(x: x, y: y, white: false)
+            }
+        }
+    }
+    repaintScreen()
     cursorRow = 0
     cursorCol = 0
     startLine()
@@ -702,14 +953,36 @@ func handleScancode(_ code: UInt8) {
 /// prompt, and from then on the kernel *rests* — sleeping in `hlt`
 /// until the timer's heartbeat or a keypress wakes it, draining the
 /// keyboard ring through the same hands the polling years used. The
-/// commands do not change; the waiting does.
+/// commands do not change; the waiting does. Milestone 5 changes
+/// where the screen lives: the floor hands over the Multiboot2
+/// information address as kmain's argument, the kernel reads the
+/// framebuffer tag from it before anything is drawn, and the same
+/// shell then speaks through whichever screen the boot provided —
+/// the VGA text grid behind the BIOS door, drawn pixels behind the
+/// UEFI door — with the characters kept in the kernel's own grid
+/// either way, so nothing above the painting layer can tell the two
+/// doors apart.
 @_cdecl("kmain")
-public func kmain() {
-    // Wipe the screen the bootloader left behind: 80 x 25 blank cells,
-    // so the first word stands on a clean field.
+public func kmain(_ multibootInfo: UInt64) {
+    // Choose the screen before anything is drawn: read the
+    // bootloader's information for a usable framebuffer.
+    chooseScreen(infoAddress: multibootInfo)
+
+    // Wipe the screen the bootloader left behind: the grid emptied
+    // and repainted — and on the framebuffer, the whole pixel field
+    // blackened first — so the first word stands on a clean field.
+    let grid = cardnullTextGrid()
     for cell in 0 ..< (screenColumns * screenRows) {
-        vgaWrite(cell: cell, character: 0x20, attribute: textAttribute)
+        grid[cell] = 0x20
     }
+    if useFramebuffer {
+        for y in 0 ..< framebufferHeight {
+            for x in 0 ..< framebufferWidth {
+                putPixel(x: x, y: y, white: false)
+            }
+        }
+    }
+    repaintScreen()
 
     // The banner, at the top-left cell. A StaticString's bytes are
     // stored NUL-terminated in read-only data (Embedded Swift's trimmed
@@ -719,7 +992,7 @@ public func kmain() {
     while cell < screenColumns {
         let character = cardnullBanner.utf8Start[cell]
         if character == 0 { break }
-        vgaWrite(cell: cell, character: character, attribute: textAttribute)
+        putCell(row: 0, col: cell, character: character)
         cell += 1
     }
 

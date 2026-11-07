@@ -22,6 +22,14 @@
  *     hlt/cli hands, and 64 bytes of raw ring storage for the
  *     keyboard handler — the processor-table work a floor exists
  *     for. What interrupts mean is decided in Swift, above.
+ *   - The screen's memory (milestone 5): 2,000 bytes of raw storage
+ *     holding the 80x25 character grid. While the kernel wrote
+ *     straight into VGA text memory, the hardware itself kept the
+ *     characters and the shell read typed lines back off it; the
+ *     UEFI door has no such memory — a framebuffer keeps pixels,
+ *     not letters — so the kernel keeps the grid itself now, here,
+ *     and paints it through whichever screen is live. Which screen
+ *     that is, and what the letters mean, are decided in Swift.
  *
  * Written by hand, in the open, in the public domain.
  */
@@ -49,6 +57,47 @@ int posix_memalign(void **memptr, size_t alignment, size_t size) {
 /* Pairs with the allocator above: nothing was ever handed out. */
 void free(void *ptr) {
     (void)ptr;
+}
+
+/* The memory hands (milestone 5): the compiler's own optimization
+ * names memset for the kernel's grid-filling loops — a fill through
+ * a raw pointer is recognized and lowered to the C symbol — and
+ * memcpy/memmove are its kin, named here before the day another
+ * pattern lowers to them. Plain byte loops, honestly sized to a
+ * kernel that moves screenfuls, not libraries. */
+void *memset(void *dest, int value, size_t count) {
+    unsigned char *p = (unsigned char *)dest;
+    size_t i;
+    for (i = 0; i < count; i++) {
+        p[i] = (unsigned char)value;
+    }
+    return dest;
+}
+
+void *memcpy(void *dest, const void *src, size_t count) {
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+    size_t i;
+    for (i = 0; i < count; i++) {
+        d[i] = s[i];
+    }
+    return dest;
+}
+
+void *memmove(void *dest, const void *src, size_t count) {
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+    size_t i;
+    if (d < s) {
+        for (i = 0; i < count; i++) {
+            d[i] = s[i];
+        }
+    } else if (d > s) {
+        for (i = count; i > 0; i--) {
+            d[i - 1] = s[i - 1];
+        }
+    }
+    return dest;
 }
 
 /* Port I/O hands: read and write one byte at a processor I/O port. */
@@ -194,4 +243,17 @@ static unsigned char key_ring[64];
 
 unsigned char *cardnull_key_ring(void) {
     return key_ring;
+}
+
+/* The screen's memory: 80 columns x 25 rows of characters, the grid
+ * the kernel reads its typed lines from and paints its screens out
+ * of. The floor lends the memory for the same reason it lends the
+ * key ring — Embedded Swift cannot name a fixed mutable byte array
+ * without a heap — and makes no decision about the letters. The
+ * numbers 80 and 25 are agreed with the kernel's screenColumns and
+ * screenRows. */
+static unsigned char text_grid[80 * 25];
+
+unsigned char *cardnull_text_grid(void) {
+    return text_grid;
 }

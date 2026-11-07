@@ -60,6 +60,8 @@ clang --target="$TARGET" -ffreestanding -c \
     "$ROOT/Sources/boot/boot.S" -o "$BUILD/boot.o"
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
     "$ROOT/Sources/boot/support.c" -o "$BUILD/support.o"
+clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
+    "$ROOT/Sources/boot/font8x8.c" -o "$BUILD/font8x8.o"
 
 echo "==> [2/4] Compiling the Swift kernel (Embedded Swift, $TARGET)"
 "$SWIFTC" \
@@ -76,11 +78,22 @@ echo "==> [3/4] Linking kernel.bin"
 "$LD" -nostdlib -static \
     -T "$ROOT/Sources/boot/linker.ld" \
     -o "$BUILD/kernel.bin" \
-    "$BUILD/boot.o" "$BUILD/Kernel.o" "$BUILD/support.o"
+    "$BUILD/boot.o" "$BUILD/Kernel.o" "$BUILD/support.o" "$BUILD/font8x8.o"
 
 echo "==> [4/4] Packing dist/cardnull.iso"
 cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
+# Behind the UEFI door, GRUB speaks through the firmware's text
+# console until it is told otherwise — and a console is not a video
+# mode, so multiboot2's framebuffer request finds nothing to give.
+# Wake the graphics stack first, there only; the BIOS door's GRUB
+# already stands on its VBE driver and is left exactly as it was.
+if [ "$grub_platform" = "efi" ]; then
+    insmod efi_gop
+    insmod gfxterm
+    terminal_output gfxterm
+fi
+
 set timeout=0
 set default=0
 
@@ -89,6 +102,12 @@ menuentry "Cardnull OS" {
     boot
 }
 EOF
+# One ISO, two doors (milestone 5): with both the i386-pc and the
+# x86_64-efi GRUB modules installed, grub-mkrescue packs the disc
+# with a BIOS El Torito boot image and an EFI system partition
+# image carrying the UEFI GRUB (BOOTX64.EFI) — which loads the
+# same /boot/grub/grub.cfg and the same kernel. Both modules sets
+# must be present, or a door silently goes missing.
 grub-mkrescue -o "$DIST/cardnull.iso" "$ISO_DIR" >/dev/null
 
 echo "Done: $DIST/cardnull.iso"

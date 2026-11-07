@@ -44,7 +44,19 @@ it bends.*
    the keyboard taken by IRQ1 into a ring buffer, and the kernel
    resting in `hlt` between events instead of spinning. A new
    command, `uptime`, reads the heartbeat aloud. Exceptions now
-   print "Exception - halting." rather than dying in silence.)*
+   print "Exception - halting." rather than dying in silence.
+   Milestone 5 — the same evening — opened the second door: the
+   ISO is a hybrid that boots behind UEFI firmware as well as
+   BIOS, the header asking for a framebuffer and the boot floor
+   carrying the Multiboot2 information pointer up to the kernel.
+   The kernel keeps the 80x25 character grid itself now and
+   paints it through whichever screen the door provided — the
+   VGA text grid, or pixels drawn from an embedded public-domain
+   8x8 font — so the shell above neither knows nor cares which
+   firmware let it in. Behind the UEFI door stands GRUB's own
+   EFI build loading the same Multiboot2 kernel; a native EFI
+   entry of our own, speaking to the firmware directly, remains
+   a later door.)*
 3. Memory management; a filesystem that remembers.
 4. Running programs.
 5. A simple graphical interface.
