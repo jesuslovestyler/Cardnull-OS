@@ -63,8 +63,21 @@ it bends.*
    over the RAM it names — reservations for the first megabyte,
    the kernel image, the framebuffer, and every non-RAM region,
    a boot self-test that takes and returns frames, and a `mem`
-   command that speaks the reckoned numbers. Paging and a kernel
-   heap are milestone 7; the filesystem follows.)*
+   command that speaks the reckoned numbers. Milestone 7 — the
+   same day — replaced the boot floor's borrowed page tables
+   with the kernel's own: four levels of 4 KiB identity mappings
+   over the RAM and devices the kernel honestly stands on, the
+   unmapped dark left dark, and W^X laid in the leaves — text
+   executable and unwritable, everything else writable and
+   unexecutable. The page fault gained a reporting handler that
+   speaks the faulting address and the error code, in hex and in
+   words, before halting cleanly; a `faulttest` command takes
+   the fault on purpose so the report can be witnessed. And a
+   4 MiB kernel heap stands over the allocator's frames —
+   first-fit blocks with splitting and coalescing, a boot
+   self-test of patterns written and read back byte for byte,
+   and a `heap` command that speaks its books. The filesystem
+   follows.)*
 4. Running programs.
 5. A simple graphical interface.
 6. Chirpy Browser and the Catholic Bible at home on it.

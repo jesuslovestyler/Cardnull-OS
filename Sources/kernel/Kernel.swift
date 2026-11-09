@@ -95,6 +95,41 @@ func cardnullKernelStart() -> UInt64
 @_silgen_name("cardnull_kernel_end")
 func cardnullKernelEnd() -> UInt64
 
+/// Provided by the boot floor (support.c): raises EFER's NXE bit,
+/// the switch that makes the no-execute bit in a page entry law
+/// instead of a reserved-bit fault. Milestone 7 calls it once,
+/// just before loading its own page tables — the tables carrying
+/// NX bits must never be walked before this stands.
+@_silgen_name("cardnull_enable_nxe")
+func cardnullEnableNxe()
+
+/// Provided by the boot floor (support.c): loads CR3 — points the
+/// processor at a new set of page tables. The write flushes the
+/// translation caches, so the very next instruction already walks
+/// the new tables.
+@_silgen_name("cardnull_load_cr3")
+func cardnullLoadCr3(_ root: UInt64)
+
+/// Provided by the boot floor (support.c): the kernel image's text
+/// span, as the linker script named it. Milestone 7's page tables
+/// mark these pages executable and not writable — the W of W^X.
+@_silgen_name("cardnull_text_start")
+func cardnullTextStart() -> UInt64
+
+/// The companion bound: one past the text span's last byte.
+@_silgen_name("cardnull_text_end")
+func cardnullTextEnd() -> UInt64
+
+/// Provided by the boot floor (support.c): the kernel image's
+/// read-only span, as the linker script named it — neither writable
+/// nor executable in the kernel's own tables.
+@_silgen_name("cardnull_rodata_start")
+func cardnullRodataStart() -> UInt64
+
+/// The companion bound: one past the read-only span's last byte.
+@_silgen_name("cardnull_rodata_end")
+func cardnullRodataEnd() -> UInt64
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -718,6 +753,135 @@ public func exceptionHandler(_ vector: UInt64) {
 }
 
 // ---------------------------------------------------------------------------
+// The page fault's answer (milestone 7).
+//
+// Vector 14 no longer shares the exceptions' one plain sentence.
+// Since the kernel keeps its own page tables, a page fault is a
+// report the machine owes in detail: the processor kept the address
+// that was reached for in CR2 and a small testimony of the reaching
+// in the error code, and the floor's hand-written stub for this one
+// vector carries both up. The handler below writes the report into
+// the top rows of the grid — over whatever was there, exactly as
+// the exception line above does, because a fault leaves no promise
+// standing — and then rests the machine with its gate closed: a
+// controlled halt, never a reboot loop. Nothing here tries to fix
+// the fault and resume; there is nothing yet that could honestly
+// be resumed into. That day may come with programs of our own.
+// ---------------------------------------------------------------------------
+
+/// Writes a static string into one grid row starting at a column,
+/// through putCell like everything drawn after a fault, and
+/// returns the column just past its last character.
+func writeStaticAt(_ row: Int, _ startCol: Int, _ text: StaticString) -> Int {
+    var col = startCol
+    var index = 0
+    while col < screenColumns {
+        let character = text.utf8Start[index]
+        if character == 0 { break }
+        putCell(row: row, col: col, character: character)
+        col += 1
+        index += 1
+    }
+    return col
+}
+
+/// Writes a value in hexadecimal into one grid row — addresses and
+/// error codes are hex by long custom, and the report speaks them
+/// so — with exactly the digits asked for, leading zeros kept.
+func writeHexAt(_ row: Int, _ startCol: Int, _ value: UInt64,
+                _ digits: Int) -> Int {
+    var col = startCol
+    var shift = (digits - 1) * 4
+    while shift >= 0 && col < screenColumns {
+        let nibble = UInt8((value >> UInt64(shift)) & 0xF)
+        let character: UInt8 = nibble < 10 ? 0x30 + nibble
+                                           : 0x41 + (nibble - 10)
+        putCell(row: row, col: col, character: character)
+        col += 1
+        shift -= 4
+    }
+    return col
+}
+
+/// Writes a value in decimal into one grid row: the digits reckoned
+/// by a falling divisor, the same trick writeNumber walks on the
+/// shell's road, here onto fixed cells of a report that cannot
+/// scroll.
+func writeDecimalAt(_ row: Int, _ startCol: Int, _ value: UInt64) -> Int {
+    var col = startCol
+    var divisor: UInt64 = 1
+    while value / divisor >= 10 { divisor *= 10 }
+    var remaining = value
+    while true {
+        if col < screenColumns {
+            putCell(row: row, col: col,
+                    character: 0x30 + UInt8(remaining / divisor))
+            col += 1
+        }
+        remaining %= divisor
+        if divisor == 1 { break }
+        divisor /= 10
+    }
+    return col
+}
+
+/// The page fault report's vocabulary: the title and labels, and
+/// the error code's testimony taken apart into words — present or
+/// not, the kind of reaching, whose mode, and the reserved-bit and
+/// instruction-fetch flags when they stand.
+let pageFaultTitle: StaticString = "Page fault - halting."
+let pageFaultAddressLabel: StaticString = "  Address: 0x"
+let pageFaultErrorLabel: StaticString = "  Error code: 0x"
+let pageFaultOpenParen: StaticString = " ("
+let pageFaultCloseParen: StaticString = ")"
+let pageFaultComma: StaticString = ", "
+let reasonNotPresent: StaticString = "page not present"
+let reasonProtection: StaticString = "protection violation"
+let reasonWrite: StaticString = "write"
+let reasonRead: StaticString = "read"
+let reasonFetch: StaticString = "instruction fetch"
+let reasonUser: StaticString = "user mode"
+let reasonSupervisor: StaticString = "supervisor mode"
+let reasonReserved: StaticString = "reserved bit set"
+
+/// Vector 14's own handler, called by the floor's hand-written
+/// stub with the two facts the processor kept: the error code it
+/// pushed and the CR2 address. Writes the report — title, faulting
+/// address, error code in hex and in words — and halts, cleanly,
+/// with the gate closed. Never returns.
+@_cdecl("cardnull_page_fault_handler")
+public func pageFaultHandler(_ errorCode: UInt64, _ faultAddress: UInt64) {
+    cardnullCli()
+    _ = writeStaticAt(0, 0, pageFaultTitle)
+    var col = writeStaticAt(1, 0, pageFaultAddressLabel)
+    _ = writeHexAt(1, col, faultAddress, 16)
+    col = writeStaticAt(2, 0, pageFaultErrorLabel)
+    col = writeHexAt(2, col, errorCode, 4)
+    col = writeStaticAt(2, col, pageFaultOpenParen)
+    if errorCode & 0x10 != 0 {
+        col = writeStaticAt(2, col, reasonFetch)
+    } else if errorCode & 0x2 != 0 {
+        col = writeStaticAt(2, col, reasonWrite)
+    } else {
+        col = writeStaticAt(2, col, reasonRead)
+    }
+    col = writeStaticAt(2, col, pageFaultComma)
+    col = writeStaticAt(2, col,
+                        errorCode & 0x1 != 0 ? reasonProtection
+                                             : reasonNotPresent)
+    col = writeStaticAt(2, col, pageFaultComma)
+    col = writeStaticAt(2, col,
+                        errorCode & 0x4 != 0 ? reasonUser
+                                             : reasonSupervisor)
+    if errorCode & 0x8 != 0 {
+        col = writeStaticAt(2, col, pageFaultComma)
+        col = writeStaticAt(2, col, reasonReserved)
+    }
+    _ = writeStaticAt(2, col, pageFaultCloseParen)
+    cardnullHalt()
+}
+
+// ---------------------------------------------------------------------------
 // Memory (milestone 6).
 //
 // The kernel stops merely standing in the machine's RAM and learns
@@ -1042,7 +1206,547 @@ func runMemorySelfTest() {
 
 
 // ---------------------------------------------------------------------------
-// The shell.
+// Paging (milestone 7).
+//
+// Until now the kernel has run on borrowed tables: the boot floor
+// built one identity map of the first 4 GiB — every page present,
+// writable, executable — and the kernel simply stood in it. That
+// was the floor's honest scaffolding, and scaffolding is not a
+// house. Now the kernel builds tables of its own and moves in:
+//
+//   - Four levels, 4 KiB leaves, identity-mapped — a page's virtual
+//     address is still its physical address, which is the truthful
+//     shape for a kernel this young — but only for what is honestly
+//     the kernel's to stand on: the usable RAM the bootloader's map
+//     names, the kernel image, the live framebuffer, the VGA text
+//     page that is the fallback screen, and the bootloader's own
+//     information. Everything else — the PCI dark, the firmware's
+//     country, the holes — is simply not there, and reaching for it
+//     faults, by the page-fault handler's report above.
+//   - The tables' frames are taken from the milestone-6 allocator,
+//     so the map is built out of the very memory it describes.
+//   - W^X, the first law of the hardening road, is laid in the
+//     leaves: the kernel's text pages executable and not writable;
+//     its read-only data neither writable nor executable; every
+//     other mapped page writable and NOT executable. Nothing in
+//     the kernel's world is both writable and executable.
+//   - The switch itself is three breaths: build the tables while
+//     the floor's map still carries the machine, raise EFER's NXE
+//     (so the no-execute bit is law, not a reserved-bit fault),
+//     and load CR3. If the shell answers afterward — screen,
+//     keyboard, heartbeat, and all — the tables are the machine's
+//     truth, and there is no stronger proof this milestone can
+//     offer.
+//
+// The branch entries (PML4, PDPT, PD) carry present|writable and
+// no law of their own: the leaf decides, as the processor's own
+// rule reckons the strictest word along the walk. User pages do
+// not exist yet — there are no users; every page is the kernel's,
+// supervisor-only, until milestone 9 has programs to protect.
+// ---------------------------------------------------------------------------
+
+/// The leaf flags of the kernel's three countries.
+let ptePresent: UInt64 = 0x1
+let pteWritable: UInt64 = 0x2
+let pteNoExecute: UInt64 = 0x8000_0000_0000_0000
+
+/// Did our own tables take over? Until the CR3 switch is behind
+/// us this is false, and the fault test below will not pretend
+/// otherwise: on the floor's borrowed map, everything answers.
+var pagingReady = false
+
+/// The physical address of our PML4 — a frame of the allocator's,
+/// like every table below it.
+var pagingRootAddress: UInt64 = 0
+
+/// One entry of a page table, read or written through the identity
+/// map both the floor's tables and ours keep.
+@inline(__always)
+func pagingEntry(_ table: UInt64, _ index: Int) -> UInt64 {
+    UnsafeMutablePointer<UInt64>(bitPattern: UInt(table))![index]
+}
+
+@inline(__always)
+func setPagingEntry(_ table: UInt64, _ index: Int, _ value: UInt64) {
+    UnsafeMutablePointer<UInt64>(bitPattern: UInt(table))![index] = value
+}
+
+/// The frame-address mask of a table entry: the bits that are the
+/// next table's (or the page's) physical address.
+let pagingAddressMask: UInt64 = 0x000F_FFFF_FFFF_F000
+
+/// Takes one frame from the allocator and wipes it clean — a
+/// newborn table must read as all-absent, or the walk below would
+/// follow yesterday's noise into the dark. Returns 0 when the pool
+/// cannot pay, which the caller treats as the whole raising failed.
+func pagingNewTable() -> UInt64 {
+    let frame = allocFrame()
+    if frame == 0 { return 0 }
+    let entries = UnsafeMutablePointer<UInt64>(bitPattern: UInt(frame))!
+    for index in 0 ..< 512 {
+        entries[index] = 0
+    }
+    return frame
+}
+
+/// Maps one 4 KiB page, identity — the page's virtual address is
+/// its physical address — under the given leaf flags, growing
+/// branch tables along the walk as the allocator can pay for them.
+/// A page already mapped is simply re-stamped: the later, more
+/// particular law wins, which is how the kernel image's countries
+/// are drawn over the RAM they stand in.
+func mapPage(_ address: UInt64, _ leafFlags: UInt64) -> Bool {
+    var table = pagingRootAddress
+    var shift = 39
+    while shift >= 21 {
+        let index = Int((address >> UInt64(shift)) & 0x1FF)
+        var entry = pagingEntry(table, index)
+        if entry & ptePresent == 0 {
+            let fresh = pagingNewTable()
+            if fresh == 0 { return false }
+            entry = fresh | ptePresent | pteWritable
+            setPagingEntry(table, index, entry)
+        }
+        table = entry & pagingAddressMask
+        shift -= 9
+    }
+    setPagingEntry(table, Int((address >> 12) & 0x1FF),
+                   (address & ~UInt64(0xFFF)) | leafFlags)
+    return true
+}
+
+/// Maps a whole range, page by page: the range's own pages are the
+/// ones its floor and ceiling name, so a range ending mid-page does
+/// not drag its neighbour in.
+func mapRange(_ base: UInt64, _ length: UInt64,
+              _ leafFlags: UInt64) -> Bool {
+    if length == 0 { return true }
+    var address = base & ~UInt64(0xFFF)
+    let end = (base + length + pageSize - 1) & ~UInt64(0xFFF)
+    while address < end {
+        if !mapPage(address, leafFlags) { return false }
+        address += pageSize
+    }
+    return true
+}
+
+/// Builds the kernel's own page tables and moves the machine into
+/// them. Called once from kmain, after the frame allocator stands
+/// (the tables are its frames) and before the interrupts open (a
+/// fault mid-switch would have no IDT to catch it — but the whole
+/// building happens under the floor's still-standing map, and the
+/// switch itself is a single instruction with the screen, stack,
+/// and code already mapped on the far side). If anything cannot be
+/// paid for, the raising stops, pagingReady stays false, and the
+/// kernel goes on standing on the floor's tables exactly as
+/// before — poorer, but honest about it.
+func initPaging(infoAddress: UInt64) {
+    if !memMapFound || infoAddress == 0 { return }
+    let base = UnsafeMutablePointer<UInt8>(bitPattern: UInt(infoAddress))!
+    let tagOffset = findTagOffset(6, infoAddress: infoAddress)
+    if tagOffset < 0 { return }
+    let tagSize = Int(bootInfoU32(base, tagOffset + 4))
+    let entrySize = Int(bootInfoU32(base, tagOffset + 8))
+    if entrySize < 24 || tagSize < 16 { return }
+    let entryCount = (tagSize - 16) / entrySize
+    let entriesStart = tagOffset + 16
+
+    pagingRootAddress = pagingNewTable()
+    if pagingRootAddress == 0 { return }
+
+    let ramFlags = ptePresent | pteWritable | pteNoExecute
+
+    // The usable RAM, reckoned afresh from the map — the same
+    // estate the allocator keeps, whole frames only, and nothing
+    // past the first 4 GiB, which is this kernel's whole reach
+    // today. Table frames are taken as the building goes; every
+    // one of them lies inside this estate and is mapped by it.
+    var index = 0
+    while index < entryCount {
+        let entry = entriesStart + index * entrySize
+        if bootInfoU32(base, entry + 16) == 1 {
+            let regionBase = bootInfoU64(base, entry)
+            var regionEnd = regionBase &+ bootInfoU64(base, entry + 8)
+            if regionBase < 0x1_0000_0000 {
+                if regionEnd > 0x1_0000_0000 { regionEnd = 0x1_0000_0000 }
+                let wholeEnd = regionEnd & ~UInt64(0xFFF)
+                if wholeEnd > regionBase {
+                    if !mapRange(regionBase, wholeEnd - regionBase,
+                                 ramFlags) { return }
+                }
+            }
+        }
+        index += 1
+    }
+
+    // The bootloader's own information: the kernel reads it and
+    // never writes it, so it comes back read-only — and not
+    // executable, like everything that is not code.
+    let infoSize = UInt64(bootInfoU32(base, 0))
+    if infoSize > 0 {
+        if !mapRange(infoAddress, infoSize,
+                     ptePresent | pteNoExecute) { return }
+    }
+
+    // The VGA text page — the fallback screen behind a boot with
+    // no framebuffer — writable device memory, never code.
+    if !mapRange(0xB8000, pageSize, ramFlags) { return }
+
+    // The live framebuffer, when there is one: the screen the
+    // kernel is painting this very moment.
+    if useFramebuffer {
+        if !mapRange(framebufferAddress,
+                     UInt64(framebufferPitch * framebufferHeight),
+                     ramFlags) { return }
+    }
+
+    // The kernel image's own countries, drawn over the RAM they
+    // stand in: read-only data first, then the text — so any page
+    // the two spans somehow shared would end under the stricter
+    // law of the two.
+    let rodataStart = cardnullRodataStart()
+    let rodataEnd = cardnullRodataEnd()
+    if rodataEnd > rodataStart {
+        if !mapRange(rodataStart, rodataEnd - rodataStart,
+                     ptePresent | pteNoExecute) { return }
+    }
+    let textStart = cardnullTextStart()
+    let textEnd = cardnullTextEnd()
+    if textEnd > textStart {
+        if !mapRange(textStart, textEnd - textStart,
+                     ptePresent) { return }
+    }
+
+    // The switch: NXE first (the tables about to load are full of
+    // the bit), then CR3. The instruction after the load already
+    // walks the new tables; the stack under us and the screen
+    // before us are mapped on both sides of it.
+    cardnullEnableNxe()
+    cardnullLoadCr3(pagingRootAddress)
+    pagingReady = true
+}
+
+/// The address the `faulttest` command reaches for: a page in the
+/// third gigabyte's high country, where no RAM, no frame buffer,
+/// and no device of this machine has ever lived — under our own
+/// tables, simply not there.
+let faultTestAddress: UInt64 = 0xDEAD0000
+
+/// Reaches for one byte at the fault test's address and brings it
+/// back — a plain load through a raw pointer, marked never-inline
+/// so the reach is a real reach and not a compiler's rumour of one.
+/// Under honest paging this function is never allowed to return.
+@inline(never)
+func touchUnmapped() -> UInt8 {
+    let pointer = UnsafeMutablePointer<UInt8>(
+        bitPattern: UInt(faultTestAddress))!
+    return pointer.pointee
+}
+
+
+// ---------------------------------------------------------------------------
+// The heap (milestone 7).
+//
+// Frames are honest, but they are coarse: a program — and a kernel
+// with work ahead of it — needs memory in the sizes the work asks
+// for, not only in 4 KiB slabs. So the kernel now keeps a heap: one
+// unbroken field of frames taken from the allocator at boot, and
+// within it a chain of blocks, each carrying a small header — its
+// whole size, and whether it is spoken for. Allocation is
+// first-fit: the first free block that can hold the ask is taken,
+// and split when the remainder is still a block worth keeping.
+// Freeing marks the block free and then walks the chain once,
+// marrying each pair of neighbouring free blocks back into one —
+// so the field does not shatter into splinters as work comes and
+// goes.
+//
+// The books are kept by walking that same chain: used bytes and
+// free bytes are the sums of the blocks' whole sizes, headers
+// included, and used plus free always equals the region's size —
+// the partition is the truth, and `heap` speaks it. The heap's
+// pages are the RAM pages they are: writable, never executable,
+// under the kernel's own tables.
+//
+// The heap stands in its own field and nowhere else: a request it
+// cannot answer gets 0, never a neighbour's memory. And one law
+// from the frame allocator still holds — the heap hands out only
+// what it took; frames it borrowed are its estate for the kernel's
+// whole life, returned to the pool never (what would the kernel
+// do with an empty workbench?).
+// ---------------------------------------------------------------------------
+
+/// The heap's whole estate: 4 MiB of frames, a workbench sized for
+/// the work ahead — filesystems and programs will want buffers —
+/// and a small, honest fraction of the machines we run on.
+let heapRegionBytes: UInt64 = 4 * 1024 * 1024
+
+/// Every block begins with two words: its whole size in bytes
+/// (header included) and its state — 1 spoken for, 0 free.
+let heapHeaderBytes: UInt64 = 16
+
+/// The smallest block worth keeping when a split leaves a
+/// remainder: header plus one aligned payload word.
+let heapMinBlockBytes: UInt64 = 32
+
+/// Was a heap raised at all? Without the frame allocator there is
+/// nothing to raise one from, and `heap` will say so plainly.
+var heapReady = false
+
+/// The heap field's first address; its size is heapRegionBytes.
+var heapBase: UInt64 = 0
+
+/// The heap's books, reckoned by walking the block chain after
+/// every change: whole-block bytes and block counts, used and
+/// free. Used plus free always equals heapRegionBytes.
+var heapUsedBytes: UInt64 = 0
+var heapFreeBytes: UInt64 = 0
+var heapUsedBlocks: UInt64 = 0
+var heapFreeBlocks: UInt64 = 0
+
+/// The self-test's verdict, spoken by `heap`: at boot, blocks are
+/// taken, written with known patterns, read back byte for byte,
+/// freed, and taken again — the freed chair must be the first one
+/// offered — and it passes only if every pattern survives, no
+/// neighbour is disturbed, and the books come home to an empty
+/// heap exactly as they began.
+var heapSelfTestOK = false
+
+/// One block's whole size, from its header.
+@inline(__always)
+func heapBlockSize(_ block: UInt64) -> UInt64 {
+    UnsafeMutablePointer<UInt64>(bitPattern: UInt(block))![0]
+}
+
+/// One block's state: true when spoken for.
+@inline(__always)
+func heapBlockUsed(_ block: UInt64) -> Bool {
+    UnsafeMutablePointer<UInt64>(bitPattern: UInt(block))![1] != 0
+}
+
+/// Writes one block's header: its whole size and its state.
+@inline(__always)
+func heapSetBlock(_ block: UInt64, _ size: UInt64, _ used: Bool) {
+    let header = UnsafeMutablePointer<UInt64>(bitPattern: UInt(block))!
+    header[0] = size
+    header[1] = used ? 1 : 0
+}
+
+/// Walks the block chain and re-reckons the books from it — the
+/// chain is the truth; the counters are only its latest reading.
+/// Also proves the partition as it goes: the walk must land
+/// exactly on the field's end, and if it cannot, the sums are
+/// still the walk's honest sums but the caller may know the walk
+/// broke (the self-test asks).
+@discardableResult
+func heapRecount() -> Bool {
+    var usedBytes: UInt64 = 0
+    var freeBytes: UInt64 = 0
+    var usedBlocks: UInt64 = 0
+    var freeBlocks: UInt64 = 0
+    var block = heapBase
+    let end = heapBase + heapRegionBytes
+    while block < end {
+        let size = heapBlockSize(block)
+        if size == 0 || block + size > end { break }
+        if heapBlockUsed(block) {
+            usedBytes += size
+            usedBlocks += 1
+        } else {
+            freeBytes += size
+            freeBlocks += 1
+        }
+        block += size
+    }
+    heapUsedBytes = usedBytes
+    heapFreeBytes = freeBytes
+    heapUsedBlocks = usedBlocks
+    heapFreeBlocks = freeBlocks
+    return block == end
+}
+
+/// Takes one block from the heap: the first free block that can
+/// hold the ask — payload rounded up to a sixteen-byte step, plus
+/// the header — split when what remains is still a block worth
+/// keeping. Returns the payload's address, or 0 when the heap
+/// cannot answer; 0 is never a true answer, since every payload
+/// stands sixteen bytes into a block and the field itself is no
+/// neighbour of zero.
+func heapAlloc(_ requested: Int) -> UInt64 {
+    if !heapReady || requested <= 0 { return 0 }
+    let payload = (UInt64(requested) + 15) & ~UInt64(15)
+    let needed = payload + heapHeaderBytes
+    var block = heapBase
+    let end = heapBase + heapRegionBytes
+    while block < end {
+        let size = heapBlockSize(block)
+        if size == 0 { return 0 }
+        if !heapBlockUsed(block) && size >= needed {
+            if size - needed >= heapMinBlockBytes {
+                heapSetBlock(block + needed, size - needed, false)
+                heapSetBlock(block, needed, true)
+            } else {
+                heapSetBlock(block, size, true)
+            }
+            heapRecount()
+            return block + heapHeaderBytes
+        }
+        block += size
+    }
+    return 0
+}
+
+/// Gives one block back: the payload's header is found sixteen
+/// bytes behind it, the block is marked free, and the chain is
+/// walked once to marry neighbouring free blocks back together —
+/// a freed block between two free ones makes all three one field
+/// again. The books are re-reckoned from the healed chain.
+func heapFree(_ payloadAddress: UInt64) {
+    if !heapReady || payloadAddress == 0 { return }
+    let block = payloadAddress - heapHeaderBytes
+    if block < heapBase || block >= heapBase + heapRegionBytes { return }
+    if !heapBlockUsed(block) { return }
+    heapSetBlock(block, heapBlockSize(block), false)
+    var current = heapBase
+    let end = heapBase + heapRegionBytes
+    while current < end {
+        let size = heapBlockSize(current)
+        if size == 0 { break }
+        if !heapBlockUsed(current) {
+            let next = current + size
+            if next < end && !heapBlockUsed(next) {
+                heapSetBlock(current, size + heapBlockSize(next), false)
+                continue   // the same block, now longer: try again
+            }
+        }
+        current += size
+    }
+    heapRecount()
+}
+
+/// Raises the heap: takes its frames from the allocator — one
+/// unbroken run, for a heap scattered in pieces would be no field
+/// at all — lays one free block over the whole run, and runs the
+/// self-test. If the run breaks or the pool runs dry, every taken
+/// frame is handed back and no heap stands: `heap` will say so,
+/// which is the honest answer to a machine with nothing to spare.
+func initHeap() {
+    if !memMapFound { return }
+    let framesNeeded = heapRegionBytes / pageSize
+    var first: UInt64 = 0
+    var previous: UInt64 = 0
+    var taken: UInt64 = 0
+    var unbroken = true
+    while taken < framesNeeded {
+        let frame = allocFrame()
+        if frame == 0 { unbroken = false; break }
+        if taken == 0 {
+            first = frame
+        } else if frame != previous + pageSize {
+            unbroken = false
+            // The stray frame is handed back with the run below.
+            freeFrame(frame)
+            break
+        }
+        previous = frame
+        taken += 1
+    }
+    if !unbroken {
+        var frame = first
+        var returned: UInt64 = 0
+        while returned < taken {
+            freeFrame(frame)
+            frame += pageSize
+            returned += 1
+        }
+        return
+    }
+    heapBase = first
+    heapSetBlock(heapBase, heapRegionBytes, false)
+    heapReady = true
+    heapRecount()
+    runHeapSelfTest()
+}
+
+/// The pattern the self-test writes: a byte reckoned from the
+/// block's own tag and the byte's place, so every block's writing
+/// is its own and a neighbour's spill cannot masquerade as it.
+@inline(__always)
+func heapPatternByte(_ tag: UInt8, _ index: Int) -> UInt8 {
+    tag ^ UInt8(truncatingIfNeeded: index)
+}
+
+/// Fills a block's payload with its pattern, byte by byte.
+func heapFill(_ payload: UInt64, _ count: Int, _ tag: UInt8) {
+    let bytes = UnsafeMutablePointer<UInt8>(bitPattern: UInt(payload))!
+    for index in 0 ..< count {
+        bytes[index] = heapPatternByte(tag, index)
+    }
+}
+
+/// Reads a block's pattern back and compares it, byte for byte.
+func heapCheck(_ payload: UInt64, _ count: Int, _ tag: UInt8) -> Bool {
+    let bytes = UnsafeMutablePointer<UInt8>(bitPattern: UInt(payload))!
+    for index in 0 ..< count {
+        if bytes[index] != heapPatternByte(tag, index) { return false }
+    }
+    return true
+}
+
+/// The heap's proof of life, run once at boot: take three blocks,
+/// fill each with its own pattern, read them all back; free the
+/// middle one and take a smaller fourth — it must be offered the
+/// freed chair, first-fit's plain promise — fill it too, and read
+/// every survivor's pattern again, so a neighbour's disturbance
+/// cannot hide. Then give everything back, and pass only if the
+/// books come home exactly: nothing used, and the whole field free
+/// in a single block, as it began.
+func runHeapSelfTest() {
+    let a = heapAlloc(100)
+    let b = heapAlloc(1000)
+    let c = heapAlloc(64)
+    if a == 0 || b == 0 || c == 0 {
+        if a != 0 { heapFree(a) }
+        if b != 0 { heapFree(b) }
+        if c != 0 { heapFree(c) }
+        heapSelfTestOK = false
+        return
+    }
+    heapFill(a, 100, 0xA1)
+    heapFill(b, 1000, 0xB2)
+    heapFill(c, 64, 0xC3)
+    if !heapCheck(a, 100, 0xA1) || !heapCheck(b, 1000, 0xB2)
+        || !heapCheck(c, 64, 0xC3) {
+        heapFree(a)
+        heapFree(b)
+        heapFree(c)
+        heapSelfTestOK = false
+        return
+    }
+    heapFree(b)
+    let d = heapAlloc(500)
+    if d != b {
+        if d != 0 { heapFree(d) }
+        heapFree(a)
+        heapFree(c)
+        heapSelfTestOK = false
+        return
+    }
+    heapFill(d, 500, 0xD4)
+    if !heapCheck(d, 500, 0xD4) || !heapCheck(a, 100, 0xA1)
+        || !heapCheck(c, 64, 0xC3) {
+        heapFree(a)
+        heapFree(c)
+        heapFree(d)
+        heapSelfTestOK = false
+        return
+    }
+    heapFree(a)
+    heapFree(c)
+    heapFree(d)
+    heapSelfTestOK = heapRecount()
+        && heapUsedBytes == 0 && heapUsedBlocks == 0
+        && heapFreeBytes == heapRegionBytes && heapFreeBlocks == 1
+}
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -1060,6 +1764,12 @@ func runMemorySelfTest() {
 //   mem     the machine's memory, counted from the bootloader's
 //           own map (milestone 6: the frame allocator's books;
 //           `memory` is taken as the same command)
+//   heap    the kernel heap's books: its field, and how the work
+//           stands in it (milestone 7)
+//   faulttest  the one command whose work is to fail — reaching
+//           for an address no page covers, so the page fault's
+//           report can be witnessed instead of merely believed
+//           (milestone 7; the machine halts on its answer)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -1075,6 +1785,8 @@ let clearCommand: StaticString = "clear"
 let uptimeCommand: StaticString = "uptime"
 let memCommand: StaticString = "mem"
 let memoryCommand: StaticString = "memory"
+let heapCommand: StaticString = "heap"
+let faulttestCommand: StaticString = "faulttest"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -1084,6 +1796,8 @@ let helpVerseLine: StaticString = "  verse   a verse of Scripture"
 let helpClearLine: StaticString = "  clear   clear the screen"
 let helpUptimeLine: StaticString = "  uptime  how long the kernel has been awake"
 let helpMemLine: StaticString = "  mem     the machine's memory, counted from its map"
+let helpHeapLine: StaticString = "  heap    the kernel heap, counted from its books"
+let helpFaultLine: StaticString = "  faulttest  take a page fault on purpose"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -1201,6 +1915,86 @@ func printMemory() {
     writeLine(memSelfTestOK ? memSelfTestPassedLine : memSelfTestFailedLine)
 }
 
+/// heap's vocabulary: labels and units, with the numbers spoken
+/// between them by writeNumber. Block counts keep their plural
+/// honest, the way uptime's units do.
+let heapTitle: StaticString = "Heap:"
+let heapRegionLabel: StaticString = "  Region: "
+let heapBytesParen: StaticString = " bytes ("
+let heapMiBClose: StaticString = " MiB)"
+let heapUsedLabel: StaticString = "  Used: "
+let heapFreeLabel: StaticString = "  Free: "
+let heapBytesIn: StaticString = " bytes in "
+let heapBlockWord: StaticString = " block"
+let heapBlocksWord: StaticString = " blocks"
+let heapSelfTestPassedLine: StaticString = "  Heap self-test: passed"
+let heapSelfTestFailedLine: StaticString = "  Heap self-test: FAILED"
+let heapNoHeapLine: StaticString = "No heap was raised."
+
+/// heap's answer: the heap's field and how the work stands in it —
+/// the region's size, the used and free bytes with their block
+/// counts beside them (whole-block bytes, headers included: used
+/// plus free is the region, exactly), and the self-test's verdict.
+/// Every number is the block chain's own reading, re-reckoned at
+/// every change; nothing here is remembered from the build machine.
+func printHeap() {
+    if !heapReady {
+        writeLine(heapNoHeapLine)
+        return
+    }
+    writeLine(heapTitle)
+    writeStatic(heapRegionLabel)
+    writeNumber(heapRegionBytes)
+    writeStatic(heapBytesParen)
+    writeNumber(heapRegionBytes / 1048576)
+    writeLine(heapMiBClose)
+    writeStatic(heapUsedLabel)
+    writeNumber(heapUsedBytes)
+    writeStatic(heapBytesIn)
+    writeNumber(heapUsedBlocks)
+    writeLine(heapUsedBlocks == 1 ? heapBlockWord : heapBlocksWord)
+    writeStatic(heapFreeLabel)
+    writeNumber(heapFreeBytes)
+    writeStatic(heapBytesIn)
+    writeNumber(heapFreeBlocks)
+    writeLine(heapFreeBlocks == 1 ? heapBlockWord : heapBlocksWord)
+    writeLine(heapSelfTestOK ? heapSelfTestPassedLine
+                             : heapSelfTestFailedLine)
+}
+
+/// faulttest's words: the announcement before the reach (the
+/// report itself will overwrite the screen's top rows when it
+/// comes), the honest word when paging is not standing and there
+/// is no fault to take, and — against every expectation — the word
+/// for the reach having been answered.
+let faultAnnounceLine: StaticString =
+    "Reaching for an address no page covers: 0xDEAD0000."
+let faultExpectLine: StaticString =
+    "If the kernel's tables are honest, the fault reports itself and halts."
+let faultNoPagingLine: StaticString =
+    "Paging is not standing; on the borrowed map, everything answers."
+let faultSurvivedLine: StaticString =
+    "No fault came. The address answered: "
+
+/// faulttest's work: announce the reach, then take it. Under the
+/// kernel's own tables the touch faults, the handler writes its
+/// report across the top of the screen, and the machine halts —
+/// this function never comes back. It can only return to be
+/// answered here if the address somehow answered, and then it
+/// says so, plainly: that, too, would be a truth worth hearing.
+func runFaultTest() {
+    if !pagingReady {
+        writeLine(faultNoPagingLine)
+        return
+    }
+    writeLine(faultAnnounceLine)
+    writeLine(faultExpectLine)
+    let value = touchUnmapped()
+    writeStatic(faultSurvivedLine)
+    writeNumber(UInt64(value))
+    writeNewline()
+}
+
 /// True when the typed line is nothing but spaces — the typist
 /// pressed Enter on an empty line, which earns only a fresh prompt.
 func lineIsBlank() -> Bool {
@@ -1275,6 +2069,8 @@ func submitLine() {
     let isVerse = commandMatches(verseCommand)
     let isUptime = commandMatches(uptimeCommand)
     let isMem = commandMatches(memCommand) || commandMatches(memoryCommand)
+    let isHeap = commandMatches(heapCommand)
+    let isFaulttest = commandMatches(faulttestCommand)
 
     writeNewline()
     if !blank {
@@ -1286,6 +2082,8 @@ func submitLine() {
             writeLine(helpClearLine)
             writeLine(helpUptimeLine)
             writeLine(helpMemLine)
+            writeLine(helpHeapLine)
+            writeLine(helpFaultLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -1298,6 +2096,10 @@ func submitLine() {
             printUptime()
         } else if isMem {
             printMemory()
+        } else if isHeap {
+            printHeap()
+        } else if isFaulttest {
+            runFaultTest()
         } else {
             writeLine(unknownLine)
         }
@@ -1373,6 +2175,20 @@ public func kmain(_ multibootInfo: UInt64) {
     // framebuffer's range is one of the reservations, which is why
     // this waits until the screen is chosen.
     initMemory(infoAddress: multibootInfo)
+
+    // Move into our own house (milestone 7): page tables of the
+    // kernel's building, raised out of the allocator's frames —
+    // the usable RAM identity-mapped under W^X, the kernel's text
+    // executable and unwritable, everything else writable and
+    // unexecutable, the dark left unmapped — and then, on the far
+    // side of the CR3 switch, the heap: one unbroken field of
+    // frames with a chain of blocks in it, self-tested before the
+    // shell opens. Both buildings happen under the floor's map and
+    // the closed interrupt gate; the screen is not yet wiped, and
+    // nothing has been promised that a failure here could break —
+    // if either raising fails, its command simply says so.
+    initPaging(infoAddress: multibootInfo)
+    initHeap()
 
     // Wipe the screen the bootloader left behind: the grid emptied
     // and repainted — and on the framebuffer, the whole pixel field

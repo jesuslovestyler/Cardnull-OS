@@ -8,11 +8,11 @@
  *
  *   - Stack protector: there is no userland to abort into. The guard
  *     word exists; failure rests the processor instead of returning.
- *   - Allocation: the kernel has no heap yet (memory management is
- *     milestone 3), so posix_memalign declines with ENOMEM and free
- *     lets go of nothing. Kernel code at this milestone allocates
- *     nothing; if a future call ever reached these, it would fail
- *     loudly rather than pretend.
+ *   - Allocation: these C entry points decline with ENOMEM and free
+ *     lets go of nothing. The kernel's heap (milestone 7) lives in
+ *     Swift and serves the kernel itself; nothing in the floor calls
+ *     these names, so they stay unconnected — answering honestly
+ *     rather than pretending to be the heap they are not.
  *   - Port I/O: Swift cannot emit the processor's `in`/`out`
  *     instructions, so the floor lends cardnull_inb / cardnull_outb.
  *     Milestone 2's keyboard hangs off them: the PS/2 controller is
@@ -290,4 +290,58 @@ unsigned long cardnull_kernel_start(void) {
 
 unsigned long cardnull_kernel_end(void) {
     return (unsigned long)&__cardnull_kernel_end;
+}
+
+/* ------------------------------------------------------------------ */
+/* Milestone 7: the paging hands, and the kernel's own shape.          */
+/*                                                                     */
+/* The page tables themselves — what is mapped, with what law — are  */
+/* decided in Swift, above. The floor lends only the touches Swift   */
+/* cannot make: two privileged instructions and the linker's word    */
+/* about the image's own spans.                                      */
+/*                                                                     */
+/*   - cardnull_enable_nxe: the no-execute bit in a page entry is    */
+/*     honored only while EFER's NXE bit stands; while it is clear,  */
+/*     the same bit is reserved and would fault the very tables it   */
+/*     belongs to. It is raised before any table carrying the bit    */
+/*     is loaded — exactly once, by the kernel, at the switch.       */
+/*   - cardnull_load_cr3: point the processor at a new set of page   */
+/*     tables. The write itself flushes the translation caches,      */
+/*     so the next instruction fetch already walks the new tables.   */
+/*   - The text and read-only spans, as the linker script named      */
+/*     them, so the kernel can give its own code pages the law       */
+/*     W^X promises: text executable and never writable, read-only   */
+/*     data neither.                                                 */
+/* ------------------------------------------------------------------ */
+
+void cardnull_enable_nxe(void) {
+    unsigned int low, high;
+    __asm__ volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(0xC0000080));
+    low |= 0x800;   /* EFER.NXE */
+    __asm__ volatile("wrmsr" : : "c"(0xC0000080), "a"(low), "d"(high));
+}
+
+void cardnull_load_cr3(unsigned long root) {
+    __asm__ volatile("mov %0, %%cr3" : : "r"(root) : "memory");
+}
+
+extern char __cardnull_text_start;
+extern char __cardnull_text_end;
+extern char __cardnull_rodata_start;
+extern char __cardnull_rodata_end;
+
+unsigned long cardnull_text_start(void) {
+    return (unsigned long)&__cardnull_text_start;
+}
+
+unsigned long cardnull_text_end(void) {
+    return (unsigned long)&__cardnull_text_end;
+}
+
+unsigned long cardnull_rodata_start(void) {
+    return (unsigned long)&__cardnull_rodata_start;
+}
+
+unsigned long cardnull_rodata_end(void) {
+    return (unsigned long)&__cardnull_rodata_end;
 }

@@ -7,8 +7,10 @@
  *     the real-mode interrupt table.
  *   - The Multiboot2 header section comes FIRST in the image, because
  *     GRUB only scans the beginning of the file for it.
- *   - Each section starts on a fresh page, so the page tables the boot
- *     floor builds can grow honest permissions later.
+ *   - Each section starts on a fresh page, so page tables can grow
+ *     honest permissions later — and as of milestone 7 they have:
+ *     the script now names the text and read-only spans below, and
+ *     the kernel's own page tables mark them so.
  */
 
 OUTPUT_FORMAT(elf64-x86-64)
@@ -24,16 +26,35 @@ SECTIONS
      * to the kernel (through support.c) as its reservation. */
     __cardnull_kernel_start = .;
 
-    /* The Multiboot2 header leads the file. */
+    /* The Multiboot2 header leads the file. Milestone 7 names the
+     * text span: the kernel's own page tables mark these pages
+     * executable and not writable, so the boundary must be a linker's
+     * fact, not a guess. The .text.* glob is insurance for any
+     * compiler-named code section that would otherwise land as an
+     * orphan beyond the named span. */
+    /* The span symbols live INSIDE the braces, deliberately: a
+     * symbol assigned between sections would capture the location
+     * counter before the next section's alignment is applied, and
+     * the read-only span would begin a page early — inside text. */
     .text : ALIGN(4K)
     {
+        __cardnull_text_start = .;
         *(.multiboot_header)
         *(.text)
+        *(.text.*)
+        __cardnull_text_end = .;
     }
 
+    /* The read-only span, likewise named for milestone 7: data the
+     * kernel reads but never writes and never executes. The Swift
+     * module hash rides here — read-only by its own section flags,
+     * and the page tables will treat the whole span as one country. */
     .rodata : ALIGN(4K)
     {
+        __cardnull_rodata_start = .;
         *(.rodata .rodata.*)
+        *(.swift_modhash)
+        __cardnull_rodata_end = .;
     }
 
     .data : ALIGN(4K)

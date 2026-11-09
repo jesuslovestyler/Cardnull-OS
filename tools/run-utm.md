@@ -43,7 +43,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Six commands, for now:
+Press Enter and the prompt answers. Eight commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -52,6 +52,8 @@ Press Enter and the prompt answers. Six commands, for now:
 - `uptime` — how long the kernel has been awake
 - `mem` — the machine's memory, counted from the bootloader's map
   (`memory` answers too)
+- `heap` — the kernel heap, counted from its books
+- `faulttest` — take a page fault on purpose, and hear it reported
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -64,7 +66,21 @@ RAM it finds, so the answer is the machine's own numbers — usable
 RAM, frames total, free, and used, with the allocator's boot
 self-test verdict. The numbers differ a little between the BIOS
 and UEFI doors, because the two firmwares' maps honestly differ;
-both are the truth as that door's bootloader reported it. (The UTM
+both are the truth as that door's bootloader reported it. And
+try `heap`: since milestone 7 the kernel keeps a heap — 4 MiB of
+frames in one run, a chain of first-fit blocks inside it — and
+the command speaks its books (region, bytes and blocks used and
+free, and the boot self-test's verdict). Milestone 7 also moved
+the kernel into page tables of its own building — it no longer
+runs on the boot floor's wide borrowed map — with W^X laid in
+the leaves: its code pages cannot be written, and its data
+pages cannot be executed. You can witness the tables' honesty
+yourself with `faulttest`: the command reaches for an address
+no page covers (0xDEAD0000), the fault is reported on screen —
+"Page fault - halting.", the address, and the error code in hex
+and in words — and the machine halts, cleanly, without
+rebooting. Restart the VM afterward; the halt is the command
+working, not the machine breaking. (The UTM
 settings, settled milestone 2: Force PS/2 Controller on, USB input
 disabled — the keyboard is still a PS/2 device; what changed in
 milestone 4 is that it speaks by IRQ1, not by being asked. And

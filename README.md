@@ -58,7 +58,45 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 6 stands (November 9, 2026): **the kernel knows its
+Milestone 7 stands (November 9, 2026): **the kernel keeps its
+own house.** The kernel no longer runs on the boot floor's
+borrowed page tables — one wide identity map where every page
+stood writable and executable. It builds tables of its own, out
+of the frame allocator's pages: four levels of 4 KiB leaves,
+identity-mapped over the usable RAM, the kernel image, the
+framebuffer, the VGA text page, and the bootloader's own
+information — and nothing else; the holes and the PCI dark are
+simply not there, and reaching for them faults. In the leaves,
+the hardening road's first law is laid down — W^X: the kernel's
+text pages executable and not writable, its read-only data
+neither writable nor executable, everything else mapped
+writable and never executable. The page fault grew up with the
+tables: vector 14 has a hand-written stub that carries the
+faulting address (CR2) and the error code up to a handler that
+reports both, in hex and in words, and halts the machine
+cleanly. A new command, `faulttest`, reaches for an address no
+page covers (0xDEAD0000) so the report can be witnessed rather
+than believed: behind both doors it answers "Page fault -
+halting." with the address 0x00000000DEAD0000 and the error code
+0x0000 — "read, page not present, supervisor mode" — and rests,
+with no reboot loop. And the kernel has a heap: 4 MiB of frames
+in one unbroken run, a chain of first-fit blocks with splitting
+and coalescing, its books reckoned by walking the chain; a boot
+self-test takes blocks, writes patterns, reads them back byte
+for byte, frees the middle one and takes a smaller block into
+the freed chair, and passes only on exact verification. A
+seventh command, `heap`, speaks those books — after the
+self-test, "Used: 0 bytes in 0 blocks / Free: 4194304 bytes in
+1 block". `mem` still tells the map's truth, and its used count
+has honestly grown by the new buildings: in QEMU with 128 MiB,
+the BIOS door reports 32,638 frames with 1,308 used (milestone
+6's 212, plus 72 pages of tables and the heap's 1,024), the
+UEFI door 31,176 frames with 1,309 used. Verified in QEMU
+behind both doors: the shell alive and answering on the far
+side of the CR3 switch — help, verse, mem, heap — and the fault
+report standing under `faulttest`.
+
+Before that, milestone 6 (November 9, 2026): **the kernel knows its
 memory.** The Multiboot2 information GRUB hands over carries a
 memory map, and the kernel now reads it — every region's base,
 length, and kind — and raises a page-frame allocator over the RAM
@@ -78,7 +116,7 @@ honestly differ: in QEMU with 128 MiB, the BIOS door reported
 UEFI door 127,696,896 bytes and 31,176 frames (30,963 free), the
 self-test passing behind both. Nothing is paged and there is no
 heap yet — handing frames out, one by one, is this milestone's
-whole work; paging and the heap are milestone 7.
+whole work.
 
 Before that, milestone 5 (November 6, 2026): **one ISO, two doors.** The
 same disc image now boots behind UEFI firmware as well as BIOS.
@@ -133,8 +171,9 @@ typed through the emulator's keyboard, answered on the kernel's
 screen, and the two uptime readings advancing with the wall clock
 between them; the same ISO is the one tested in UTM.
 
-Not yet, honestly: paging and a kernel heap (milestone 7), and a
-filesystem (the rest of roadmap step 3, "Remember"); USB input — under either firmware, a
+Not yet, honestly: a filesystem (the rest of roadmap step 3,
+"Remember") — paging and the kernel heap stood up in milestone
+7, and the filesystem is the next stone; USB input — under either firmware, a
 USB-only keyboard is beyond us still, which is why the UTM drill
 keeps the PS/2 controller forced on and USB input off; and a
 native EFI entry of our own — the UEFI door today is GRUB's EFI

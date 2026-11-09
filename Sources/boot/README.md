@@ -34,7 +34,12 @@ every line says why it exists.
     the vector number to Swift's exception handler; two IRQ stubs
     (timer, keyboard) that save every register, call their Swift
     handler, and return by `iretq`; and `cardnull_stub_table`, the
-    address table the IDT is built from.
+    address table the IDT is built from. Milestone 7 replaced vector
+    14's macro-born stub with a hand-written one: the page fault owes
+    the kernel two facts the shared door cannot carry — the error
+    code the processor pushed and the faulting address it keeps in
+    CR2 — and this stub takes both and hands them to Swift's
+    page-fault handler, which reports them before halting.
 - **`support.c`** — runtime support shims: the stack-protector guard
   word and failure path, allocation entry points that honestly
   decline (there is no heap yet), and the port I/O hands
@@ -59,7 +64,15 @@ every line says why it exists.
   covering the first 4 GiB) and the kernel image's own bounds
   (`cardnull_kernel_start` / `cardnull_kernel_end`), so the
   allocator can reserve the ground the kernel stands on. What the
-  bits mean stays the kernel's business, as always.
+  bits mean stays the kernel's business, as always. Milestone 7
+  added the paging hands — `cardnull_enable_nxe` and
+  `cardnull_load_cr3`, the two privileged touches Swift cannot
+  make — and the linker's word about the image's text and
+  read-only spans (`cardnull_text_start` / `cardnull_text_end`,
+  `cardnull_rodata_start` / `cardnull_rodata_end`), so the kernel
+  can lay W^X over its own body. The tables themselves — what is
+  mapped, under what law — are built in Swift, above; the floor
+  only lends the hands and the measurements.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),
@@ -71,13 +84,23 @@ every line says why it exists.
   Multiboot2 header first in the image, each section on its own
   page. Since milestone 6 it also names the image's bounds —
   `__cardnull_kernel_start` / `__cardnull_kernel_end` — the
-  reservation the allocator lays over itself.
+  reservation the allocator lays over itself. Milestone 7 named
+  the text and read-only spans as well —
+  `__cardnull_text_start` / `__cardnull_text_end`,
+  `__cardnull_rodata_start` / `__cardnull_rodata_end` — assigned
+  inside their sections' braces, where the location counter
+  already wears the section's alignment, so the kernel's page
+  tables can mark the spans executable-unwritable and read-only
+  in turn.
 
 ## What is not here yet
 
-No memory beyond the identity map — the kernel's frame allocator
-(milestone 6) works within the floor's 4 GiB identity map, and
-paging of our own, with a heap above it, is milestone 7. The floor
-grows only when the kernel above it honestly requires more. The IDT's gates beyond the exceptions and
-IRQ0/IRQ1 stand empty, likewise: a vector earns a stub when a device
-or a duty honestly arrives, not before.
+No tables of our own in the floor, by design: the floor's 4 GiB
+identity map is scaffolding — it exists to walk the processor
+into long mode — and since milestone 7 the kernel replaces it
+with page tables of its own building as soon as the frame
+allocator stands, and raises its heap (in Swift, above) on the
+far side of the switch. The floor grows only when the kernel
+above it honestly requires more. The IDT's gates beyond the
+exceptions and IRQ0/IRQ1 stand empty, likewise: a vector earns
+a stub when a device or a duty honestly arrives, not before.

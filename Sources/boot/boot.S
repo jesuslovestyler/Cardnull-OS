@@ -11,7 +11,9 @@
 #   4. Provide cardnull_halt, the hlt-loop the kernel rests in.
 #   5. Carry the interrupt stubs (milestone 4): one door per exception
 #      vector, one per hardware IRQ the kernel takes, and the table of
-#      their addresses the IDT is built from.
+#      their addresses the IDT is built from. Milestone 7 gives the
+#      page fault (vector 14) a hand-written door of its own, below,
+#      which carries the faulting address and error code up to Swift.
 #   6. Keep the bootloader's word (milestone 5): the Multiboot2 header
 #      asks for a linear framebuffer — the UEFI door has no text grid
 #      to write in, only pixels — and the entry stub preserves EBX,
@@ -301,7 +303,8 @@ cardnull_isr\num:
     EXCEPTION_STUB 11, 1
     EXCEPTION_STUB 12, 1
     EXCEPTION_STUB 13, 1
-    EXCEPTION_STUB 14, 1
+    # Vector 14 (page fault) is hand-written below, not macro-born:
+    # it owes the kernel two facts the shared door cannot carry.
     EXCEPTION_STUB 15, 0
     EXCEPTION_STUB 16, 0
     EXCEPTION_STUB 17, 1
@@ -319,6 +322,25 @@ cardnull_isr\num:
     EXCEPTION_STUB 29, 0
     EXCEPTION_STUB 30, 1
     EXCEPTION_STUB 31, 0
+
+# Vector 14 — the page fault (milestone 7). Until now a bad address
+# died like every other exception, one plain sentence and no facts.
+# Paging of our own makes the fault worth hearing out: the processor
+# keeps the address that was reached for in CR2 and a small testimony
+# of the reaching in the error code it pushes, and both belong to the
+# kernel's report. So this stub is written by hand: it takes the
+# the error code off the frame the processor built ([ error code ][ RIP ]
+# [ CS ] [ RFLAGS ] ...) and CR2 out of the processor, and hands the
+# pair to Swift in the ABI's first two argument registers. The
+# handler never returns — it reports and halts — so the stack is
+# simply aligned for the call, as the shared door above does.
+    .globl  cardnull_isr14
+cardnull_isr14:
+    mov     (%rsp), %rdi                        # the error code the CPU pushed
+    mov     %cr2, %rsi                          # the address that was reached for
+    and     $-16, %rsp                          # a fresh, aligned stack
+    call    cardnull_page_fault_handler
+    jmp     cardnull_halt                       # unreachable, by contract
 
 # The stub address table: support.c builds the IDT from these.
 # Entries 0..31 are the exception vectors in order; entry 32 is IRQ0
