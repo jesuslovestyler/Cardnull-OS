@@ -344,15 +344,21 @@ unsigned int *cardnull_gui_cushion(void) {
 
 /* ------------------------------------------------------------------ */
 /* Milestone 13: the Terminal window's grid, and the mouse report.    */
+/* Milestone 14: the grid's keeping became a capacity.                */
 /*                                                                    */
 /* The desktop's Terminal window keeps a character grid of its own    */
-/* — 40 columns x 31 rows — apart from the console's 80 x 25, so      */
-/* the shell's conversation can live inside the window while the      */
-/* console's own conversation stands untouched behind the desktop,    */
-/* ready to be painted back whole when the face goes home. The        */
-/* floor lends the memory; which letters stand in it is the           */
-/* kernel's business. The numbers 40 and 31 are agreed with the       */
-/* kernel's termColumns and termRows.                                 */
+/* apart from the console's 80 x 25, so the shell's conversation      */
+/* can live inside the window while the console's own conversation    */
+/* stands untouched behind the desktop, ready to be painted back      */
+/* whole when the face goes home. The floor lends the memory;         */
+/* which letters stand in it is the kernel's business. Milestone      */
+/* 13's window had one shape — 40 columns x 31 rows. Milestone 14     */
+/* lets the window change its shape (it opens large now, and can      */
+/* be maximized), so the keeping is a fixed capacity — a stride of    */
+/* 120 columns and room for 64 rows — inside which the kernel         */
+/* reckons the visible shape from the window's size. The numbers      */
+/* 120 and 64 are agreed with the kernel's termStrideColumns and      */
+/* termRowsCapacity.                                                  */
 /*                                                                    */
 /* The mouse report: the two short lines the kernel composes at       */
 /* boot — whether the mouse answered its waking, and what each        */
@@ -361,7 +367,7 @@ unsigned int *cardnull_gui_cushion(void) {
 /* bytes is room and to spare for two honest lines.                   */
 /* ------------------------------------------------------------------ */
 
-static unsigned char term_grid[40 * 31];
+static unsigned char term_grid[120 * 64];
 
 unsigned char *cardnull_term_grid(void) {
     return term_grid;

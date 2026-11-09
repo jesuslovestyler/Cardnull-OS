@@ -99,13 +99,17 @@ func cardnullMouseRing() -> UnsafeMutablePointer<UInt8>
 @_silgen_name("cardnull_gui_cushion")
 func cardnullGuiCushion() -> UnsafeMutablePointer<UInt32>
 
-/// Provided by the boot floor (support.c): the raw storage of the
-/// Terminal window's character grid — 40 x 31 bytes the floor
-/// lends, for the same reason as the text grid. Milestone 13's
-/// shell speaks through this grid while the desktop stands and
-/// the Terminal window is open, so the console's own conversation
-/// is never touched by the face. The numbers are agreed with the
-/// kernel's termColumns and termRows.
+/// Provided by the boot floor (support.c): the raw storage of
+/// the Terminal window's character grid — a fixed keeping of
+/// 120 x 64 bytes the floor lends, for the same reason as the
+/// text grid. Milestone 13's shell spoke through this grid while
+/// the desktop stood and the Terminal window was open, so the
+/// console's own conversation was never touched by the face;
+/// milestone 14 made the window's visible shape a thing reckoned
+/// from the window's size, so the keeping is now a capacity, not
+/// a shape: the numbers are agreed with the kernel's
+/// termStrideColumns and termRowsCapacity, and the visible
+/// termColumns and termRows live within them.
 @_silgen_name("cardnull_term_grid")
 func cardnullTermGrid() -> UnsafeMutablePointer<UInt8>
 
@@ -335,9 +339,22 @@ var lineStartCol = 2
 /// open. Everything else in the kernel neither knows nor cares.
 var consoleInTerminal = false
 
-/// The Terminal grid's shape, agreed with the floor's keeping.
-let termColumns = 40
-let termRows = 31
+/// The Terminal grid's keeping and its visible shape. The
+/// keeping is fixed — a stride of termStrideColumns and room
+/// for termRowsCapacity rows, agreed with the floor — and the
+/// storage never changes its layout. The visible shape,
+/// termColumns by termRows, is reckoned from the Terminal
+/// window's size whenever the window changes its shape
+/// (milestone 14: it opens large, and can be maximized and
+/// restored): only the visible window into the keeping moves,
+/// and the cells beyond the visible shape are kept spaces, so
+/// a typed line read back across a row's end meets nothing but
+/// the spaces a wrapped line would imply. In milestone 13 the
+/// two were one and the same — a fixed 40 x 31.
+let termStrideColumns = 120
+let termRowsCapacity = 64
+var termColumns = 40
+var termRows = 31
 
 /// Each home's four marks, kept aside while the other is in use.
 var textSavedCursorRow = typingTopRow
@@ -379,6 +396,17 @@ func consoleRows() -> Int {
 @inline(__always)
 func activeGrid() -> UnsafeMutablePointer<UInt8> {
     consoleInTerminal ? cardnullTermGrid() : cardnullTextGrid()
+}
+
+/// The linear offset of one cell of the active home — the
+/// stride being the grid's own keeping-width: the text grid's
+/// 80, the Terminal keeping's fixed 120. The shell reads its
+/// typed lines back by walking offsets reckoned here, so the
+/// reading and the storage can never disagree when the
+/// Terminal's visible width changes with its window.
+@inline(__always)
+func cellOffset(_ row: Int, _ col: Int) -> Int {
+    row * (consoleInTerminal ? termStrideColumns : screenColumns) + col
 }
 
 /// Notes one Terminal row as touched by the writing hands.
@@ -617,7 +645,7 @@ func repaintScreen() {
 @inline(__always)
 func putCell(row: Int, col: Int, character: UInt8) {
     if consoleInTerminal {
-        cardnullTermGrid()[row * termColumns + col] = character
+        cardnullTermGrid()[row * termStrideColumns + col] = character
         termMarkDirty(row)
         return
     }
@@ -675,12 +703,12 @@ func scrollUp() {
         let grid = cardnullTermGrid()
         for row in 1 ..< termRows {
             for col in 0 ..< termColumns {
-                grid[(row - 1) * termColumns + col] =
-                    grid[row * termColumns + col]
+                grid[(row - 1) * termStrideColumns + col] =
+                    grid[row * termStrideColumns + col]
             }
         }
         for col in 0 ..< termColumns {
-            grid[(termRows - 1) * termColumns + col] = 0x20
+            grid[(termRows - 1) * termStrideColumns + col] = 0x20
         }
         if lineStartRow > 0 {
             lineStartRow -= 1
@@ -2904,8 +2932,8 @@ let catUsageLine: StaticString = "cat wants a file: cat /WELCOME.TXT"
 /// after its word, which `ls` takes as "the root" and `cat` as
 /// a question it must answer with its usage.
 func copyArgumentToScratch() -> Int {
-    let start = lineStartRow * consoleCols() + lineStartCol
-    let end = cursorRow * consoleCols() + cursorCol
+    let start = cellOffset(lineStartRow, lineStartCol)
+    let end = cellOffset(cursorRow, cursorCol)
     var cell = start
     while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     while cell < end && screenChar(cell: cell) != 0x20 { cell += 1 }
@@ -2930,8 +2958,8 @@ func copyArgumentToScratch() -> Int {
 /// where commandMatches' whole-line strictness would refuse
 /// the argument that makes them useful.
 func firstWordMatches(_ command: StaticString) -> Bool {
-    let start = lineStartRow * consoleCols() + lineStartCol
-    let end = cursorRow * consoleCols() + cursorCol
+    let start = cellOffset(lineStartRow, lineStartCol)
+    let end = cellOffset(cursorRow, cursorCol)
     var cell = start
     while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     var index = 0
@@ -4295,12 +4323,16 @@ func runFeather() {
 // drawn on it; this milestone draws the rest — a desktop, one
 // window standing on it, and a pointer that answers the mouse.
 //
-// The face is deliberately small, and its smallness is stated
-// plainly: one window, in one place, that cannot be dragged or
-// resized; one button that counts its clicks; one close box.
-// There is no window manager here and no program but the kernel
-// draws — graphical guests are a later era, and nothing in this
-// section pretends otherwise.
+// The face was deliberately small in this milestone, and its
+// smallness was stated plainly at the time: one window, in one
+// place, that could not be dragged or resized; one button that
+// counted its clicks; one close box. There is still no window
+// manager here and no program but the kernel draws — graphical
+// guests are a later era, and nothing in this section pretends
+// otherwise — but the face has grown since: milestone 13 gave
+// it a second window, the Terminal, and milestone 14 gave the
+// desktop room, a bottom bar, dragging, and a Terminal that
+// opens large; those stones speak in their own places below.
 //
 // How it is put together:
 //
@@ -4373,17 +4405,26 @@ let guiDimBarColor: UInt32 = 0x4A2A30
 /// The Terminal's ground: a deep warm ink, against which the
 /// shell's parchment letters stand the way they do on paper.
 let guiTermBgColor: UInt32 = 0x201612
+/// The bottom bar's ground (milestone 14): darker than the
+/// gradient's foot and plainer, a worked surface rather than
+/// sky — the desktop's furniture stands on it.
+let guiBarColor: UInt32 = 0x1C0A10
 
 /// The face's words.
 let guiDesktopName: StaticString = "Cardnull OS"
-let guiHintLine: StaticString = "Esc brings you home."
 let guiWindowTitle: StaticString = "Welcome"
 let guiGreetingLine: StaticString = "Welcome to Cardnull OS."
-let guiVerseLine1: StaticString = "In the beginning was the Word,"
-let guiVerseLine2: StaticString = "and the Word was with God,"
-let guiVerseLine3: StaticString = "and the Word was God."
+/// The house verse, wrapped for the Welcome card's narrower
+/// parchment (milestone 14): the words are John 1:1's own,
+/// unchanged — only the line breaks moved, four lines now
+/// where the wider window carried three.
+let guiVerseLine1: StaticString = "In the beginning was"
+let guiVerseLine2: StaticString = "the Word, and the Word"
+let guiVerseLine3: StaticString = "was with God, and the"
+let guiVerseLine4: StaticString = "Word was God."
 let guiTermTitle: StaticString = "Terminal"
-let guiLauncherText: StaticString = "Terminal"
+let guiHomeLabel: StaticString = "Home"
+let guiUptimeLabel: StaticString = "Uptime "
 let guiVerseAttribution: StaticString = "- John 1:1 (Douay-Rheims)"
 let guiButtonText: StaticString = "Click me"
 let guiClicksLabel: StaticString = "Clicks: "
@@ -4545,12 +4586,13 @@ func guiDrawDecimal(_ x: Int, _ y: Int, _ scale: Int,
 }
 
 // ---------------------------------------------------------------------------
-// The window: one window, in one place. Its geometry is reckoned
-// at the face's opening from the screen's own size — 680 x 400
-// where the screen has room for it, less where it does not, and
-// centred either way. Every part's place is a fixed offset from
-// the window's corner, so the painting hands and the click's
-// hit-tests read the same numbers and cannot disagree.
+// The window: the Welcome card. Its geometry is reckoned at
+// the face's opening from the screen's own size — 448 x 320
+// where the screen has room for it, less where it does not —
+// and it can be carried about by its title bar since milestone
+// 14. Every part's place is a fixed offset from the window's
+// corner, so the painting hands and the click's hit-tests read
+// the same numbers and cannot disagree.
 // ---------------------------------------------------------------------------
 
 var guiWinX = 0
@@ -4566,11 +4608,12 @@ func guiCloseBoxContains(_ x: Int, _ y: Int) -> Bool {
 }
 
 /// The button: 220 x 48, standing 32 from the window's left edge
-/// and 52 above its bottom.
+/// and 36 above its bottom (milestone 14: the compact card
+/// keeps it nearer its foot).
 func guiButtonContains(_ x: Int, _ y: Int) -> Bool {
     x >= guiWinX + 32 && x < guiWinX + 252
-        && y >= guiWinY + guiWinH - 100
-        && y < guiWinY + guiWinH - 52
+        && y >= guiWinY + guiWinH - 84
+        && y < guiWinY + guiWinH - 36
 }
 
 /// Paints the close box: its face, and the X across it — two
@@ -4594,7 +4637,7 @@ func guiPaintCloseBox() {
 /// theatre: it is the real button state that paints it.
 func guiPaintButton() {
     let buttonX = guiWinX + 32
-    let buttonY = guiWinY + guiWinH - 100
+    let buttonY = guiWinY + guiWinH - 84
     guiFillRect(buttonX, buttonY, 220, 48,
                 guiButtonHeld ? guiPressedColor : guiButtonColor)
     guiFillRect(buttonX, buttonY, 220, 2, guiBorderColor)
@@ -4611,8 +4654,8 @@ func guiPaintButton() {
 /// leaves no ghost of its longer self behind.
 func guiPaintClicks() {
     let clicksX = guiWinX + 272
-    let clicksY = guiWinY + guiWinH - 92
-    guiFillRect(clicksX, clicksY, 260, 32, guiParchmentColor)
+    let clicksY = guiWinY + guiWinH - 76
+    guiFillRect(clicksX, clicksY, 168, 32, guiParchmentColor)
     let endX = guiDrawText(clicksX + 8, clicksY + 8, 2,
                            guiClicksLabel, guiInkColor)
     guiDrawDecimal(endX + 4, clicksY + 8, 2, UInt64(guiClickCount),
@@ -4621,8 +4664,12 @@ func guiPaintClicks() {
 
 /// Paints the window whole: its shadow, its parchment body and
 /// border, the cardinal title bar with its name and close box,
-/// the greeting, the house verse in its three lines with its
-/// attribution, and the button with its count beside it.
+/// the greeting, the house verse in its four lines with its
+/// attribution, and the button with its count beside it. In
+/// milestone 14 this is a compact card — 448 x 320 at the full
+/// screen — where milestones 12 and 13 carried a window as
+/// large as the Terminal's own; the words it carries are the
+/// same, only their wrapping changed.
 func guiPaintWindow() {
     guiFillRect(guiWinX + 10, guiWinY + 12, guiWinW, guiWinH,
                 guiShadowColor)
@@ -4639,15 +4686,17 @@ func guiPaintWindow() {
     guiDrawText(guiWinX + 16, guiWinY + 10, 2, guiWindowTitle,
                 guiWhiteColor)
     guiPaintCloseBox()
-    guiDrawText(guiWinX + 32, guiWinY + 64, 2, guiGreetingLine,
+    guiDrawText(guiWinX + 32, guiWinY + 56, 2, guiGreetingLine,
                 guiInkColor)
-    guiDrawText(guiWinX + 32, guiWinY + 112, 2, guiVerseLine1,
+    guiDrawText(guiWinX + 32, guiWinY + 100, 2, guiVerseLine1,
                 guiInkColor)
-    guiDrawText(guiWinX + 32, guiWinY + 140, 2, guiVerseLine2,
+    guiDrawText(guiWinX + 32, guiWinY + 124, 2, guiVerseLine2,
                 guiInkColor)
-    guiDrawText(guiWinX + 32, guiWinY + 168, 2, guiVerseLine3,
+    guiDrawText(guiWinX + 32, guiWinY + 148, 2, guiVerseLine3,
                 guiInkColor)
-    guiDrawText(guiWinX + 32, guiWinY + 196, 2, guiVerseAttribution,
+    guiDrawText(guiWinX + 32, guiWinY + 172, 2, guiVerseLine4,
+                guiInkColor)
+    guiDrawText(guiWinX + 32, guiWinY + 204, 2, guiVerseAttribution,
                 guiInkColor)
     guiPaintButton()
     guiPaintClicks()
@@ -4656,8 +4705,12 @@ func guiPaintWindow() {
 /// Paints the desktop whole: the gradient — deep cardinal at
 /// the top settling toward near-black at the bottom, each row's
 /// colour mixed once and laid across the row — then the OS's
-/// name standing large above the window, the hint along the
-/// bottom, and the window itself.
+/// name standing large above the windows, the windows in their
+/// standing order (the one without the room first, the one
+/// holding it painted last, on top), and the bottom bar across
+/// the foot, painted last of all so nothing ever covers it.
+/// A whole paint answers any dirty marks the Terminal's
+/// writing hands left behind, so they are cleared as it ends.
 func guiPaintDesktop() {
     let span = max(framebufferHeight - 1, 1)
     for row in 0 ..< framebufferHeight {
@@ -4671,17 +4724,16 @@ func guiPaintDesktop() {
     // centred over the screen.
     guiDrawText((framebufferWidth - 352) / 2, 40, 4, guiDesktopName,
                 guiGoldColor)
-    // The bottom's left end carries the mouse's standing, in the
-    // report's own words; its right end keeps the way home.
-    guiDrawTextBuffer(24, framebufferHeight - 44, 2, 0, guiHintColor)
-    guiDrawText(framebufferWidth - 344, framebufferHeight - 44, 2,
-                guiHintLine, guiHintColor)
-    guiPaintWindow()
-    if termOpen {
-        guiPaintTerminal()
+    if guiFocusTerminal {
+        if welcomeOpen { guiPaintWindow() }
+        if termOpen { guiPaintTerminal() }
     } else {
-        guiPaintLauncher()
+        if termOpen { guiPaintTerminal() }
+        if welcomeOpen { guiPaintWindow() }
     }
+    guiPaintBar()
+    termDirtyTop = -1
+    termDirtyBottom = -1
 }
 
 // ---------------------------------------------------------------------------
@@ -4700,7 +4752,12 @@ func guiPaintDesktop() {
 // dimmed. The Terminal's close box closes only the window, and
 // a launcher on the desktop calls it back. No dragging — the
 // windows stand where they are painted; moving them is a later
-// growth, named as such.
+// growth, named as such. (That growth arrived as milestone 14:
+// the arrangement above is history — the Terminal now opens
+// large over a work area above a bottom bar, the Welcome
+// window is a compact card that starts closed, the launchers
+// live in the bar, and the windows can be carried by their
+// title bars; the Terminal and its conversation are the same.)
 // ---------------------------------------------------------------------------
 
 /// The Terminal window's place and shape, reckoned at the
@@ -4715,10 +4772,68 @@ var guiTermH = 0
 var termOpen = true
 var guiFocusTerminal = true
 
+// ---------------------------------------------------------------------------
+// Milestone 14: room to breathe.
+//
+// The desktop is rearranged around the Terminal, the window
+// the work is done in. The Terminal opens large — the whole
+// work area between the desktop's name and a new bottom bar —
+// and its grid is reckoned from its window (see the keeping's
+// note at termStrideColumns). The Welcome window is demoted,
+// not deleted: a compact card, closed at the opening, called
+// up by its own launcher in the bar and put away by its close
+// box like any window. The bottom bar carries the mouse's
+// standing line in its old words, a launcher for each window,
+// the session's uptime, and a Home button — the face's one
+// plainly labelled road back to the text shell, standing
+// beside Esc's standing rule. Windows can be dragged by their
+// title bars, by an outline that follows the pointer and is
+// painted whole at rest, and the Terminal carries a
+// maximize/restore control beside its close box.
+// ---------------------------------------------------------------------------
+
+/// Whether the Welcome card stands on the desktop. It starts
+/// closed (milestone 14): the Terminal is the room's first
+/// citizen now, and the card is called up from the bar.
+var welcomeOpen = false
+
+/// The work area's top edge: below the desktop's name, the
+/// first row a window may stand on, and the floor of the
+/// dragging clamp. The bottom bar's top is the area's floor.
+let guiWorkTop = 88
+
+/// The Terminal's maximize bookkeeping: whether it stands
+/// maximized, and the place and shape restore returns it to.
+var termMaximized = false
+var termSavedX = 0
+var termSavedY = 0
+var termSavedW = 0
+var termSavedH = 0
+
+/// The drag's bookkeeping: which window is being carried
+/// (0 none, 1 the Welcome card, 2 the Terminal), where in its
+/// title bar the pointer took hold, and the outline's present
+/// rect — the window's own rect until the pointer moves it.
+var dragWindow = 0
+var dragOffsetX = 0
+var dragOffsetY = 0
+var dragRectX = 0
+var dragRectY = 0
+var dragRectW = 0
+var dragRectH = 0
+var dragOutlineDrawn = false
+
+/// The bar clock's bookkeeping: the second it last painted,
+/// and whether the screen is wide enough to carry it without
+/// crowding the launchers (reckoned at the face's opening).
+var guiClockSecond: UInt64 = 0
+var guiClockVisible = false
+
 /// The Terminal's text field: its grid drawn at twofold size
-/// from this origin — 40 columns of 16 pixels is 640 of the
-/// window's 672, and 31 rows is 496 of its 560, the title bar
-/// and a margin kept around them.
+/// from this origin, its visible shape reckoned from the
+/// window's size (76 columns by 37 rows in the window as it
+/// opens at 1280 x 800; 40 by 31 in milestone 13's smaller
+/// window), the title bar and a margin kept around it.
 func guiTermCellX(_ col: Int) -> Int { guiTermX + 16 + col * 16 }
 func guiTermCellY(_ row: Int) -> Int { guiTermY + 52 + row * 16 }
 
@@ -4739,22 +4854,43 @@ func guiWinContains(_ x: Int, _ y: Int) -> Bool {
         && y >= guiWinY && y < guiWinY + guiWinH
 }
 
-/// The launcher: a desktop control that stands where the
-/// Terminal's country is, only while the window is closed —
-/// 176 x 48 at the desktop's top-right, under the name.
-func guiLauncherContains(_ x: Int, _ y: Int) -> Bool {
-    x >= framebufferWidth - 200 && x < framebufferWidth - 24
-        && y >= 120 && y < 168
+/// A window's title bar: the strip across its head, where a
+/// press takes hold for the drag (milestone 14) — the boxes
+/// standing in it are asked first, in the press's own order.
+func guiTermTitleContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiTermX && x < guiTermX + guiTermW
+        && y >= guiTermY && y < guiTermY + 36
 }
 
-func guiPaintLauncher() {
-    let boxX = framebufferWidth - 200
-    guiFillRect(boxX, 120, 176, 48, guiButtonColor)
-    guiFillRect(boxX, 120, 176, 2, guiBorderColor)
-    guiFillRect(boxX, 166, 176, 2, guiBorderColor)
-    guiFillRect(boxX, 120, 2, 48, guiBorderColor)
-    guiFillRect(boxX + 174, 120, 2, 48, guiBorderColor)
-    guiDrawText(boxX + 24, 136, 2, guiLauncherText, guiInkColor)
+func guiWinTitleContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiWinX && x < guiWinX + guiWinW
+        && y >= guiWinY && y < guiWinY + 36
+}
+
+/// The Terminal's maximize box: left of its close box, in the
+/// same keeping (milestone 14).
+func guiTermMaxContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiTermX + guiTermW - 92 && x < guiTermX + guiTermW - 56
+        && y >= guiTermY + 4 && y < guiTermY + 32
+}
+
+/// Paints the Terminal's maximize box: a small square while
+/// the window stands at its own size; two squares, one behind
+/// the other, while it stands maximized — the face's way of
+/// saying the box now restores.
+func guiPaintTermMaxBox() {
+    let boxX = guiTermX + guiTermW - 92
+    let boxY = guiTermY + 4
+    guiFillRect(boxX, boxY, 36, 28, guiButtonColor)
+    if termMaximized {
+        guiFillRect(boxX + 15, boxY + 5, 12, 12, guiWhiteColor)
+        guiFillRect(boxX + 16, boxY + 6, 10, 10, guiButtonColor)
+        guiFillRect(boxX + 8, boxY + 11, 12, 12, guiWhiteColor)
+        guiFillRect(boxX + 9, boxY + 12, 10, 10, guiButtonColor)
+    } else {
+        guiFillRect(boxX + 11, boxY + 7, 14, 14, guiWhiteColor)
+        guiFillRect(boxX + 12, boxY + 8, 12, 12, guiButtonColor)
+    }
 }
 
 /// Paints one cell of the Terminal's grid: its ground laid
@@ -4765,7 +4901,7 @@ func guiPaintTermCell(_ row: Int, _ col: Int) {
     let x = guiTermCellX(col)
     let y = guiTermCellY(row)
     guiFillRect(x, y, 16, 16, guiTermBgColor)
-    let character = cardnullTermGrid()[row * termColumns + col]
+    let character = cardnullTermGrid()[row * termStrideColumns + col]
     if character != 0x20 {
         guiDrawGlyph(x, y, 2, character, guiParchmentColor)
     }
@@ -4815,27 +4951,367 @@ func guiPaintTerminal() {
                 guiFocusTerminal ? guiCardinalColor : guiDimBarColor)
     guiDrawText(guiTermX + 16, guiTermY + 10, 2, guiTermTitle,
                 guiWhiteColor)
+    guiPaintTermMaxBox()
     guiPaintTermCloseBox()
     guiPaintTermRows(0, termRows - 1)
 }
 
-/// Gives the room to one window or the other: the title bars
-/// are repainted in their new standing and the Terminal's
-/// cursor takes or loses its underline with the allegiance.
+// ---------------------------------------------------------------------------
+// Milestone 14: the bottom bar, the clock, and the windows'
+// carrying.
+//
+// The bar stands across the screen's foot, 36 pixels tall,
+// painted by the desktop last of all so no window ever covers
+// it: the mouse's standing line at its left, in the words the
+// desktop has always carried; a launcher for each window —
+// pressing one opens its window or gives it the room, and a
+// cardinal stripe under a launcher says its window stands;
+// the session's uptime, counted off the timer's own ticks and
+// labelled as what it is; and at the right end the Home
+// button, the face's labelled road back to the text shell.
+// ---------------------------------------------------------------------------
+
+/// The bar's shape and its furniture's places.
+let guiBarHeight = 36
+let guiBarBtnW = 152
+let guiBarHomeBtnW = 112
+
+func guiBarTop() -> Int { framebufferHeight - guiBarHeight }
+func guiBarTermBtnX() -> Int { 472 }
+func guiBarWelcomeBtnX() -> Int { 640 }
+func guiBarHomeBtnX() -> Int { framebufferWidth - 128 }
+
+func guiBarTermContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiBarTermBtnX() && x < guiBarTermBtnX() + guiBarBtnW
+        && y >= guiBarTop() + 4 && y < guiBarTop() + 32
+}
+
+func guiBarWelcomeContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiBarWelcomeBtnX()
+        && x < guiBarWelcomeBtnX() + guiBarBtnW
+        && y >= guiBarTop() + 4 && y < guiBarTop() + 32
+}
+
+func guiBarHomeContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiBarHomeBtnX() && x < guiBarHomeBtnX() + guiBarHomeBtnW
+        && y >= guiBarTop() + 4 && y < guiBarTop() + 32
+}
+
+/// A glyph count in a StaticString's keeping — the bar centres
+/// its labels by it.
+func guiTextGlyphs(_ text: StaticString) -> Int {
+    var count = 0
+    while text.utf8Start[count] != 0 { count += 1 }
+    return count
+}
+
+/// Paints one of the bar's buttons: its ground and border, its
+/// label centred, and — while its window stands — a cardinal
+/// stripe along its foot, so the bar says which windows are up
+/// without being asked.
+func guiPaintBarButton(_ bx: Int, _ w: Int, _ label: StaticString,
+                       _ standing: Bool) {
+    let by = guiBarTop() + 4
+    guiFillRect(bx, by, w, 28, guiButtonColor)
+    guiFillRect(bx, by, w, 2, guiBorderColor)
+    guiFillRect(bx, by + 26, w, 2, guiBorderColor)
+    guiFillRect(bx, by, 2, 28, guiBorderColor)
+    guiFillRect(bx + w - 2, by, 2, 28, guiBorderColor)
+    if standing {
+        guiFillRect(bx + 2, by + 23, w - 4, 3, guiCardinalColor)
+    }
+    let labelW = guiTextGlyphs(label) * 16
+    guiDrawText(bx + (w - labelW) / 2, by + 6, 2, label,
+                guiInkColor)
+}
+
+/// Two digits, leading zero and all, at twofold size.
+func guiDrawTwoDigits(_ x: Int, _ y: Int, _ value: UInt64,
+                      _ rgb: UInt32) {
+    guiDrawGlyph(x, y, 2, 0x30 + UInt8((value / 10) % 10), rgb)
+    guiDrawGlyph(x + 16, y, 2, 0x30 + UInt8(value % 10), rgb)
+}
+
+/// A number in decimal at twofold size, returning the pen's
+/// end — the clock lays its colons by it.
+func guiDrawNumber(_ x: Int, _ y: Int, _ value: UInt64,
+                   _ rgb: UInt32) -> Int {
+    var divisor: UInt64 = 1
+    while value / divisor >= 10 { divisor *= 10 }
+    var penX = x
+    var rest = value
+    while true {
+        guiDrawGlyph(penX, y, 2, 0x30 + UInt8(rest / divisor), rgb)
+        penX += 16
+        rest %= divisor
+        if divisor == 1 { break }
+        divisor /= 10
+    }
+    return penX
+}
+
+/// Paints the bar's clock: "Uptime " and the session's age in
+/// hours, minutes and seconds, counted off the timer's ticks —
+/// the same count the `uptime` command reads, and labelled as
+/// uptime because that is what it is; the face claims no
+/// wall-clock it does not keep. The patch is first laid fresh
+/// in the bar's ground, so a growing hour leaves no tail of
+/// its shorter self behind. On a screen too narrow to hold it
+/// beside the launchers it is simply not painted.
+func guiPaintClock() {
+    guiClockSecond = ticks / 100
+    if !guiClockVisible { return }
+    let startX = guiBarHomeBtnX() - 256
+    let y = guiBarTop() + 10
+    guiFillRect(startX, guiBarTop() + 4, 240, 28, guiBarColor)
+    guiDrawText(startX, y, 2, guiUptimeLabel, guiHintColor)
+    let totalSeconds = ticks / 100
+    var penX = guiDrawNumber(startX + 112, y, totalSeconds / 3600,
+                             guiHintColor)
+    guiDrawGlyph(penX, y, 2, 0x3A, guiHintColor)
+    penX += 16
+    guiDrawTwoDigits(penX, y, (totalSeconds / 60) % 60,
+                     guiHintColor)
+    penX += 32
+    guiDrawGlyph(penX, y, 2, 0x3A, guiHintColor)
+    penX += 16
+    guiDrawTwoDigits(penX, y, totalSeconds % 60, guiHintColor)
+}
+
+/// Paints the bottom bar whole: its ground, the gold rule
+/// along its head, the mouse's standing line in its old words,
+/// the two launchers, the clock, and the Home button.
+func guiPaintBar() {
+    let top = guiBarTop()
+    guiFillRect(0, top, framebufferWidth, guiBarHeight, guiBarColor)
+    guiFillRect(0, top, framebufferWidth, 2, guiGoldColor)
+    guiDrawTextBuffer(16, top + 10, 2, 0, guiHintColor)
+    guiPaintBarButton(guiBarTermBtnX(), guiBarBtnW, guiTermTitle,
+                      termOpen)
+    guiPaintBarButton(guiBarWelcomeBtnX(), guiBarBtnW,
+                      guiWindowTitle, welcomeOpen)
+    guiPaintClock()
+    guiPaintBarButton(guiBarHomeBtnX(), guiBarHomeBtnW,
+                      guiHomeLabel, false)
+}
+
+/// The Terminal's maximize and restore, one control: maximize
+/// keeps the window's place and shape aside and gives it the
+/// whole work area — the full width under the desktop's name,
+/// down to the bar; restore gives its own place back. The grid
+/// is re-reckoned at each change, and the conversation stands
+/// through both, its marks clamped home if the shape shrank.
+func guiToggleTermMaximize() {
+    if termMaximized {
+        guiTermX = termSavedX
+        guiTermY = termSavedY
+        guiTermW = termSavedW
+        guiTermH = termSavedH
+        termMaximized = false
+    } else {
+        termSavedX = guiTermX
+        termSavedY = guiTermY
+        termSavedW = guiTermW
+        termSavedH = guiTermH
+        guiTermX = 0
+        guiTermY = guiWorkTop
+        guiTermW = framebufferWidth
+        guiTermH = guiBarTop() - guiWorkTop
+        termMaximized = true
+    }
+    termResizeToWindow()
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+// ---------------------------------------------------------------------------
+// The drag. A window is carried by an outline, not by its
+// whole painted self: the press in its title bar draws a
+// two-pixel frame around where the window stands — each pixel
+// the opposite of the ground it covers, so the same drawing
+// again erases it exactly, and nothing need be kept or
+// restored. As the pointer travels, the frame is rubbed out
+// and redrawn at the clamped place the window would land; on
+// release the window takes that place and the desktop is
+// painted whole, the window standing clean at rest. The
+// outline work always happens while the pointer is hidden, so
+// the pointer's cushion — which holds the ground as it truly
+// is, outline and all — is never caught lying.
+// ---------------------------------------------------------------------------
+
+/// Turns one pixel into its opposite — the outline's only ink.
+func guiInvertPixel(_ x: Int, _ y: Int) {
+    if x < 0 || y < 0 || x >= framebufferWidth
+        || y >= framebufferHeight { return }
+    guiWriteRaw(x, y, guiReadRaw(x, y) ^ 0xFFFFFF)
+}
+
+/// Draws (or, called again on the same rect, erases) the
+/// drag's outline: a two-pixel frame around the given rect.
+func guiInvertOutline(_ x: Int, _ y: Int, _ w: Int, _ h: Int) {
+    for col in x ..< (x + w) {
+        guiInvertPixel(col, y)
+        guiInvertPixel(col, y + 1)
+        guiInvertPixel(col, y + h - 2)
+        guiInvertPixel(col, y + h - 1)
+    }
+    if h > 4 {
+        for row in (y + 2) ..< (y + h - 2) {
+            guiInvertPixel(x, row)
+            guiInvertPixel(x + 1, row)
+            guiInvertPixel(x + w - 2, row)
+            guiInvertPixel(x + w - 1, row)
+        }
+    }
+}
+
+/// The clamps of a carried window: it may slide until a
+/// generous piece of it would leave the work area, but its
+/// title bar always keeps 120 pixels on the screen, and it
+/// never climbs above the work area's top nor sinks so its
+/// bar passes the bottom bar's head.
+func dragClampX(_ x: Int, _ w: Int) -> Int {
+    min(max(x, -(w - 120)), framebufferWidth - 120)
+}
+
+func dragClampY(_ y: Int) -> Int {
+    min(max(y, guiWorkTop), guiBarTop() - 40)
+}
+
+/// Takes hold of a window for the drag: the pointer's grip
+/// within its title bar is remembered, and the outline is
+/// drawn around the window where it stands — pointer hidden
+/// while it is drawn, so the cushion keeps the truth.
+func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
+    dragWindow = window
+    if window == 1 {
+        dragOffsetX = px - guiWinX
+        dragOffsetY = py - guiWinY
+        dragRectX = guiWinX
+        dragRectY = guiWinY
+        dragRectW = guiWinW
+        dragRectH = guiWinH
+    } else {
+        dragOffsetX = px - guiTermX
+        dragOffsetY = py - guiTermY
+        dragRectX = guiTermX
+        dragRectY = guiTermY
+        dragRectW = guiTermW
+        dragRectH = guiTermH
+    }
+    pointerHide()
+    guiInvertOutline(dragRectX, dragRectY, dragRectW, dragRectH)
+    dragOutlineDrawn = true
+    pointerShow()
+}
+
+/// The outline's travel, called from the pointer's own moving
+/// with the pointer already hidden: the old frame is rubbed
+/// out, the landing place is reckoned from the pointer's new
+/// standing and clamped, and the frame is drawn there. The
+/// window itself has not moved — only its promise has.
+func guiDragMotion() {
+    if dragWindow == 0 || !dragOutlineDrawn { return }
+    guiInvertOutline(dragRectX, dragRectY, dragRectW, dragRectH)
+    dragRectX = dragClampX(pointerX - dragOffsetX, dragRectW)
+    dragRectY = dragClampY(pointerY - dragOffsetY)
+    guiInvertOutline(dragRectX, dragRectY, dragRectW, dragRectH)
+}
+
+/// Sets the carried window down: the outline is rubbed out,
+/// the window takes the landing place if it differs from its
+/// own, and the desktop is painted whole — the window standing
+/// clean at rest, with no trail of its carrying behind it.
+func guiEndDrag() {
+    if dragWindow == 0 { return }
+    pointerHide()
+    if dragOutlineDrawn {
+        guiInvertOutline(dragRectX, dragRectY, dragRectW,
+                         dragRectH)
+        dragOutlineDrawn = false
+    }
+    var moved = false
+    if dragWindow == 1 {
+        moved = dragRectX != guiWinX || dragRectY != guiWinY
+        guiWinX = dragRectX
+        guiWinY = dragRectY
+    } else {
+        moved = dragRectX != guiTermX || dragRectY != guiTermY
+        guiTermX = dragRectX
+        guiTermY = dragRectY
+    }
+    dragWindow = 0
+    if moved { guiPaintDesktop() }
+    pointerShow()
+}
+
+/// Gives the room to one window or the other: the whole
+/// desktop is repainted in its new standing — the windows
+/// change places in the painting order as well as in their
+/// title bars, the one holding the room painted last, on top —
+/// and the Terminal's cursor takes or loses its underline with
+/// the allegiance.
 func guiSetFocus(_ toTerminal: Bool) {
     if guiFocusTerminal == toTerminal { return }
     guiFocusTerminal = toTerminal
     pointerHide()
-    guiPaintWindow()
-    if termOpen { guiPaintTerminal() }
+    guiPaintDesktop()
     pointerShow()
+}
+
+/// The Terminal grid's visible shape for the window as it
+/// stands: sixteen pixels to a column and to a row, the title
+/// bar and margins kept out of the reckoning, and the keeping's
+/// capacity the outer bound. It is a function of the window
+/// alone — the same window always earns the same shape.
+func termColumnsForWindow() -> Int {
+    min(max((guiTermW - 32) / 16, 8), termStrideColumns)
+}
+
+func termRowsForWindow() -> Int {
+    min(max((guiTermH - 62) / 16, 4), termRowsCapacity)
+}
+
+/// Brings the grid's visible shape to the window's present
+/// shape, when the two have drifted apart — the window opened,
+/// maximized, or restored. The storage does not move; the
+/// cells outside the new shape are scrubbed to spaces, so
+/// nothing the new shape cannot see can leak into a line read
+/// back across a row's end; the conversation's marks are
+/// clamped home inside the new bounds; and the window's whole
+/// face is marked for repaint.
+func termResizeToWindow() {
+    let newColumns = termColumnsForWindow()
+    let newRows = termRowsForWindow()
+    if newColumns == termColumns && newRows == termRows { return }
+    let grid = cardnullTermGrid()
+    for row in 0 ..< termRowsCapacity {
+        let base = row * termStrideColumns
+        for col in 0 ..< termStrideColumns {
+            if row >= newRows || col >= newColumns {
+                grid[base + col] = 0x20
+            }
+        }
+    }
+    termColumns = newColumns
+    termRows = newRows
+    if cursorRow > termRows - 1 { cursorRow = termRows - 1 }
+    if cursorCol > termColumns - 1 { cursorCol = termColumns - 1 }
+    if lineStartRow > termRows - 1 { lineStartRow = termRows - 1 }
+    if lineStartCol > termColumns - 1 {
+        lineStartCol = termColumns - 1
+    }
+    termMarkAllDirty()
 }
 
 /// Takes the shell's conversation into the Terminal home: the
 /// console's four marks are kept aside, the Terminal's own are
 /// taken up, and the output door opens onto the window's grid.
-/// The first opening wipes the grid and lays its first prompt;
-/// later openings resume the conversation where it stood.
+/// The first opening wipes the grid's whole keeping and lays
+/// its first prompt; later openings resume the conversation
+/// where it stood — resized to the window's present shape
+/// first, if the window's shape has changed since.
 func consoleEnterTerminal() {
     textSavedCursorRow = cursorRow
     textSavedCursorCol = cursorCol
@@ -4844,9 +5320,11 @@ func consoleEnterTerminal() {
     consoleInTerminal = true
     if !termStarted {
         let grid = cardnullTermGrid()
-        for cell in 0 ..< (termColumns * termRows) {
+        for cell in 0 ..< (termStrideColumns * termRowsCapacity) {
             grid[cell] = 0x20
         }
+        termColumns = termColumnsForWindow()
+        termRows = termRowsForWindow()
         cursorRow = 0
         cursorCol = 0
         startLine()
@@ -4857,6 +5335,7 @@ func consoleEnterTerminal() {
         cursorCol = termSavedCursorCol
         lineStartRow = termSavedLineStartRow
         lineStartCol = termSavedLineStartCol
+        termResizeToWindow()
     }
 }
 
@@ -4981,40 +5460,53 @@ var mouseLeftWasDown = false
 
 /// The face's books: how many times the button has been clicked,
 /// whether it stands pressed, and whether the way home has been
-/// asked for — by the close box or by Esc, both roads land here.
+/// asked for — by the bar's Home button or by Esc, both roads
+/// land here.
 var guiClickCount = 0
 var guiButtonHeld = false
 var guiWantsHome = false
 
-/// A press at the pointer's point, asked of the desktop's
-/// parts in their seniority. The Terminal's close box closes
-/// only its window — the desktop stands, the launcher takes
-/// the window's place in the painting, and the shell's
-/// conversation is kept aside for its return. A press inside
-/// the Terminal gives it the room. The Welcome window's close
-/// box is the whole face's way home, as it was in milestone
-/// 12; its button counts the click, in its pressed face, and
-/// takes the room as it is pressed. The launcher calls the
-/// Terminal back. A press on bare desktop gives the room to
-/// the Welcome side — which is to say, Esc will bring the
-/// face home from there.
-func guiPressAt(_ x: Int, _ y: Int) {
-    if termOpen && guiTermCloseContains(x, y) {
-        termOpen = false
-        consoleLeaveTerminal()
-        guiFocusTerminal = false
+/// Calls the Terminal up: it takes the room, its conversation
+/// is taken up where it stood, and the desktop is repainted
+/// in the new standing. The bar's Terminal launcher and the
+/// boot's own opening both come down this road.
+func guiOpenTerminal() {
+    termOpen = true
+    guiFocusTerminal = true
+    consoleEnterTerminal()
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+/// Calls the Welcome card up: it takes the room, and the
+/// desktop is repainted in the new standing.
+func guiOpenWelcome() {
+    welcomeOpen = true
+    guiFocusTerminal = false
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+/// A press inside the Welcome card, the card being asked in
+/// its own seniority. Its close box closes the card alone now
+/// (milestone 14) — the face's way home moved to the bar's
+/// Home button and Esc's standing rule, so both windows'
+/// close boxes mean the same plain thing: this window, away.
+/// Its button counts the click, in its pressed face, and takes
+/// the room as it is pressed. A press in its title bar takes
+/// hold for the drag; any other press gives the card the room.
+/// Returns false when the point is not the card's at all.
+func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
+    if !guiWinContains(x, y) { return false }
+    if guiCloseBoxContains(x, y) {
+        welcomeOpen = false
+        if termOpen { guiFocusTerminal = true }
         pointerHide()
         guiPaintDesktop()
         pointerShow()
-        return
-    }
-    if termOpen && guiTermContains(x, y) {
-        guiSetFocus(true)
-        return
-    }
-    if guiCloseBoxContains(x, y) {
-        guiWantsHome = true
-        return
+        return true
     }
     if guiButtonContains(x, y) {
         guiSetFocus(false)
@@ -5024,21 +5516,91 @@ func guiPressAt(_ x: Int, _ y: Int) {
         guiPaintButton()
         guiPaintClicks()
         pointerShow()
-        return
+        return true
     }
-    if guiWinContains(x, y) {
+    if guiWinTitleContains(x, y) {
         guiSetFocus(false)
+        guiBeginDrag(1, x, y)
+        return true
+    }
+    guiSetFocus(false)
+    return true
+}
+
+/// A press inside the Terminal, the window being asked in its
+/// own seniority. Its close box closes only the window — the
+/// desktop stands, and the shell's conversation is kept aside
+/// for its return. Its maximize box trades the window between
+/// its own place and the whole work area. A press in its
+/// title bar takes hold for the drag; any other press gives
+/// it the room. Returns false when the point is not the
+/// window's at all.
+func guiPressTerminal(_ x: Int, _ y: Int) -> Bool {
+    if !guiTermContains(x, y) { return false }
+    if guiTermCloseContains(x, y) {
+        termOpen = false
+        consoleLeaveTerminal()
+        guiFocusTerminal = false
+        pointerHide()
+        guiPaintDesktop()
+        pointerShow()
+        return true
+    }
+    if guiTermMaxContains(x, y) {
+        guiSetFocus(true)
+        guiToggleTermMaximize()
+        return true
+    }
+    if guiTermTitleContains(x, y) {
+        guiSetFocus(true)
+        guiBeginDrag(2, x, y)
+        return true
+    }
+    guiSetFocus(true)
+    return true
+}
+
+/// A press at the pointer's point, asked of the desktop's
+/// parts in their seniority. The bottom bar is asked first —
+/// no window ever covers it, so its word is final on its own
+/// ground: Home asks for the way home (from any standing of
+/// the room — no one is ever trapped), and each launcher
+/// opens its window or gives it the room. The windows are
+/// then asked in their standing order, the one on top first,
+/// so a press in the country they share lands on the one the
+/// eye sees there. A press on bare desktop gives the room to
+/// the Welcome side — which is to say, Esc will bring the
+/// face home from there.
+func guiPressAt(_ x: Int, _ y: Int) {
+    if y >= guiBarTop() {
+        if guiBarHomeContains(x, y) {
+            guiWantsHome = true
+            return
+        }
+        if guiBarTermContains(x, y) {
+            if termOpen {
+                guiSetFocus(true)
+            } else {
+                guiOpenTerminal()
+            }
+            return
+        }
+        if guiBarWelcomeContains(x, y) {
+            if welcomeOpen {
+                guiSetFocus(false)
+            } else {
+                guiOpenWelcome()
+            }
+            return
+        }
         return
     }
-    if !termOpen && guiLauncherContains(x, y) {
-        termOpen = true
-        guiFocusTerminal = true
-        consoleEnterTerminal()
-        pointerHide()
-        guiPaintWindow()
-        guiPaintTerminal()
-        pointerShow()
-        return
+    if guiFocusTerminal {
+        if guiPressTerminal(x, y) { return }
+        if guiPressWelcome(x, y) { return }
+    } else {
+        if guiPressWelcome(x, y) { return }
+        if guiPressTerminal(x, y) { return }
     }
     guiSetFocus(false)
 }
@@ -5086,12 +5648,20 @@ func guiTakeMouseByte(_ byte: UInt8) {
         pointerHide()
         pointerX = newX
         pointerY = newY
+        // A carried window's outline travels in the pointer's
+        // own hidden moment, so the ground it crosses is never
+        // torn between the frame and the arrow.
+        guiDragMotion()
         pointerShow()
     }
     let leftDown = mouseFirstByte & 0x01 != 0
     if leftDown && !mouseLeftWasDown {
         guiPressAt(pointerX, pointerY)
     } else if !leftDown && mouseLeftWasDown {
+        // A carried window is set down before the release is
+        // answered, so the button's own theatre never paints
+        // over a standing outline.
+        guiEndDrag()
         guiRelease()
     }
     mouseLeftWasDown = leftDown
@@ -5483,27 +6053,48 @@ func guiPollMousePort() -> Bool {
 /// open — the VGA text grid keeps pixels for no one — and the
 /// command says so plainly, in the shell, and that is all.
 ///
-/// Two windows stand on the desktop: the Welcome window at the
-/// left, carrying the house verse and its counting button, and
-/// the Terminal at the right, hosting the kernel's own shell —
-/// its close box closes only the window, and the desktop's
-/// launcher calls it back. Esc brings the face home whenever
-/// the Terminal does not hold the keyboard; while it does, Esc
-/// is the shell's own key and does nothing special, exactly as
-/// on the text console.
+/// The desktop (milestone 14): the Terminal stands large over
+/// the work area, holding the room at the opening, its grid
+/// reckoned from its window; the Welcome card — the house
+/// verse and its counting button, in a compact card — starts
+/// closed and is called up from the bottom bar. The bar
+/// carries the mouse's standing line, a launcher for each
+/// window, the session's uptime, and the Home button. Windows
+/// are dragged by their title bars, and the Terminal carries
+/// a maximize control. The ways home: the bar's Home button,
+/// from any standing of the room; and Esc, whenever the
+/// Terminal does not hold the keyboard — while it does, Esc
+/// is the shell's own key and does nothing special, exactly
+/// as on the text console. No standing traps anyone: closing
+/// the Terminal, or pressing the card, the other window, or
+/// bare desktop, arms Esc again, and Home never sleeps.
 func runGui() {
     if !useFramebuffer {
         writeLine(guiNoScreenLine)
         return
     }
-    guiWinW = min(544, framebufferWidth - 32)
-    guiWinH = min(400, framebufferHeight - 40)
-    guiWinX = 16
+    // The face's arrangement (milestone 14): the Welcome card
+    // compact at the left, for when it is called up; the
+    // Terminal large over the work area — a modest inset from
+    // the edges, under the desktop's name, above the bar.
+    guiWinW = min(448, framebufferWidth - 32)
+    guiWinH = min(320, framebufferHeight - guiBarHeight - 140)
+    guiWinX = 48
     guiWinY = 120
-    guiTermW = min(672, framebufferWidth - guiWinW - 48)
-    guiTermH = min(560, framebufferHeight - 160)
-    guiTermX = guiWinX + guiWinW + 16
-    guiTermY = 120
+    guiTermX = 16
+    guiTermY = guiWorkTop
+    guiTermW = framebufferWidth - 32
+    guiTermH = guiBarTop() - guiWorkTop - 12
+    welcomeOpen = false
+    termMaximized = false
+    termSavedX = guiTermX
+    termSavedY = guiTermY
+    termSavedW = guiTermW
+    termSavedH = guiTermH
+    dragWindow = 0
+    dragOutlineDrawn = false
+    guiClockVisible = guiBarHomeBtnX() - 256
+        > guiBarWelcomeBtnX() + guiBarBtnW
     guiClickCount = 0
     guiButtonHeld = false
     guiWantsHome = false
@@ -5554,13 +6145,27 @@ func runGui() {
             }
             if guiWantsHome { break }
         }
-        if consoleInTerminal && termDirtyTop >= 0 {
+        // The Terminal's touched rows are repainted only while
+        // the window holds the room — which is to say, while it
+        // stands on top, where its paint belongs. A span left
+        // pending under the other window is answered whole by
+        // the next full paint that raises it.
+        if consoleInTerminal && guiFocusTerminal
+            && termDirtyTop >= 0 {
             let top = termDirtyTop
             let bottom = termDirtyBottom
             termDirtyTop = -1
             termDirtyBottom = -1
             pointerHide()
             guiPaintTermRows(top, bottom)
+            pointerShow()
+            worked = true
+        }
+        // The bar's clock, once a second: only its own patch
+        // is repainted, in the pointer's hidden moment.
+        if guiClockVisible && ticks / 100 != guiClockSecond {
+            pointerHide()
+            guiPaintClock()
             pointerShow()
             worked = true
         }
@@ -5878,8 +6483,8 @@ func runFaultTest() {
 /// True when the typed line is nothing but spaces — the typist
 /// pressed Enter on an empty line, which earns only a fresh prompt.
 func lineIsBlank() -> Bool {
-    let start = lineStartRow * consoleCols() + lineStartCol
-    let end = cursorRow * consoleCols() + cursorCol
+    let start = cellOffset(lineStartRow, lineStartCol)
+    let end = cellOffset(cursorRow, cursorCol)
     var cell = start
     while cell < end {
         if screenChar(cell: cell) != 0x20 { return false }
@@ -5892,8 +6497,8 @@ func lineIsBlank() -> Bool {
 /// folded to lowercase, is exactly the given command word — so HELP,
 /// Help, and help with room around them are all the same command.
 func commandMatches(_ command: StaticString) -> Bool {
-    let start = lineStartRow * consoleCols() + lineStartCol
-    let end = cursorRow * consoleCols() + cursorCol
+    let start = cellOffset(lineStartRow, lineStartCol)
+    let end = cellOffset(cursorRow, cursorCol)
     var cell = start
     while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     var index = 0
@@ -5921,8 +6526,10 @@ func clearScreen() {
         // In the window, clear wipes the window's grid alone —
         // the desktop around it is not the shell's to blacken.
         let termGrid = cardnullTermGrid()
-        for cell in 0 ..< (termColumns * termRows) {
-            termGrid[cell] = 0x20
+        for row in 0 ..< termRows {
+            for col in 0 ..< termColumns {
+                termGrid[row * termStrideColumns + col] = 0x20
+            }
         }
         termMarkAllDirty()
         cursorRow = 0

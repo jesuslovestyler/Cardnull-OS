@@ -24,6 +24,15 @@ down. Nothing on the real machine is touched.
    **UEFI Boot** checked — the firmware finds the disc's UEFI entry
    on its own; give it some seconds on the TianoCore splash.)
 3. Start the machine.
+4. When the desktop stands, give it the mouse: click UTM's
+   **Capture Input Devices** (the mouse-capture control in the
+   VM window's toolbar). This is the door the host mouse walks
+   through in UTM — without it the desktop draws perfectly and
+   the boot report reads "Mouse: answering," yet the pointer
+   never moves, because your mouse never reached the machine.
+   (Milestone 13's lesson, learned on this very drill.) Press
+   the capture key combination UTM shows you when you want
+   your mouse back.
 
 ## What you should see
 
@@ -43,15 +52,16 @@ prompt stand the boot's two reports: the disc's news (its name, or
 the plain word that no drive answered) and — since milestone 13 —
 the mouse's: two lines telling whether the mouse answered its
 waking, and what each step of the waking heard. Read them; they are
-the machine's own testimony, and the desktop repeats the first of
-them along its bottom edge.
+the machine's own testimony, and the desktop's bottom bar
+repeats the first of them.
 
 Then — since milestone 13 — the desktop opens on its own: the OS
 wakes into its face now, and the shell's conversation continues
 inside the Terminal window standing on it (the face is described
 at the end of this walk). The text console above is never lost:
-Esc from the desktop, or the Welcome window's close box, brings
-it back exactly as it stood, and `gui` opens the face again.
+the desktop's Home button — or Esc, whenever the Terminal does
+not hold the keyboard — brings it back exactly as it stood,
+and `gui` opens the face again.
 Click into the machine's window and type — the whole
 keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
@@ -201,47 +211,81 @@ And the OS has a face — since milestone 12 a drawn one,
 and since milestone 13 the front door itself: when the
 boot's news is spoken, the desktop opens on its own. A
 deep-cardinal field, the Cardnull OS name standing in
-gold, and two windows standing side by side. At the left,
-Welcome — the greeting, John 1:1 in the Douay-Rheims, and
-the counting button of milestone 12: click it — really
-click, with the machine's mouse — and the count beside it
-rises ("Clicks: 1"), the button wearing its pressed face
-while you hold it down. At the right, the Terminal: the
-kernel's own shell in a window — the built-in shell,
-honestly, not a feather; a true terminal feather still
-waits on guest drawing and keyboard services, a later
-stone. Every command in this walk runs there, guests
-included: `run`, `both`, and `feather` print inside the
-window, and the conversation scrolls inside its own grid
-and is kept when the window closes and opens again.
+gold — and, since milestone 14 rearranged the room
+around the window the work is done in, one large window
+standing open: the Terminal, filling the work area
+between the name and the bottom bar, its text grid
+reckoned from its size (76 columns by 37 rows at
+1280 x 800). The Terminal is the kernel's own shell in a
+window — the built-in shell, honestly, not a feather; a
+true terminal feather still waits on guest drawing and
+keyboard services, a later stone. Every command in this
+walk runs there, guests included: `run`, `both`, and
+`feather` print inside the window, and the conversation
+scrolls inside its own grid and is kept when the window
+closes and opens again.
+
+The second window, Welcome, starts closed now: a compact
+card carrying the greeting, John 1:1 in the Douay-Rheims
+(in four shorter lines — the words are the verse's own;
+only the wrapping changed), and the counting button of
+milestone 12: open it from the bar, click the button —
+really click, with the machine's mouse — and the count
+beside it rises ("Clicks: 1"), the button wearing its
+pressed face while you hold it down.
+
+Across the screen's foot stands the bottom bar, drawn
+last so no window ever covers it. At its left, the
+mouse's standing, in the boot report's own words —
+"Mouse: answering (id 0x00)." when it answered, "Mouse:
+not answering." when it did not — so the truth about the
+mouse is on the face itself, not only in the boot lines
+behind it. Then a launcher for each window: press one to
+open its window or give it the room; a cardinal stripe
+under a launcher says its window stands. Then the
+session's clock, labelled "Uptime" and counting the
+machine's age off the same ticks the `uptime` command
+reads — it is an uptime, not a wall clock, and says so.
+At the right end, the Home button: the face's labelled
+road back to the text shell, working from every standing
+of the room.
 
 The pointer opens at the screen's centre; move the mouse
 and it follows, and the painting beneath it is left
 exactly as it was — the pointer lifts its ground into
 safekeeping before it is drawn and lays it back when it
-moves, so it never leaves a trail. Along the desktop's
-bottom edge stands the mouse's standing, in the boot
-report's own words — "Mouse: answering (id 0x00)." when
-it answered, "Mouse: not answering." when it did not —
-so the truth about the mouse is on the face itself, not
-only in the boot lines behind it.
+moves, so it never leaves a trail.
 
 Which window the keyboard speaks to is told by the title
 bars: the window holding the room wears the bright
-cardinal, the other rests dimmed. Click a window to give
-it the room. The rules of Esc are plain, and kept: while
-the Terminal holds the room, Esc is the shell's own key
-and does nothing special — exactly as on the text
-console; whenever the Terminal does not hold it (the
-Welcome window clicked, the Terminal closed, bare
-desktop), Esc brings the whole face home. The Welcome
-window's close box is the other way home, from any
-standing. The Terminal's own close box closes only the
-window — the desktop stands, and a "Terminal" launcher
-at the desktop's top right calls the window back with
-its conversation intact. `gui` typed at the text console
-opens the face again; typed inside the Terminal it
-answers plainly that you are already here.
+cardinal, the other rests dimmed — and stands on top.
+Click a window to give it the room. Windows can be
+carried: press in a title bar and move, and an outline
+travels with the pointer; release, and the window stands
+where the outline promised, painted whole — clamped so
+its title bar always keeps a hold on the screen, and it
+can never sink under the bar. The Terminal's title bar
+carries a second box beside its close box: maximize,
+which gives the window the whole work area (its grid
+grows with it), and restore, which returns it to its own
+place and size — the conversation stands through both.
+Each window's close box closes only that window — the
+desktop stands, and the bar's launcher calls the window
+back with its conversation intact. `gui` typed at the
+text console opens the face again; typed inside the
+Terminal it answers plainly that you are already here.
+
+The ways home are two, and both are plain. The bar's
+Home button works from any standing — no one is ever
+trapped. And Esc keeps its standing rule: while the
+Terminal holds the room, Esc is the shell's own key and
+does nothing special — exactly as on the text console;
+whenever the Terminal does not hold it (the Welcome card
+clicked, the Terminal closed, bare desktop), Esc brings
+the whole face home. If Esc does not answer, the room is
+the Terminal's: click the card, the desktop, the
+Terminal's close box, or the Home button, and you are
+out.
 
 Milestone 13 also re-made the mouse's waking, after
 milestone 12's first UTM witness came back partial: the
@@ -260,15 +304,20 @@ step heard — that transcript is the diagnosis, printed by
 the machine itself. The drill needs nothing new for any
 of this: the mouse is a PS/2 device, spoken to through
 the same controller the settings already force on (USB
-stays off). The face is deliberately small, and says so
-in the kernel: two windows, standing where they are
-painted, that cannot be dragged or resized; no window
-manager; no program but the kernel draws. Graphical
-programs are a later era. And the visit costs the
-machine nothing it was not already spending — the face
-paints the framebuffer the boot already owned and its
-grids are the floor's lendings, not the allocator's:
-`mem` reads the same numbers before a visit and after
-it.
+stays off). The face is still deliberately small, and
+says so in the kernel: two windows, carried by an
+outline rather than a live repaint; no window manager;
+no program but the kernel draws. Graphical programs are
+a later era. And the visit costs the machine nothing it
+was not already spending — the face paints the
+framebuffer the boot already owned and its grids are
+the floor's lendings, not the allocator's: `mem` reads
+the same numbers before a visit and after it. (The
+kernel's own image is a few frames larger than
+milestone 13's — this milestone's code, and the grid
+keeping's growth from 1,240 to 7,680 bytes of it — so
+the standing "used" count at 4096 MB behind the UEFI
+door reads 1,270 where milestone 13 read 1,265; the
+visit itself spends nothing.)
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

@@ -49,7 +49,13 @@ kernel, written line by line, so that what we give away is truly ours to give.
 5. **Dress** — a simple graphical face.
    *(Done with milestone 12 — November 9, 2026: a drawn desktop
    and one window, a PS/2 mouse pointer, a button that counts
-   its clicks, and the close box or Esc home to the shell.)*
+   its clicks, and the close box or Esc home to the shell.
+   Milestone 13 woke the mouse properly, moved the front door
+   into the face, and added the Terminal window; milestone 14
+   rearranged the desktop around the Terminal — it opens
+   large, the Welcome window is a compact card, a bottom bar
+   carries the launchers, the uptime, and the Home button,
+   and windows can be dragged and the Terminal maximized.)*
 6. **Carry** — Chirpy Browser and the Catholic Bible, at home.
 
 ## Building
@@ -65,6 +71,76 @@ Public domain. See [LICENSE](LICENSE) — the Unlicense.
 Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
+
+Milestone 14 stands (November 9, 2026): **room to breathe —
+the desktop is rearranged around the Terminal.** Tyler's
+word on the milestone-13 face was that the GUI "looks a
+little off like not enough space for a terminal," and he
+was right: the window he works in was squeezed beside an
+equal. Now the Terminal opens large — at 1280 x 800, a
+1248 x 664 window over the whole work area between the
+desktop's name and a new bottom bar — and its grid is
+reckoned from its window: 76 columns by 37 rows (2,812
+cells) where the fixed 40 x 31 (1,240) stood. The grid's
+floor keeping became a capacity — a stride of 120 columns
+and room for 64 rows (7,680 bytes) — and the visible shape
+moves within it, scrubbed and clamped honest at every
+change, so resizing never garbles the conversation. The
+Welcome window is demoted, not deleted: a compact
+448 x 320 card carrying the same greeting, the same John
+1:1 (Douay-Rheims) with its line breaks rewrapped to four
+shorter lines, and the same counting button — closed at
+the opening, called up from the bar. The bottom bar
+stands across the screen's foot, painted last so no
+window covers it: the mouse's standing line in its old
+words, a launcher for each window (a cardinal stripe
+under a launcher says its window stands), the session's
+uptime counted off the timer's own ticks and labelled
+"Uptime" because that is what it is, and a Home button.
+The windows can be carried by their title bars — an
+outline follows the pointer, drawn in pixels opposite to
+the ground so it erases itself exactly, and the window is
+painted whole at rest — and the Terminal carries a
+maximize control: maximized it fills the work area
+(1280 x 676, a 78 x 38 grid), restored it returns to its
+own place, the conversation standing through both. The
+ways home were re-decided plainly: both windows' close
+boxes now close only their window; the face's roads home
+are the bar's Home button, which works from every
+standing of the room, and Esc under its standing rule
+(the shell's key while the Terminal holds the room, the
+way home whenever it does not — and closing the Terminal
+or pressing the card, the other window, or bare desktop
+arms it again, so no one is ever trapped). The accounting
+stays truthful: the face still takes no frames and no
+heap at runtime, and `mem` behind the UEFI door at
+4096 MB after a desktop visit reads 521,421 frames free
+of 522,691 (1,270 used) — five frames more than
+milestone 13's 1,265, the whole difference being the
+kernel's own larger image (this milestone's code, and
+the grid keeping's growth from 1,240 to 7,680 bytes of
+it); the boot mouse transcript reads exactly as before.
+Verified in QEMU under UTM's own conditions (q35, TCG,
+virtio-vga, QEMU 10.0, front-end input delivery): a cold
+boot into the desktop with the large Terminal standing
+and the bar beneath it; `help`'s full list unwrapped at
+76 columns and three helps scrolling clean through the
+37 rows; the card opened from its launcher, "Clicks: 1"
+counted at its new size, dragged by its title bar to a
+visibly new place with the screen clean after, and
+closed; the Terminal maximized and restored with its
+conversation intact; the Terminal closed and reopened
+from the bar with its conversation kept; home by the
+Home button to a shell that answered `mem`; `ls` and
+`both /a.bin /b.bin` (turns interleaved, exits 5 and 7)
+inside the large Terminal at 512 MB, this bench's
+disc-reachable size, as in milestone 13; and the BIOS
+door regressed whole — boot into the new desktop,
+`verse` in the Terminal, home by Esc. The final witness,
+as ever, is Tyler's own UTM — where the one step the
+screen cannot take for him stands as milestone 13 left
+it: click UTM's "Capture Input Devices," and the mouse
+walks through.
 
 Milestone 13 stands (November 9, 2026): **the OS wakes into
 its face — and the mouse's silence is answered.** Three

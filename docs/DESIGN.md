@@ -177,7 +177,23 @@ it bends.*
    the desktop, the configuration byte re-verified after
    the waking and at the face's opening, and a port-poll
    beside the IRQ, after milestone 12's UTM witness drew
-   the desktop perfectly but heard no mouse at all.)*
+   the desktop perfectly but heard no mouse at all.
+   Milestone 14 — the same day, at Tyler's word that the
+   Terminal had not enough space — rearranged the desktop
+   around the window the work is done in: the Terminal
+   opens over the whole work area with its grid reckoned
+   from its window (76 x 37 at 1280 x 800, within a floor
+   keeping that became a fixed capacity), the Welcome
+   window is a compact card that starts closed, a bottom
+   bar carries the mouse's standing line, a launcher for
+   each window, the session's uptime, and the Home button
+   that is the face's labelled road home beside Esc's
+   standing rule, and the windows can be carried by their
+   title bars — by an outline that erases itself, the
+   window painted whole at rest — with a maximize control
+   on the Terminal besides. The limits shrink honestly:
+   the outline is not a live repaint, and no program but
+   the kernel draws, still.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

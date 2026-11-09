@@ -129,10 +129,14 @@ every line says why it exists.
   ground under the pointer, lifted into safekeeping before
   the pointer is drawn on it and laid back when it moves,
   so the pointer leaves no trail. Milestone 13 added two
-  lendings more: the Terminal window's own character grid,
-  40 x 31 bytes (`cardnull_term_grid`), so the shell's
+  lendings more: the Terminal window's own character grid
+  (`cardnull_term_grid`), so the shell's
   conversation can live inside the window while the console's
-  grid stands untouched behind the desktop; and 160 bytes for
+  grid stands untouched behind the desktop — milestone 14
+  made that lending a capacity rather than a shape, a stride
+  of 120 columns and room for 64 rows (7,680 bytes), inside
+  which the kernel reckons the visible grid from the
+  Terminal window's size; and 160 bytes for
   the mouse report (`cardnull_mouse_report`) — the two lines
   the kernel composes at boot from the mouse waking's own
   answers, printed on the console and drawn on the desktop
