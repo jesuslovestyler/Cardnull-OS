@@ -128,7 +128,15 @@ every line says why it exists.
   and 32 x 32 raw pixel words (`cardnull_gui_cushion`) — the
   ground under the pointer, lifted into safekeeping before
   the pointer is drawn on it and laid back when it moves,
-  so the pointer leaves no trail.
+  so the pointer leaves no trail. Milestone 13 added two
+  lendings more: the Terminal window's own character grid,
+  40 x 31 bytes (`cardnull_term_grid`), so the shell's
+  conversation can live inside the window while the console's
+  grid stands untouched behind the desktop; and 160 bytes for
+  the mouse report (`cardnull_mouse_report`) — the two lines
+  the kernel composes at boot from the mouse waking's own
+  answers, printed on the console and drawn on the desktop
+  from the same keeping, so the two tellings never disagree.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),

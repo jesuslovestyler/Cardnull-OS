@@ -166,7 +166,18 @@ it bends.*
    so the OS can live on a machine's own drive; preemption
    — the timer taking the machine by force; the signed
    feather and its store; networking; and Little
-   Cardnull.)*
+   Cardnull. Milestone 13 — the same day, at Tyler's word
+   after the partial witness — finished the face's first
+   growth: the OS boots into the desktop; a second window,
+   the Terminal, hosts the kernel's own shell on its own
+   grid, guests printing inside it; and the mouse's waking
+   was rebuilt as the full standard ceremony — reset,
+   self-test, name, defaults, reporting — with timer-bound
+   waits, a kept transcript printed at boot and drawn on
+   the desktop, the configuration byte re-verified after
+   the waking and at the face's opening, and a port-poll
+   beside the IRQ, after milestone 12's UTM witness drew
+   the desktop perfectly but heard no mouse at all.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

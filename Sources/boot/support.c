@@ -343,6 +343,37 @@ unsigned int *cardnull_gui_cushion(void) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Milestone 13: the Terminal window's grid, and the mouse report.    */
+/*                                                                    */
+/* The desktop's Terminal window keeps a character grid of its own    */
+/* — 40 columns x 31 rows — apart from the console's 80 x 25, so      */
+/* the shell's conversation can live inside the window while the      */
+/* console's own conversation stands untouched behind the desktop,    */
+/* ready to be painted back whole when the face goes home. The        */
+/* floor lends the memory; which letters stand in it is the           */
+/* kernel's business. The numbers 40 and 31 are agreed with the       */
+/* kernel's termColumns and termRows.                                 */
+/*                                                                    */
+/* The mouse report: the two short lines the kernel composes at       */
+/* boot — whether the mouse answered its waking, and what each        */
+/* step of the waking heard — kept here so the very same words        */
+/* can be printed on the console and drawn on the desktop. 160        */
+/* bytes is room and to spare for two honest lines.                   */
+/* ------------------------------------------------------------------ */
+
+static unsigned char term_grid[40 * 31];
+
+unsigned char *cardnull_term_grid(void) {
+    return term_grid;
+}
+
+static unsigned char mouse_report[160];
+
+unsigned char *cardnull_mouse_report(void) {
+    return mouse_report;
+}
+
+/* ------------------------------------------------------------------ */
 /* Milestone 6: the frame allocator's two lendings.                    */
 /*                                                                     */
 /* The allocator itself — which frames exist, which are free, what   */

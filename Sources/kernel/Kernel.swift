@@ -99,6 +99,25 @@ func cardnullMouseRing() -> UnsafeMutablePointer<UInt8>
 @_silgen_name("cardnull_gui_cushion")
 func cardnullGuiCushion() -> UnsafeMutablePointer<UInt32>
 
+/// Provided by the boot floor (support.c): the raw storage of the
+/// Terminal window's character grid — 40 x 31 bytes the floor
+/// lends, for the same reason as the text grid. Milestone 13's
+/// shell speaks through this grid while the desktop stands and
+/// the Terminal window is open, so the console's own conversation
+/// is never touched by the face. The numbers are agreed with the
+/// kernel's termColumns and termRows.
+@_silgen_name("cardnull_term_grid")
+func cardnullTermGrid() -> UnsafeMutablePointer<UInt8>
+
+/// Provided by the boot floor (support.c): the mouse report's
+/// keeping — 160 bytes the floor lends for the two lines the
+/// kernel composes at boot: whether the mouse answered its
+/// waking, and what each step of the waking heard. The same
+/// bytes are printed on the console and drawn on the desktop,
+/// so the two tellings can never disagree.
+@_silgen_name("cardnull_mouse_report")
+func cardnullMouseReport() -> UnsafeMutablePointer<UInt8>
+
 /// Provided by the boot floor (font8x8.c): the 8x8 bitmap font the
 /// framebuffer backend draws letters from — 128 glyphs of 8 bytes,
 /// one byte per row, bit 0 the leftmost pixel. Daniel Hepper's
@@ -302,6 +321,79 @@ var lineStartRow = typingTopRow
 var lineStartCol = 2
 
 // ---------------------------------------------------------------------------
+// Milestone 13: the shell has two homes — the console's own grid,
+// and the Terminal window's smaller grid on the desktop. The four
+// marks above belong to whichever home is active; each home's
+// marks are kept aside while the other is in use, and the output
+// door (writeChar and its kin) opens onto the active home alone.
+// The Terminal's grid is 40 x 31: at the face's twofold glyph
+// size that is a window a shell can honestly live in.
+// ---------------------------------------------------------------------------
+
+/// True while the output door opens onto the Terminal window's
+/// grid — set exactly while the desktop stands with the window
+/// open. Everything else in the kernel neither knows nor cares.
+var consoleInTerminal = false
+
+/// The Terminal grid's shape, agreed with the floor's keeping.
+let termColumns = 40
+let termRows = 31
+
+/// Each home's four marks, kept aside while the other is in use.
+var textSavedCursorRow = typingTopRow
+var textSavedCursorCol = 0
+var textSavedLineStartRow = typingTopRow
+var textSavedLineStartCol = 2
+var termSavedCursorRow = 0
+var termSavedCursorCol = 0
+var termSavedLineStartRow = 0
+var termSavedLineStartCol = 2
+
+/// Whether the Terminal's conversation has been opened even
+/// once: its first opening wipes its grid and lays its first
+/// prompt; later openings take up its kept marks instead.
+var termStarted = false
+
+/// The Terminal's repaint bookkeeping: the span of its rows the
+/// writing hands have touched since the face last painted them,
+/// or -1 when the window stands exactly as painted. The face
+/// repaints only the span — a keystroke's echo never repaints
+/// the whole window.
+var termDirtyTop = -1
+var termDirtyBottom = -1
+
+/// The active home's width and height — the one reckoning every
+/// console hand below shares, so the shell's arithmetic is the
+/// same in either home and only the numbers differ.
+@inline(__always)
+func consoleCols() -> Int {
+    consoleInTerminal ? termColumns : screenColumns
+}
+
+@inline(__always)
+func consoleRows() -> Int {
+    consoleInTerminal ? termRows : screenRows
+}
+
+/// The active home's grid itself.
+@inline(__always)
+func activeGrid() -> UnsafeMutablePointer<UInt8> {
+    consoleInTerminal ? cardnullTermGrid() : cardnullTextGrid()
+}
+
+/// Notes one Terminal row as touched by the writing hands.
+func termMarkDirty(_ row: Int) {
+    if termDirtyTop < 0 || row < termDirtyTop { termDirtyTop = row }
+    if row > termDirtyBottom { termDirtyBottom = row }
+}
+
+/// Notes the whole Terminal grid as touched.
+func termMarkAllDirty() {
+    termDirtyTop = 0
+    termDirtyBottom = termRows - 1
+}
+
+// ---------------------------------------------------------------------------
 // Which screen is live, and the framebuffer's shape when it is.
 //
 // The boot floor preserved EBX: the address of the Multiboot2
@@ -441,7 +533,7 @@ func chooseScreen(infoAddress: UInt64) {
 /// buffer exists to disagree with it.
 @inline(__always)
 func screenChar(cell offset: Int) -> UInt8 {
-    cardnullTextGrid()[offset]
+    activeGrid()[offset]
 }
 
 /// Writes one pixel of the framebuffer: white or black, at the
@@ -524,6 +616,11 @@ func repaintScreen() {
 /// from, through either door.
 @inline(__always)
 func putCell(row: Int, col: Int, character: UInt8) {
+    if consoleInTerminal {
+        cardnullTermGrid()[row * termColumns + col] = character
+        termMarkDirty(row)
+        return
+    }
     cardnullTextGrid()[row * screenColumns + col] = character
     paintCell(row: row, col: col)
 }
@@ -544,6 +641,11 @@ var framebufferCursorCol = -1
 /// the kernel draws its own: the old cell repainted plain, the new
 /// cell repainted with its underline.
 func moveHardwareCursor() {
+    if consoleInTerminal {
+        // The face paints the Terminal's cursor itself; the
+        // console's cursor machinery must not draw over it.
+        return
+    }
     if useFramebuffer {
         if framebufferCursorRow == cursorRow
             && framebufferCursorCol == cursorCol { return }
@@ -556,7 +658,7 @@ func moveHardwareCursor() {
         framebufferCursorCol = cursorCol
         return
     }
-    let position = cursorRow * screenColumns + cursorCol
+    let position = cursorRow * consoleCols() + cursorCol
     cardnullOutb(0x3D4, 0x0F)
     cardnullOutb(0x3D5, UInt8(truncatingIfNeeded: position))
     cardnullOutb(0x3D4, 0x0E)
@@ -569,6 +671,25 @@ func moveHardwareCursor() {
 /// scrolls away with everything else when the conversation outgrows
 /// one screen — a real terminal keeps no favorites.
 func scrollUp() {
+    if consoleInTerminal {
+        let grid = cardnullTermGrid()
+        for row in 1 ..< termRows {
+            for col in 0 ..< termColumns {
+                grid[(row - 1) * termColumns + col] =
+                    grid[row * termColumns + col]
+            }
+        }
+        for col in 0 ..< termColumns {
+            grid[(termRows - 1) * termColumns + col] = 0x20
+        }
+        if lineStartRow > 0 {
+            lineStartRow -= 1
+        } else {
+            lineStartCol = 0
+        }
+        termMarkAllDirty()
+        return
+    }
     let grid = cardnullTextGrid()
     for row in 1 ..< screenRows {
         for col in 0 ..< screenColumns {
@@ -595,12 +716,12 @@ func scrollUp() {
 func writeChar(_ character: UInt8) {
     putCell(row: cursorRow, col: cursorCol, character: character)
     cursorCol += 1
-    if cursorCol == screenColumns {
+    if cursorCol == consoleCols() {
         cursorCol = 0
         cursorRow += 1
-        if cursorRow == screenRows {
+        if cursorRow == consoleRows() {
             scrollUp()
-            cursorRow = screenRows - 1
+            cursorRow = consoleRows() - 1
         }
     }
 }
@@ -610,9 +731,9 @@ func writeChar(_ character: UInt8) {
 func writeNewline() {
     cursorCol = 0
     cursorRow += 1
-    if cursorRow == screenRows {
+    if cursorRow == consoleRows() {
         scrollUp()
-        cursorRow = screenRows - 1
+        cursorRow = consoleRows() - 1
     }
 }
 
@@ -655,7 +776,7 @@ func backspace() {
     if cursorCol == 0 {
         if cursorRow <= lineStartRow { return }
         cursorRow -= 1
-        cursorCol = screenColumns - 1
+        cursorCol = consoleCols() - 1
     } else {
         cursorCol -= 1
     }
@@ -955,7 +1076,7 @@ public func exceptionHandler(_ vector: UInt64) {
 func writeStaticAt(_ row: Int, _ startCol: Int, _ text: StaticString) -> Int {
     var col = startCol
     var index = 0
-    while col < screenColumns {
+    while col < consoleCols() {
         let character = text.utf8Start[index]
         if character == 0 { break }
         putCell(row: row, col: col, character: character)
@@ -972,7 +1093,7 @@ func writeHexAt(_ row: Int, _ startCol: Int, _ value: UInt64,
                 _ digits: Int) -> Int {
     var col = startCol
     var shift = (digits - 1) * 4
-    while shift >= 0 && col < screenColumns {
+    while shift >= 0 && col < consoleCols() {
         let nibble = UInt8((value >> UInt64(shift)) & 0xF)
         let character: UInt8 = nibble < 10 ? 0x30 + nibble
                                            : 0x41 + (nibble - 10)
@@ -993,7 +1114,7 @@ func writeDecimalAt(_ row: Int, _ startCol: Int, _ value: UInt64) -> Int {
     while value / divisor >= 10 { divisor *= 10 }
     var remaining = value
     while true {
-        if col < screenColumns {
+        if col < consoleCols() {
             putCell(row: row, col: col,
                     character: 0x30 + UInt8(remaining / divisor))
             col += 1
@@ -2783,8 +2904,8 @@ let catUsageLine: StaticString = "cat wants a file: cat /WELCOME.TXT"
 /// after its word, which `ls` takes as "the root" and `cat` as
 /// a question it must answer with its usage.
 func copyArgumentToScratch() -> Int {
-    let start = lineStartRow * screenColumns + lineStartCol
-    let end = cursorRow * screenColumns + cursorCol
+    let start = lineStartRow * consoleCols() + lineStartCol
+    let end = cursorRow * consoleCols() + cursorCol
     var cell = start
     while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     while cell < end && screenChar(cell: cell) != 0x20 { cell += 1 }
@@ -2809,8 +2930,8 @@ func copyArgumentToScratch() -> Int {
 /// where commandMatches' whole-line strictness would refuse
 /// the argument that makes them useful.
 func firstWordMatches(_ command: StaticString) -> Bool {
-    let start = lineStartRow * screenColumns + lineStartCol
-    let end = cursorRow * screenColumns + cursorCol
+    let start = lineStartRow * consoleCols() + lineStartCol
+    let end = cursorRow * consoleCols() + cursorCol
     var cell = start
     while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     var index = 0
@@ -4245,18 +4366,29 @@ let guiButtonColor: UInt32 = 0xE4D9C2
 let guiPressedColor: UInt32 = 0xC9B184
 let guiWhiteColor: UInt32 = 0xFFFFFF
 let guiPointerEdgeColor: UInt32 = 0x101010
+/// The title bar of the window that does not hold the room: the
+/// cardinal quieted toward grey, so the eye can tell at a glance
+/// which of the two windows the keyboard is speaking to.
+let guiDimBarColor: UInt32 = 0x4A2A30
+/// The Terminal's ground: a deep warm ink, against which the
+/// shell's parchment letters stand the way they do on paper.
+let guiTermBgColor: UInt32 = 0x201612
 
 /// The face's words.
 let guiDesktopName: StaticString = "Cardnull OS"
-let guiHintLine: StaticString = "Click the button. Esc brings you home."
+let guiHintLine: StaticString = "Esc brings you home."
 let guiWindowTitle: StaticString = "Welcome"
 let guiGreetingLine: StaticString = "Welcome to Cardnull OS."
-let guiVerseLine1: StaticString = "In the beginning was the Word, and"
-let guiVerseLine2: StaticString = "the Word was with God, and the Word"
-let guiVerseLine3: StaticString = "was God."
+let guiVerseLine1: StaticString = "In the beginning was the Word,"
+let guiVerseLine2: StaticString = "and the Word was with God,"
+let guiVerseLine3: StaticString = "and the Word was God."
+let guiTermTitle: StaticString = "Terminal"
+let guiLauncherText: StaticString = "Terminal"
 let guiVerseAttribution: StaticString = "- John 1:1 (Douay-Rheims)"
 let guiButtonText: StaticString = "Click me"
 let guiClicksLabel: StaticString = "Clicks: "
+let guiAlreadyLine: StaticString =
+    "You are already here - this window is the desktop's shell."
 let guiNoScreenLine: StaticString =
     "The boot brought no graphics screen; the desktop cannot open."
 
@@ -4375,6 +4507,24 @@ func guiDrawText(_ x: Int, _ y: Int, _ scale: Int,
     return penX
 }
 
+/// Draws bytes out of the mouse report's keeping, from an
+/// offset to its NUL — the face's telling of the report is the
+/// console's own words, drawn from the same bytes, so the two
+/// can never disagree. Returns the column past the last glyph.
+@discardableResult
+func guiDrawTextBuffer(_ x: Int, _ y: Int, _ scale: Int,
+                       _ offset: Int, _ rgb: UInt32) -> Int {
+    let report = cardnullMouseReport()
+    var penX = x
+    var index = offset
+    while report[index] != 0 {
+        guiDrawGlyph(penX, y, scale, report[index], rgb)
+        penX += 8 * scale
+        index += 1
+    }
+    return penX
+}
+
 /// Draws a value in decimal: the digits reckoned by a falling
 /// divisor and set down one at a time, like writeDecimalAt on
 /// the grid — here in pixels, for the click count.
@@ -4484,7 +4634,8 @@ func guiPaintWindow() {
     guiFillRect(guiWinX, guiWinY, 2, guiWinH, guiBorderColor)
     guiFillRect(guiWinX + guiWinW - 2, guiWinY, 2, guiWinH,
                 guiBorderColor)
-    guiFillRect(guiWinX, guiWinY, guiWinW, 36, guiCardinalColor)
+    guiFillRect(guiWinX, guiWinY, guiWinW, 36,
+                guiFocusTerminal ? guiDimBarColor : guiCardinalColor)
     guiDrawText(guiWinX + 16, guiWinY + 10, 2, guiWindowTitle,
                 guiWhiteColor)
     guiPaintCloseBox()
@@ -4520,9 +4671,210 @@ func guiPaintDesktop() {
     // centred over the screen.
     guiDrawText((framebufferWidth - 352) / 2, 40, 4, guiDesktopName,
                 guiGoldColor)
-    guiDrawText(24, framebufferHeight - 44, 2, guiHintLine,
-                guiHintColor)
+    // The bottom's left end carries the mouse's standing, in the
+    // report's own words; its right end keeps the way home.
+    guiDrawTextBuffer(24, framebufferHeight - 44, 2, 0, guiHintColor)
+    guiDrawText(framebufferWidth - 344, framebufferHeight - 44, 2,
+                guiHintLine, guiHintColor)
     guiPaintWindow()
+    if termOpen {
+        guiPaintTerminal()
+    } else {
+        guiPaintLauncher()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 13: the second window — the Terminal.
+//
+// The Terminal hosts the kernel's own shell: the same hands and
+// the same commands as the text console, with the output door
+// opened onto the window's own 40 x 31 grid. It is the built-in
+// shell in a window, honestly labelled — not a feather. A true
+// terminal feather still waits on guest drawing and keyboard
+// services, a later stone. The window stands at the desktop's
+// right hand; the Welcome window keeps the left. Clicking a
+// window gives it the room — the keyboard speaks to the
+// Terminal only while it holds the room, and its title bar
+// wears the bright cardinal while it does; the other's rests
+// dimmed. The Terminal's close box closes only the window, and
+// a launcher on the desktop calls it back. No dragging — the
+// windows stand where they are painted; moving them is a later
+// growth, named as such.
+// ---------------------------------------------------------------------------
+
+/// The Terminal window's place and shape, reckoned at the
+/// face's opening beside the Welcome window's.
+var guiTermX = 0
+var guiTermY = 0
+var guiTermW = 0
+var guiTermH = 0
+
+/// Whether the Terminal window stands on the desktop, and
+/// whether it holds the room — the keyboard's allegiance.
+var termOpen = true
+var guiFocusTerminal = true
+
+/// The Terminal's text field: its grid drawn at twofold size
+/// from this origin — 40 columns of 16 pixels is 640 of the
+/// window's 672, and 31 rows is 496 of its 560, the title bar
+/// and a margin kept around them.
+func guiTermCellX(_ col: Int) -> Int { guiTermX + 16 + col * 16 }
+func guiTermCellY(_ row: Int) -> Int { guiTermY + 52 + row * 16 }
+
+func guiTermContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiTermX && x < guiTermX + guiTermW
+        && y >= guiTermY && y < guiTermY + guiTermH
+}
+
+/// The Terminal's close box: the same keeping as the Welcome
+/// window's, at this window's right-hand end.
+func guiTermCloseContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiTermX + guiTermW - 48 && x < guiTermX + guiTermW - 8
+        && y >= guiTermY + 4 && y < guiTermY + 32
+}
+
+func guiWinContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiWinX && x < guiWinX + guiWinW
+        && y >= guiWinY && y < guiWinY + guiWinH
+}
+
+/// The launcher: a desktop control that stands where the
+/// Terminal's country is, only while the window is closed —
+/// 176 x 48 at the desktop's top-right, under the name.
+func guiLauncherContains(_ x: Int, _ y: Int) -> Bool {
+    x >= framebufferWidth - 200 && x < framebufferWidth - 24
+        && y >= 120 && y < 168
+}
+
+func guiPaintLauncher() {
+    let boxX = framebufferWidth - 200
+    guiFillRect(boxX, 120, 176, 48, guiButtonColor)
+    guiFillRect(boxX, 120, 176, 2, guiBorderColor)
+    guiFillRect(boxX, 166, 176, 2, guiBorderColor)
+    guiFillRect(boxX, 120, 2, 48, guiBorderColor)
+    guiFillRect(boxX + 174, 120, 2, 48, guiBorderColor)
+    guiDrawText(boxX + 24, 136, 2, guiLauncherText, guiInkColor)
+}
+
+/// Paints one cell of the Terminal's grid: its ground laid
+/// fresh, its letter drawn over, and — when the cell is the
+/// shell's own place and the window holds the room — the
+/// underline that marks where the next letter lands.
+func guiPaintTermCell(_ row: Int, _ col: Int) {
+    let x = guiTermCellX(col)
+    let y = guiTermCellY(row)
+    guiFillRect(x, y, 16, 16, guiTermBgColor)
+    let character = cardnullTermGrid()[row * termColumns + col]
+    if character != 0x20 {
+        guiDrawGlyph(x, y, 2, character, guiParchmentColor)
+    }
+    if guiFocusTerminal && row == cursorRow && col == cursorCol {
+        guiFillRect(x, y + 13, 16, 3, guiParchmentColor)
+    }
+}
+
+/// Paints a span of the Terminal's rows, whole — the face's
+/// answer to the writing hands' dirty marks.
+func guiPaintTermRows(_ top: Int, _ bottom: Int) {
+    for row in top ... bottom {
+        for col in 0 ..< termColumns {
+            guiPaintTermCell(row, col)
+        }
+    }
+}
+
+/// Paints the Terminal's close box, in its window's keeping.
+func guiPaintTermCloseBox() {
+    let boxX = guiTermX + guiTermW - 48
+    let boxY = guiTermY + 4
+    guiFillRect(boxX, boxY, 40, 28, guiCloseColor)
+    for step in 0 ..< 14 {
+        guiFillRect(boxX + 13 + step, boxY + 7 + step, 2, 2,
+                    guiWhiteColor)
+        guiFillRect(boxX + 26 - step, boxY + 7 + step, 2, 2,
+                    guiWhiteColor)
+    }
+}
+
+/// Paints the Terminal window whole: shadow, ink ground and
+/// border, its title bar in the colour of its standing, and
+/// every cell of its grid.
+func guiPaintTerminal() {
+    guiFillRect(guiTermX + 10, guiTermY + 12, guiTermW, guiTermH,
+                guiShadowColor)
+    guiFillRect(guiTermX, guiTermY, guiTermW, guiTermH,
+                guiTermBgColor)
+    guiFillRect(guiTermX, guiTermY, guiTermW, 2, guiBorderColor)
+    guiFillRect(guiTermX, guiTermY + guiTermH - 2, guiTermW, 2,
+                guiBorderColor)
+    guiFillRect(guiTermX, guiTermY, 2, guiTermH, guiBorderColor)
+    guiFillRect(guiTermX + guiTermW - 2, guiTermY, 2, guiTermH,
+                guiBorderColor)
+    guiFillRect(guiTermX, guiTermY, guiTermW, 36,
+                guiFocusTerminal ? guiCardinalColor : guiDimBarColor)
+    guiDrawText(guiTermX + 16, guiTermY + 10, 2, guiTermTitle,
+                guiWhiteColor)
+    guiPaintTermCloseBox()
+    guiPaintTermRows(0, termRows - 1)
+}
+
+/// Gives the room to one window or the other: the title bars
+/// are repainted in their new standing and the Terminal's
+/// cursor takes or loses its underline with the allegiance.
+func guiSetFocus(_ toTerminal: Bool) {
+    if guiFocusTerminal == toTerminal { return }
+    guiFocusTerminal = toTerminal
+    pointerHide()
+    guiPaintWindow()
+    if termOpen { guiPaintTerminal() }
+    pointerShow()
+}
+
+/// Takes the shell's conversation into the Terminal home: the
+/// console's four marks are kept aside, the Terminal's own are
+/// taken up, and the output door opens onto the window's grid.
+/// The first opening wipes the grid and lays its first prompt;
+/// later openings resume the conversation where it stood.
+func consoleEnterTerminal() {
+    textSavedCursorRow = cursorRow
+    textSavedCursorCol = cursorCol
+    textSavedLineStartRow = lineStartRow
+    textSavedLineStartCol = lineStartCol
+    consoleInTerminal = true
+    if !termStarted {
+        let grid = cardnullTermGrid()
+        for cell in 0 ..< (termColumns * termRows) {
+            grid[cell] = 0x20
+        }
+        cursorRow = 0
+        cursorCol = 0
+        startLine()
+        termStarted = true
+        termMarkAllDirty()
+    } else {
+        cursorRow = termSavedCursorRow
+        cursorCol = termSavedCursorCol
+        lineStartRow = termSavedLineStartRow
+        lineStartCol = termSavedLineStartCol
+    }
+}
+
+/// Brings the shell's conversation home to the console: the
+/// Terminal's marks are kept aside for its next opening, the
+/// console's own are taken up again, and the output door opens
+/// back onto the text grid — whose every letter still stands
+/// exactly as the face found it.
+func consoleLeaveTerminal() {
+    termSavedCursorRow = cursorRow
+    termSavedCursorCol = cursorCol
+    termSavedLineStartRow = lineStartRow
+    termSavedLineStartCol = lineStartCol
+    consoleInTerminal = false
+    cursorRow = textSavedCursorRow
+    cursorCol = textSavedCursorCol
+    lineStartRow = textSavedLineStartRow
+    lineStartCol = textSavedLineStartCol
 }
 
 // ---------------------------------------------------------------------------
@@ -4634,23 +4986,61 @@ var guiClickCount = 0
 var guiButtonHeld = false
 var guiWantsHome = false
 
-/// A press at the pointer's point. The close box is asked first
-/// — leaving is always the senior road — then the button: the
-/// count rises, the button takes its pressed face, and both are
-/// repainted with the pointer lifted and laid back over them.
+/// A press at the pointer's point, asked of the desktop's
+/// parts in their seniority. The Terminal's close box closes
+/// only its window — the desktop stands, the launcher takes
+/// the window's place in the painting, and the shell's
+/// conversation is kept aside for its return. A press inside
+/// the Terminal gives it the room. The Welcome window's close
+/// box is the whole face's way home, as it was in milestone
+/// 12; its button counts the click, in its pressed face, and
+/// takes the room as it is pressed. The launcher calls the
+/// Terminal back. A press on bare desktop gives the room to
+/// the Welcome side — which is to say, Esc will bring the
+/// face home from there.
 func guiPressAt(_ x: Int, _ y: Int) {
+    if termOpen && guiTermCloseContains(x, y) {
+        termOpen = false
+        consoleLeaveTerminal()
+        guiFocusTerminal = false
+        pointerHide()
+        guiPaintDesktop()
+        pointerShow()
+        return
+    }
+    if termOpen && guiTermContains(x, y) {
+        guiSetFocus(true)
+        return
+    }
     if guiCloseBoxContains(x, y) {
         guiWantsHome = true
         return
     }
     if guiButtonContains(x, y) {
+        guiSetFocus(false)
         guiClickCount += 1
         guiButtonHeld = true
         pointerHide()
         guiPaintButton()
         guiPaintClicks()
         pointerShow()
+        return
     }
+    if guiWinContains(x, y) {
+        guiSetFocus(false)
+        return
+    }
+    if !termOpen && guiLauncherContains(x, y) {
+        termOpen = true
+        guiFocusTerminal = true
+        consoleEnterTerminal()
+        pointerHide()
+        guiPaintWindow()
+        guiPaintTerminal()
+        pointerShow()
+        return
+    }
+    guiSetFocus(false)
 }
 
 /// A release: if the button stood pressed, it takes its resting
@@ -4707,102 +5097,413 @@ func guiTakeMouseByte(_ byte: UInt8) {
     mouseLeftWasDown = leftDown
 }
 
-/// Waits, with a bound, for the controller to be ready to be
-/// spoken to — its input buffer empty. The bound matters: a
-/// machine with no mouse must not hang the boot on a courtesy.
-func mouseWaitWrite() {
-    var spins = 0
-    while cardnullInb(0x64) & 0x02 != 0 && spins < 100000 {
-        spins += 1
+// ---------------------------------------------------------------------------
+// Milestone 13: the mouse's waking, done patiently and on the record.
+//
+// Milestone 12's waking was a short ceremony — enable the
+// auxiliary port, amend the configuration byte, defaults, report
+// — with every wait a fixed count of spins and every answer taken
+// or let go in passing, and no reset of the mouse itself. On the
+// bench emulator it served. On Tyler's UTM the mouse never
+// answered at all: not one packet from birth, though the desktop
+// drew perfectly and the keyboard spoke. The waking below is the
+// full standard ceremony in the standard's order — the mouse
+// itself is reset and its self-test word and name are heard
+// before defaults and reporting are asked for — with the timer,
+// not a spin count, bounding every wait, so a slow emulator's
+// late answer is waited for in wall-clock like a fast one's.
+// Every answer the device gives is written into the mouse
+// report, composed once at boot into the floor's keeping, so
+// the console and the desktop tell the same story and the
+// screen itself says what the mouse said.
+// ---------------------------------------------------------------------------
+
+/// The waking's record: what each step heard, or -1 for silence.
+var mouseConfigByte = -1
+var mouseResetAck = -1
+var mouseBatByte = -1
+var mouseIdByte = -1
+var mouseDefaultsAck = -1
+var mouseEnableAck = -1
+var mouseWakeAttempts = 0
+var mouseAnswering = false
+
+/// The configuration byte as re-read after the waking — and
+/// again at the desktop's opening: proof the auxiliary port
+/// still stands as the waking left it, its IRQ bit set and its
+/// clock running. -1 when even that question went unanswered.
+var mouseConfigAfter = -1
+
+/// The report's second line begins at this offset in its
+/// keeping; the first line is the standing, the second the
+/// waking's transcript in short.
+var mouseReportLine2Offset = 0
+
+/// The waits' lengths, in ticks — a hundredth of a second
+/// each. Half a second for an answer byte is an eternity to a
+/// healthy controller and still nothing to a boot; the reset's
+/// self-test word is allowed two full seconds, as the standard
+/// itself allows it to be slow. Every wait is bounded, so a
+/// mouseless machine pays a few seconds at most and boots.
+let mouseByteWaitTicks: UInt64 = 50
+let mouseBatWaitTicks: UInt64 = 200
+
+/// Waits, on the timer, for the controller to be ready to be
+/// spoken to — its input buffer empty — resting in `hlt`
+/// between looks. The bound is wall-clock, the same on a slow
+/// emulator as on a fast one, which is the whole point of it.
+func mouseWaitWrite(_ ticksAllowed: UInt64) -> Bool {
+    let deadline = ticks &+ ticksAllowed
+    while cardnullInb(0x64) & 0x02 != 0 {
+        if ticks >= deadline { return false }
+        cardnullHltOnce()
+    }
+    return true
+}
+
+/// Pushes one byte into the keyboard ring by hand — the
+/// waking's traffic sorter uses it for bytes that prove to be
+/// the keyboard's, arrived while the keyboard's own IRQ stands
+/// masked. The same keeping keyboardInterrupt gives them,
+/// minus the EOI no unraised IRQ is owed.
+func stashKeyboardByte(_ byte: UInt8) {
+    let next = (keyRingHead + 1) & (keyRingSize - 1)
+    if next != keyRingTail {
+        cardnullKeyRing()[keyRingHead] = byte
+        keyRingHead = next
     }
 }
 
-/// Waits, with the same bound, for the controller to have
-/// something to say — its output buffer full — and reports
-/// whether it did.
-func mouseWaitRead() -> Bool {
-    var spins = 0
-    while cardnullInb(0x64) & 0x01 == 0 && spins < 100000 {
-        spins += 1
-    }
-    return cardnullInb(0x64) & 0x01 != 0
-}
-
-/// Speaks one byte to the mouse itself, through the controller's
-/// 0xD4 prefix — the next byte written to the data port is for
-/// the mouse, not the keyboard — and takes its answer (0xFA,
-/// understood) and lets it go. No answer is not a failure: the
-/// polls simply run out, and the boot walks on.
-func mouseSendToMouse(_ byte: UInt8) {
-    mouseWaitWrite()
-    cardnullOutb(0x64, 0xD4)
-    mouseWaitWrite()
-    cardnullOutb(0x60, byte)
-    if mouseWaitRead() {
-        _ = cardnullInb(0x60)
+/// Pushes one byte into the mouse ring by hand — the mirror
+/// keeping, for mouse bytes that arrive while the configuration
+/// byte is being read back under masked IRQs.
+func stashMouseByte(_ byte: UInt8) {
+    let next = (mouseRingHead + 1) & (mouseRingSize - 1)
+    if next != mouseRingTail {
+        cardnullMouseRing()[mouseRingHead] = byte
+        mouseRingHead = next
     }
 }
 
-/// Wakes the mouse, once, at boot — called from kmain with the
-/// interrupt gate still closed, because the waking is a polled
-/// conversation on the same data port the keyboard speaks
-/// through, and no IRQ may reach into the middle of it. The
-/// steps are the PS/2 controller's old ceremony, in order:
-///
-///   - whatever the controller still holds from the bootloader's
-///     day is taken out and let go, so the answers read below
-///     are the mouse's own;
-///   - the auxiliary port — the mouse's side of the controller —
-///     is enabled (0xA8);
-///   - the configuration byte is read (ask with 0x20, then take
-///     it), amended — the mouse's IRQ may knock, and its clock
-///     runs — and written back (0x60);
-///   - the mouse is told its defaults (0xF6) and then to begin
-///     reporting (0xF4): from there, motion and buttons arrive
-///     as packets, one IRQ12 per byte.
-///
-/// If no mouse answers, nothing above hangs and nothing fails:
-/// every wait is bounded, and the face will still open — Esc
-/// alone brings it home on a mouseless machine.
-func initMouse() {
+/// Reads one byte from the mouse, on the timer: waits for the
+/// controller to hold something, then sorts what it holds — a
+/// byte the status marks as the mouse's own (bit 5) is the byte
+/// asked for; a byte of the keyboard's is stashed in the key
+/// ring and the waiting goes on. Returns the mouse's byte, or
+/// -1 when the bound runs out in silence.
+func mouseReadByte(_ ticksAllowed: UInt64) -> Int {
+    let deadline = ticks &+ ticksAllowed
+    while true {
+        let status = cardnullInb(0x64)
+        if status & 0x01 != 0 {
+            let fromMouse = status & 0x20 != 0
+            let byte = cardnullInb(0x60)
+            if fromMouse { return Int(byte) }
+            stashKeyboardByte(byte)
+        } else {
+            if ticks >= deadline { return -1 }
+            cardnullHltOnce()
+        }
+    }
+}
+
+/// Empties whatever the controller is holding — bootloader
+/// leftovers, early answers — sorting as it goes, so the
+/// conversation below begins on a clean boundary.
+func mouseDrain() {
     var guardCount = 0
-    while cardnullInb(0x64) & 0x01 != 0 && guardCount < 32 {
-        _ = cardnullInb(0x60)
+    while cardnullInb(0x64) & 0x01 != 0 && guardCount < 64 {
+        let status = cardnullInb(0x64)
+        let byte = cardnullInb(0x60)
+        if status & 0x20 == 0 { stashKeyboardByte(byte) }
         guardCount += 1
     }
-    mouseWaitWrite()
-    cardnullOutb(0x64, 0xA8)
-    mouseWaitWrite()
+}
+
+/// Speaks one byte to the mouse itself, through the
+/// controller's 0xD4 prefix — the next byte written to the data
+/// port is for the mouse, not the keyboard — and returns its
+/// answer: 0xFA, understood, or -1 for silence.
+func mouseSendByte(_ byte: UInt8) -> Int {
+    _ = mouseWaitWrite(mouseByteWaitTicks)
+    cardnullOutb(0x64, 0xD4)
+    _ = mouseWaitWrite(mouseByteWaitTicks)
+    cardnullOutb(0x60, byte)
+    return mouseReadByte(mouseByteWaitTicks)
+}
+
+/// Asks the controller for its configuration byte (ask with
+/// 0x20, then take it) and returns it, or -1 in silence. The
+/// answer is a controller byte, arriving unmarked like the
+/// keyboard's, so the read sorts the other way: marked bytes
+/// are the mouse's and are stashed in its ring. Only ever made
+/// while both input IRQs stand masked.
+func controllerReadConfig() -> Int {
+    _ = mouseWaitWrite(mouseByteWaitTicks)
     cardnullOutb(0x64, 0x20)
+    let deadline = ticks &+ mouseByteWaitTicks
+    while true {
+        let status = cardnullInb(0x64)
+        if status & 0x01 != 0 {
+            let byte = cardnullInb(0x60)
+            if status & 0x20 == 0 { return Int(byte) }
+            stashMouseByte(byte)
+        } else {
+            if ticks >= deadline { return -1 }
+            cardnullHltOnce()
+        }
+    }
+}
+
+/// Writes the controller's configuration byte: the 0x60 word
+/// first, then the byte itself.
+func controllerWriteConfig(_ value: UInt8) {
+    _ = mouseWaitWrite(mouseByteWaitTicks)
+    cardnullOutb(0x64, 0x60)
+    _ = mouseWaitWrite(mouseByteWaitTicks)
+    cardnullOutb(0x60, value)
+}
+
+/// Masks the two input IRQs at the PICs, so a polled
+/// conversation owns the controller's data port outright — no
+/// handler may reach into its middle. The timer's IRQ stays
+/// open: the waits are reckoned on its count. The mask ports
+/// are the PICs' data ports, 0x21 for the master (IRQ1 is its
+/// bit 1) and 0xA1 for the slave (IRQ12 is its bit 4).
+func mouseMaskInputs() {
+    cardnullOutb(0x21, cardnullInb(0x21) | 0x02)
+    cardnullOutb(0xA1, cardnullInb(0xA1) | 0x10)
+}
+
+/// Undoes the masking, bit for bit.
+func mouseUnmaskInputs() {
+    cardnullOutb(0x21, cardnullInb(0x21) & ~0x02)
+    cardnullOutb(0xA1, cardnullInb(0xA1) & ~0x10)
+}
+
+/// One full waking of the mouse, in the standard's order:
+/// whatever the controller still holds is drained away; the
+/// auxiliary port — the mouse's side of the controller — is
+/// enabled (0xA8); the configuration byte is read, amended
+/// (the mouse's IRQ may knock; its clock runs) and written
+/// back; the mouse itself is reset (0xFF) and its answer,
+/// its self-test word (0xAA) and its name (the device ID) are
+/// heard; its defaults are set (0xF6); and it is told to begin
+/// reporting (0xF4). Returns true when the reporting answer
+/// was the mouse's own 0xFA — the one word that promises a
+/// stream.
+func mouseWakeAttempt() -> Bool {
+    mouseDrain()
+    _ = mouseWaitWrite(mouseByteWaitTicks)
+    cardnullOutb(0x64, 0xA8)
     var config: UInt8 = 0x47
-    if mouseWaitRead() {
-        config = cardnullInb(0x60)
+    let heard = controllerReadConfig()
+    if heard >= 0 {
+        mouseConfigByte = heard
+        config = UInt8(heard)
     }
     config |= 0x02        // the mouse's IRQ (IRQ12) may knock
     config &= ~0x20       // the mouse's clock runs
-    mouseWaitWrite()
-    cardnullOutb(0x64, 0x60)
-    mouseWaitWrite()
-    cardnullOutb(0x60, config)
-    mouseSendToMouse(0xF6)
-    mouseSendToMouse(0xF4)
+    controllerWriteConfig(config)
+    mouseResetAck = mouseSendByte(0xFF)
+    mouseBatByte = -1
+    mouseIdByte = -1
+    if mouseResetAck == 0xFA {
+        mouseBatByte = mouseReadByte(mouseBatWaitTicks)
+        if mouseBatByte == 0xAA {
+            mouseIdByte = mouseReadByte(mouseByteWaitTicks)
+        }
+    }
+    mouseDefaultsAck = mouseSendByte(0xF6)
+    mouseEnableAck = mouseSendByte(0xF4)
+    return mouseEnableAck == 0xFA
+}
+
+/// Wakes the mouse, once, at boot — called from kmain after
+/// the interrupts stand, because the waking's waits are
+/// reckoned on the heartbeat. One full attempt; if it hears
+/// silence, one more, whole — a slow emulator's first word can
+/// simply be late. Then the configuration byte is read once
+/// more, with the shell about to stand, so the report can say
+/// the auxiliary port still stands as the waking left it. A
+/// mouseless machine pays the bounded waits and boots anyway.
+func initMouse() {
+    mouseMaskInputs()
+    mouseWakeAttempts = 1
+    mouseAnswering = mouseWakeAttempt()
+    if !mouseAnswering {
+        mouseWakeAttempts = 2
+        mouseAnswering = mouseWakeAttempt()
+    }
+    mouseConfigAfter = controllerReadConfig()
+    mouseUnmaskInputs()
+    composeMouseReport()
+}
+
+/// The desktop's opening courtesy to the mouse: the
+/// configuration byte is read once more, and if the auxiliary
+/// port's standing has been undone since the waking — its IRQ
+/// bit cleared, its clock stopped — the waking's amendment is
+/// written back. And if the mouse never answered at boot, it
+/// is told once more to report; a late answer recomposes the
+/// report, so the desktop's standing line stays the truth.
+func mouseVerifyAtDesktop() {
+    mouseMaskInputs()
+    let config = controllerReadConfig()
+    if config >= 0 {
+        mouseConfigAfter = config
+        if config & 0x02 == 0 || config & 0x20 != 0 {
+            var amended = UInt8(config)
+            amended |= 0x02
+            amended &= ~0x20
+            controllerWriteConfig(amended)
+        }
+    }
+    if !mouseAnswering && mouseSendByte(0xF4) == 0xFA {
+        mouseAnswering = true
+        mouseEnableAck = 0xFA
+        composeMouseReport()
+    }
+    mouseUnmaskInputs()
+}
+
+/// The report composer's pen: where the next byte goes in the
+/// keeping. Composition is plain byte work, done once — the
+/// printing and drawing hands only read what stands here.
+var mouseReportPen = 0
+
+func mouseReportPut(_ byte: UInt8) {
+    if mouseReportPen < 159 {
+        cardnullMouseReport()[mouseReportPen] = byte
+        mouseReportPen += 1
+    }
+}
+
+func mouseReportWord(_ word: StaticString) {
+    var index = 0
+    while word.utf8Start[index] != 0 {
+        mouseReportPut(word.utf8Start[index])
+        index += 1
+    }
+}
+
+/// Two hex digits for a heard byte, or "--" for silence.
+func mouseReportHex(_ value: Int) {
+    if value < 0 {
+        mouseReportPut(0x2D)   // '-'
+        mouseReportPut(0x2D)
+        return
+    }
+    let digits: StaticString = "0123456789ABCDEF"
+    mouseReportPut(digits.utf8Start[(value >> 4) & 0xF])
+    mouseReportPut(digits.utf8Start[value & 0xF])
+}
+
+/// Composes the mouse report's two lines into the floor's
+/// keeping. The first line is the standing — "Mouse:
+/// answering (id 0x00)." with the device ID the waking heard,
+/// or "Mouse: not answering." — and the second is the waking's
+/// transcript in short: what each step heard, "--" where the
+/// answer was silence, and how the port stood when re-read.
+func composeMouseReport() {
+    mouseReportPen = 0
+    mouseReportWord("Mouse: ")
+    if mouseAnswering {
+        mouseReportWord("answering (id 0x")
+        mouseReportHex(mouseIdByte)
+        mouseReportWord(").")
+    } else {
+        mouseReportWord("not answering.")
+    }
+    mouseReportPut(0)
+    mouseReportLine2Offset = mouseReportPen
+    mouseReportWord("  wake: config ")
+    mouseReportHex(mouseConfigByte)
+    mouseReportWord(", reset ")
+    mouseReportHex(mouseResetAck)
+    mouseReportWord(", self-test ")
+    mouseReportHex(mouseBatByte)
+    mouseReportWord(", defaults ")
+    mouseReportHex(mouseDefaultsAck)
+    mouseReportWord(", reporting ")
+    mouseReportHex(mouseEnableAck)
+    mouseReportWord(", port now ")
+    mouseReportHex(mouseConfigAfter)
+    mouseReportWord(", tries ")
+    mouseReportPut(0x30 + UInt8(mouseWakeAttempts))
+    mouseReportPut(0)
+}
+
+/// Prints the report on the console, both lines, through the
+/// one output door — the same bytes the desktop draws.
+func printMouseReport() {
+    let report = cardnullMouseReport()
+    var index = 0
+    while report[index] != 0 {
+        writeChar(report[index])
+        index += 1
+    }
+    writeNewline()
+    index = mouseReportLine2Offset
+    while report[index] != 0 {
+        writeChar(report[index])
+        index += 1
+    }
+    writeNewline()
+}
+
+/// Takes any mouse bytes the controller is holding that the
+/// IRQ road never delivered — marked as the mouse's own (bit
+/// 5), read straight off the port into the packet assembly.
+/// The face polls as well as listens, so an interrupt road
+/// gone silent in some host cannot starve the pointer while
+/// the bytes sit waiting. The keyboard's bytes are left
+/// strictly alone: they are IRQ1's affair. Returns true when
+/// anything was taken.
+func guiPollMousePort() -> Bool {
+    var took = false
+    var guardCount = 0
+    while guardCount < 64 {
+        let status = cardnullInb(0x64)
+        if status & 0x01 == 0 { break }
+        if status & 0x20 == 0 { break }
+        guiTakeMouseByte(cardnullInb(0x60))
+        took = true
+        guardCount += 1
+    }
+    return took
 }
 
 /// The `gui` command's work: open the face, keep it until the
-/// way home is asked for, and restore the console exactly.
+/// way home is asked for, and restore the console exactly. It
+/// is also the boot's front door now: kmain calls it once the
+/// news is spoken, so the machine wakes into its face.
 ///
 /// On a boot that brought no framebuffer there is no face to
 /// open — the VGA text grid keeps pixels for no one — and the
 /// command says so plainly, in the shell, and that is all.
+///
+/// Two windows stand on the desktop: the Welcome window at the
+/// left, carrying the house verse and its counting button, and
+/// the Terminal at the right, hosting the kernel's own shell —
+/// its close box closes only the window, and the desktop's
+/// launcher calls it back. Esc brings the face home whenever
+/// the Terminal does not hold the keyboard; while it does, Esc
+/// is the shell's own key and does nothing special, exactly as
+/// on the text console.
 func runGui() {
     if !useFramebuffer {
         writeLine(guiNoScreenLine)
         return
     }
-    guiWinW = min(680, framebufferWidth - 40)
+    guiWinW = min(544, framebufferWidth - 32)
     guiWinH = min(400, framebufferHeight - 40)
-    guiWinX = (framebufferWidth - guiWinW) / 2
-    guiWinY = (framebufferHeight - guiWinH) / 2
+    guiWinX = 16
+    guiWinY = 120
+    guiTermW = min(672, framebufferWidth - guiWinW - 48)
+    guiTermH = min(560, framebufferHeight - 160)
+    guiTermX = guiWinX + guiWinW + 16
+    guiTermY = 120
     guiClickCount = 0
     guiButtonHeld = false
     guiWantsHome = false
@@ -4812,6 +5513,14 @@ func runGui() {
     // That is old news: the ring is drained, so the face opens
     // on a clean ring and a whole packet boundary.
     while nextMouseByte() != nil {}
+    // The opening courtesy (milestone 13): the configuration
+    // byte re-read and healed if anything has undone the
+    // waking's amendment, and one more word spoken to a mouse
+    // that never answered — before the standing line is drawn.
+    mouseVerifyAtDesktop()
+    termOpen = true
+    guiFocusTerminal = true
+    consoleEnterTerminal()
     // The pointer opens at the screen's centre — a known place,
     // so its first standing can be witnessed, not guessed.
     pointerX = framebufferWidth / 2
@@ -4819,11 +5528,13 @@ func runGui() {
     pointerIsDrawn = false
     guiPaintDesktop()
     pointerShow()
-    // The face's whole work: drain the mouse's ring into
-    // packets, drain the keyboard's ring looking only for Esc,
-    // and rest in `hlt` whenever both are quiet — the timer's
-    // heartbeat wakes the resting a hundred times a second,
-    // which no hand will ever notice.
+    // The face's whole work: drain the mouse's ring (and poll
+    // its port) into packets; give the keyboard's ring to the
+    // shell when the Terminal holds the room, and watch it for
+    // Esc when it does not; repaint the Terminal's touched rows
+    // when the shell has written; and rest in `hlt` whenever
+    // all are quiet — the timer's heartbeat wakes the resting
+    // a hundred times a second, which no hand will ever notice.
     while !guiWantsHome {
         var worked = false
         while let byte = nextMouseByte() {
@@ -4832,22 +5543,42 @@ func runGui() {
             if guiWantsHome { break }
         }
         if guiWantsHome { break }
+        if guiPollMousePort() { worked = true }
+        if guiWantsHome { break }
         while let code = nextScancode() {
             worked = true
-            if code == 0x01 {          // Esc, pressed
+            if termOpen && guiFocusTerminal {
+                handleScancode(code)
+            } else if code == 0x01 {          // Esc, pressed
                 guiWantsHome = true
             }
+            if guiWantsHome { break }
+        }
+        if consoleInTerminal && termDirtyTop >= 0 {
+            let top = termDirtyTop
+            let bottom = termDirtyBottom
+            termDirtyTop = -1
+            termDirtyBottom = -1
+            pointerHide()
+            guiPaintTermRows(top, bottom)
+            pointerShow()
+            worked = true
         }
         if !worked {
             cardnullHltOnce()
         }
     }
     pointerHide()
-    // The way home. The text grid was never touched — the whole
-    // conversation still stands in it — so blacken the whole
-    // pixel field, the desktop having ranged past the grid's
-    // rows, and paint the grid back through the screen. The
-    // shell's own hands then open the next prompt beneath it.
+    // The way home. The Terminal's conversation is kept aside
+    // whole for its next opening, and the console's grid was
+    // never touched — the whole conversation still stands in
+    // it — so blacken the whole pixel field, the desktop having
+    // ranged past the grid's rows, and paint the grid back
+    // through the screen. The shell's own hands then open the
+    // next prompt beneath it.
+    if consoleInTerminal {
+        consoleLeaveTerminal()
+    }
     for row in 0 ..< framebufferHeight {
         for col in 0 ..< framebufferWidth {
             putPixel(x: col, y: row, white: false)
@@ -5147,8 +5878,8 @@ func runFaultTest() {
 /// True when the typed line is nothing but spaces — the typist
 /// pressed Enter on an empty line, which earns only a fresh prompt.
 func lineIsBlank() -> Bool {
-    let start = lineStartRow * screenColumns + lineStartCol
-    let end = cursorRow * screenColumns + cursorCol
+    let start = lineStartRow * consoleCols() + lineStartCol
+    let end = cursorRow * consoleCols() + cursorCol
     var cell = start
     while cell < end {
         if screenChar(cell: cell) != 0x20 { return false }
@@ -5161,8 +5892,8 @@ func lineIsBlank() -> Bool {
 /// folded to lowercase, is exactly the given command word — so HELP,
 /// Help, and help with room around them are all the same command.
 func commandMatches(_ command: StaticString) -> Bool {
-    let start = lineStartRow * screenColumns + lineStartCol
-    let end = cursorRow * screenColumns + cursorCol
+    let start = lineStartRow * consoleCols() + lineStartCol
+    let end = cursorRow * consoleCols() + cursorCol
     var cell = start
     while cell < end && screenChar(cell: cell) == 0x20 { cell += 1 }
     var index = 0
@@ -5186,6 +5917,19 @@ func commandMatches(_ command: StaticString) -> Bool {
 /// included, so nothing of the old conversation survives anywhere.
 /// Nothing is kept — that is what clear means.
 func clearScreen() {
+    if consoleInTerminal {
+        // In the window, clear wipes the window's grid alone —
+        // the desktop around it is not the shell's to blacken.
+        let termGrid = cardnullTermGrid()
+        for cell in 0 ..< (termColumns * termRows) {
+            termGrid[cell] = 0x20
+        }
+        termMarkAllDirty()
+        cursorRow = 0
+        cursorCol = 0
+        startLine()
+        return
+    }
     let grid = cardnullTextGrid()
     for cell in 0 ..< (screenColumns * screenRows) {
         grid[cell] = 0x20
@@ -5272,7 +6016,14 @@ func submitLine() {
         } else if isFeather {
             runFeather()
         } else if isGui {
-            runGui()
+            if consoleInTerminal {
+                // Already here: this window is the desktop's own
+                // shell, and opening the face from inside the face
+                // would only fold the world in on itself.
+                writeLine(guiAlreadyLine)
+            } else {
+                runGui()
+            }
         } else {
             writeLine(unknownLine)
         }
@@ -5409,23 +6160,39 @@ public func kmain(_ multibootInfo: UInt64) {
     initDisc()
     printDiscReport()
 
+    // Raise the interrupts: IDT, PICs, the 100 Hz heartbeat, and an
+    // open gate. From here the machine can speak first — a keypress
+    // no longer waits to be asked after, and the tick counts whether
+    // anyone is watching or not. The raising stands before the
+    // mouse's waking now (milestone 13): the waking's waits are
+    // reckoned on this heartbeat, and it conducts its polled
+    // conversation with the two input IRQs masked at the PICs, so
+    // no handler reaches into its middle either.
+    cardnullSetupInterrupts()
+
+    // Wake the mouse (milestone 13): the full standard ceremony —
+    // reset, self-test, name, defaults, reporting — every wait
+    // bounded by the timer and every answer kept. The report is
+    // spoken here, on the banner's clean field beneath the disc's
+    // news, so the shell opens under the truth about the mouse
+    // as it does under the truth about the disc.
+    initMouse()
+    printMouseReport()
+
     // The first prompt, and the cursor resting just past it.
     startLine()
     moveHardwareCursor()
 
-    // Wake the mouse (milestone 12), while the interrupt gate is
-    // still closed: its waking is a polled conversation on the
-    // PS/2 controller's data port — the same port the keyboard
-    // speaks through — and no IRQ may reach into the middle of
-    // it. From here the mouse reports its packets on its own;
-    // IRQ12's gate is raised with the rest, just below.
-    initMouse()
-
-    // Raise the interrupts: IDT, PICs, the 100 Hz heartbeat, and an
-    // open gate. From here the machine can speak first — a keypress
-    // no longer waits to be asked after, and the tick counts whether
-    // anyone is watching or not.
-    cardnullSetupInterrupts()
+    // The face is the front door now (milestone 13): with boot's
+    // news spoken, the desktop opens on its own — the Terminal
+    // window standing on it holds this very shell, so nothing is
+    // lost by the move. The Welcome window's close box or Esc
+    // brings the text shell home, and the gui command opens the
+    // face again. A boot that brought no framebuffer has no face
+    // to open; the shell simply keeps the room, as it always has.
+    if useFramebuffer {
+        runGui()
+    }
 
     // The kernel's whole work, from here on: drain whatever the
     // keyboard handler has laid in the ring — echoing the typing and

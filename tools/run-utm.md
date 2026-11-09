@@ -38,7 +38,21 @@ CARDNULL
 
 That is the Swift kernel running: the boot floor woke the processor,
 walked it into 64-bit long mode, and handed control to `kmain`, which
-cleared the screen, wrote the banner, and opened a prompt. Click into the machine's window and type — the whole
+cleared the screen, wrote the banner, and opened a prompt. Above the
+prompt stand the boot's two reports: the disc's news (its name, or
+the plain word that no drive answered) and — since milestone 13 —
+the mouse's: two lines telling whether the mouse answered its
+waking, and what each step of the waking heard. Read them; they are
+the machine's own testimony, and the desktop repeats the first of
+them along its bottom edge.
+
+Then — since milestone 13 — the desktop opens on its own: the OS
+wakes into its face now, and the shell's conversation continues
+inside the Terminal window standing on it (the face is described
+at the end of this walk). The text console above is never lost:
+Esc from the desktop, or the Welcome window's close box, brings
+it back exactly as it stood, and `gui` opens the face again.
+Click into the machine's window and type — the whole
 keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
@@ -183,32 +197,78 @@ executed as code. As ever, the ground a feather's program
 stood on is handed back: `mem` reads the same numbers
 before an opening and after it.
 
-And since milestone 12, the OS has a face. Type `gui` and
-the text console gives way to a drawn desktop: a
-deep-cardinal field, the Cardnull OS name standing in gold,
-and one window — Welcome — carrying a greeting and John
-1:1 in the Douay-Rheims. The pointer opens at the screen's
-centre; move the mouse and it follows, and the painting
-beneath it is left exactly as it was — the pointer lifts
-its ground into safekeeping before it is drawn and lays
-it back when it moves, so it never leaves a trail. In the
-window stands a button: click it — really click, with the
-machine's mouse — and the count beside it rises ("Clicks:
-1"), and the button wears its pressed face while you hold
-it down. Two ways home, both always open: click the X in
-the window's title bar, or press Esc. Either way the shell
-returns exactly as it was — the conversation never left
-the screen's own keeping — and answers the next command in
-the same session. The drill needs nothing new for this:
-the mouse is a PS/2 device, spoken to through the same
-controller the settings already force on (USB stays off).
-The face is deliberately small, and says so in the kernel:
-one window, in one place, that cannot be dragged or
-resized; no window manager; no program but the kernel
-draws. Graphical programs are a later era. And the visit
-costs the machine nothing it was not already spending —
-the face paints the framebuffer the boot already owned
-and keeps no memory of its own: `mem` reads the same
-numbers before a visit and after it.
+And the OS has a face — since milestone 12 a drawn one,
+and since milestone 13 the front door itself: when the
+boot's news is spoken, the desktop opens on its own. A
+deep-cardinal field, the Cardnull OS name standing in
+gold, and two windows standing side by side. At the left,
+Welcome — the greeting, John 1:1 in the Douay-Rheims, and
+the counting button of milestone 12: click it — really
+click, with the machine's mouse — and the count beside it
+rises ("Clicks: 1"), the button wearing its pressed face
+while you hold it down. At the right, the Terminal: the
+kernel's own shell in a window — the built-in shell,
+honestly, not a feather; a true terminal feather still
+waits on guest drawing and keyboard services, a later
+stone. Every command in this walk runs there, guests
+included: `run`, `both`, and `feather` print inside the
+window, and the conversation scrolls inside its own grid
+and is kept when the window closes and opens again.
+
+The pointer opens at the screen's centre; move the mouse
+and it follows, and the painting beneath it is left
+exactly as it was — the pointer lifts its ground into
+safekeeping before it is drawn and lays it back when it
+moves, so it never leaves a trail. Along the desktop's
+bottom edge stands the mouse's standing, in the boot
+report's own words — "Mouse: answering (id 0x00)." when
+it answered, "Mouse: not answering." when it did not —
+so the truth about the mouse is on the face itself, not
+only in the boot lines behind it.
+
+Which window the keyboard speaks to is told by the title
+bars: the window holding the room wears the bright
+cardinal, the other rests dimmed. Click a window to give
+it the room. The rules of Esc are plain, and kept: while
+the Terminal holds the room, Esc is the shell's own key
+and does nothing special — exactly as on the text
+console; whenever the Terminal does not hold it (the
+Welcome window clicked, the Terminal closed, bare
+desktop), Esc brings the whole face home. The Welcome
+window's close box is the other way home, from any
+standing. The Terminal's own close box closes only the
+window — the desktop stands, and a "Terminal" launcher
+at the desktop's top right calls the window back with
+its conversation intact. `gui` typed at the text console
+opens the face again; typed inside the Terminal it
+answers plainly that you are already here.
+
+Milestone 13 also re-made the mouse's waking, after
+milestone 12's first UTM witness came back partial: the
+desktop drew perfectly, but the pointer never answered.
+The waking is now the full standard ceremony — the mouse
+itself is reset and its self-test word and name are
+heard, every wait is bounded by the timer rather than a
+spin count, the controller's configuration byte is
+re-read after the waking and again at the desktop's
+opening and healed if anything undid it, a silent first
+attempt is tried once more whole, and the face also
+polls the mouse's port directly, so an interrupt road
+gone silent cannot starve it. If the mouse still does
+not answer, the boot report's second line says what each
+step heard — that transcript is the diagnosis, printed by
+the machine itself. The drill needs nothing new for any
+of this: the mouse is a PS/2 device, spoken to through
+the same controller the settings already force on (USB
+stays off). The face is deliberately small, and says so
+in the kernel: two windows, standing where they are
+painted, that cannot be dragged or resized; no window
+manager; no program but the kernel draws. Graphical
+programs are a later era. And the visit costs the
+machine nothing it was not already spending — the face
+paints the framebuffer the boot already owned and its
+grids are the floor's lendings, not the allocator's:
+`mem` reads the same numbers before a visit and after
+it.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

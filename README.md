@@ -66,6 +66,79 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
+Milestone 13 stands (November 9, 2026): **the OS wakes into
+its face — and the mouse's silence is answered.** Three
+stones. First, the mouse, re-woken properly: milestone 12's
+UTM witness came back partial — the desktop drew perfectly
+on Tyler's Mac, but the pointer never answered, not one
+packet from birth. The waking is now the full standard
+ceremony, in the standard's order — the controller's
+auxiliary port enabled, its configuration byte read,
+amended and written back, the mouse itself reset (0xFF)
+with its acknowledgment, its self-test word (0xAA) and its
+device ID all heard, defaults set, reporting enabled —
+every wait bounded by the 100 Hz heartbeat rather than a
+spin count, so a slow emulator's late answer is waited for
+in wall-clock; one whole retry if the first attempt hears
+silence; the configuration byte re-read after the waking
+and again at the desktop's opening, and healed if anything
+undid it; and the face polls the mouse's port directly as
+well as listening to IRQ12, so a silent interrupt road
+cannot starve the pointer. Every answer is kept and
+spoken: the boot report gains two lines — "Mouse:
+answering (id 0x00)." and the waking's transcript in short
+("wake: config 47, reset FA, self-test AA, defaults FA,
+reporting FA, port now 47, tries 1" behind the UEFI door;
+behind BIOS the firmware leaves the byte at 41 and the
+amendment stands at 43) — and the desktop's bottom edge
+carries the standing line in the same words, so the truth
+about the mouse is readable on Tyler's own screen either
+way. Second, the front door moved: when the boot's news is
+spoken, the desktop opens on its own. The text shell is
+one Esc — or one close-box click — away, `gui` re-opens
+the face, and nothing is lost by the move. Third, a second
+window stands on the desktop: the Terminal, hosting the
+kernel's own shell (the built-in shell in a window,
+honestly — not a feather; a true terminal feather still
+waits on guest drawing and keyboard services). It keeps
+its own 40 x 31 grid in a floor lending, so the console's
+conversation stands untouched behind the desktop; all
+fourteen commands run in it, and `run`, `both`, and
+`feather` print inside the window — the output door simply
+opens onto whichever grid is home. Clicking a window
+gives it the keyboard (its title bar wears the bright
+cardinal; the other rests dimmed); the Terminal's close
+box closes only the window, and a launcher on the desktop
+calls it back with its conversation intact; `gui` typed
+inside it answers plainly that you are already here. Esc
+is predictable and documented: the shell's own key while
+the Terminal holds the room, the way home whenever it
+does not. The face remains frugal: `mem` behind the UEFI
+door at 4096 MB reads 521,426 frames free of 522,691
+(1,265 used) at the console after a desktop visit and
+inside the Terminal alike — the desktop and its windows
+take no frames and no heap. Verified in QEMU under UTM's
+own conditions (q35, TCG, virtio-vga, 4096 MB, front-end
+input delivery) on QEMU 8.2 and 10.0 alike: a cold boot
+straight into the desktop with the standing line reading
+answering, the pointer moved and "Clicks: 1" counted,
+`verse` and `help` answered inside the Terminal, the
+Terminal closed and reopened with its conversation kept,
+Esc's two standings both witnessed, and the shell home
+again by Esc and by the close box with `mem` unchanged;
+the disc commands (`ls`, `run /count.bin`,
+`feather /hello.feather`, `both /a.bin /b.bin`) witnessed
+inside the Terminal in the UTM shape at a memory size
+this bench's firmware keeps the disc in reach of (at
+4096 MB the bench's OVMF parks the AHCI controller beyond
+the kernel's 4 GiB reach — the milestone-12 kernel reads
+the same "No CD-ROM drive answered" there, so it is the
+bench's firmware, not this milestone's change; Tyler's
+UTM read the disc at 4096 MB through milestones 8-11);
+and the BIOS door regressed whole — boot into the
+desktop, `verse` in the Terminal, home to the shell. The
+final witness, as ever, is Tyler's own UTM.
+
 Milestone 12 stands (November 9, 2026): **the OS gets a
 face — and with it, the original ladder is complete.** A
 fourteenth command, `gui`, leaves the text console and draws
