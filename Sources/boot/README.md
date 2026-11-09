@@ -51,6 +51,18 @@ every line says why it exists.
     and `cardnull_abandon_program`, which brings the machine home
     from a guest's fault — kernel tables, the shell's stack, the
     gate open — with the verdict the fault handler named.
+    Milestone 10 grew the same door rather than the table: the
+    stub learned a third service, yield, answered here in the
+    floor, and the pair machinery stands beside the single
+    launch — two guest books in .bss (176 bytes each: the
+    guest's tables, stack pointer, place, flags, fifteen general
+    registers, verdict, and standing), one shared entering hand
+    that makes a book the machine's state, `cardnull_launch_pair`
+    to open a session of two guests, the pair's own roads for a
+    guest that leaves or falls while its partner still lives
+    (`cardnull_abandon_guest_in_pair` for the fault road), and
+    three small hands that read a finished session's results out
+    of their bookmarks for Swift.
 - **`support.c`** — runtime support shims: the stack-protector guard
   word and failure path, allocation entry points that honestly
   decline (there is no heap yet), and the port I/O hands

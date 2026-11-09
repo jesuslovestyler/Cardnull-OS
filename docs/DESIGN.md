@@ -108,10 +108,21 @@ it bends.*
    stopped where it stands, its estate is handed back to the
    allocator, and the shell stands — the separation is
    enforced by the tables, not by the guest's good behaviour.
-   One guest at a time, start to finish: programs taking
-   turns is this step's second half, and the feather format
-   that will carry real programs is later business, both
-   still to come.)*
+   Milestone 10 — the same day — finished the step's second
+   half: two guests alive at once, taking turns. The door grew
+   a yield service, and the floor keeps each guest's whole
+   state — tables, stack, place, flags, registers — in one of
+   two books, trading the machine between them; each guest
+   resumes exactly where it yielded, in its own ground. A
+   guest that leaves or falls while its partner lives hands
+   the machine to the partner, which runs on alone — a falling
+   guest is stopped by the same page-fault road, its partner
+   undisturbed in the same session. The keeping is
+   cooperative by decision: a guest that never yields keeps
+   the machine, and preemption — the timer taking the machine
+   by force — is a named later step, as is any wider company
+   than two. The feather format that will carry real programs
+   is later business, still to come.)*
 5. A simple graphical interface.
 6. Chirpy Browser and the Catholic Bible at home on it.
 

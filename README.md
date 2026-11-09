@@ -63,7 +63,46 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 9 stands (November 9, 2026): **the OS runs something
+Milestone 10 stands (November 9, 2026): **two programs at
+once, taking turns.** The disc carries two more guests beside
+milestone 9's three — A.BIN and B.BIN, 90 bytes each, from
+assembly sources in `programs/` — and a twelfth command,
+`both`, loads two guests the way `run` loads one: two files
+resolved off the disc, two estates built on the same fixed
+ground under two roots, two images laid in. The floor's pair
+launch then enters the first, keeping each guest's whole state
+— its page tables, its stack pointer, its place, its flags,
+its registers — in one of two books in the floor's own storage.
+The door has a third service now, yield: a guest that knocks
+with it has its state written into its book and its partner
+woken exactly where the partner last yielded, in the partner's
+own ground; a guest that leaves or falls hands the machine to
+its partner the same way, and the pair comes home only when
+both books say finished. A.BIN prints five tokens, yielding
+between; B.BIN prints seven — `both /a.bin /b.bin` reads
+A1 B1 A2 B2 A3 B3 A4 B4 A5 B5 B6 B7 down the screen, B's last
+two alone after A has left — and the reports speak each ending
+truly beside its name: "/a.bin exited: 5", "/b.bin exited: 7"
+(the guests leave with their counts, so the report can be
+checked against the screen). The wall stands under company:
+`both /bad.bin /a.bin` stops BAD at the kernel's first byte —
+the report, "protection violation, user mode" — writes it down
+as stopped ("/bad.bin was stopped."), and carries the machine
+to A, which counts out its five tokens undisturbed in the same
+session, after which the shell answers `verse`. When a session
+ends, both estates are taken back frame by frame: `mem` reads
+the same numbers before it and after it (behind the UEFI door,
+29,838 frames free of 31,176 both times; behind the BIOS door,
+1,337 used of 32,638). The keeping is cooperative, stated
+plainly: a guest that never yields keeps the machine — nothing
+in this milestone takes it by force — and two guests is the
+measure, not a process table in disguise. `run` is untouched:
+one guest, start to finish, exactly as milestone 9 left it.
+Verified in QEMU behind both doors — the interleave, the
+stopping under company, and the identical `mem` under UEFI;
+`both`, `mem`, and `heap` as the BIOS regression.
+
+Before that, milestone 9 (November 9, 2026): **the OS runs something
 that is not itself.** Three small programs live on the disc as
 files — HELLO.BIN (234 bytes), COUNT.BIN (103), BAD.BIN (27) —
 assembled from assembly sources kept in `programs/` and packed
@@ -247,10 +286,13 @@ typed through the emulator's keyboard, answered on the kernel's
 screen, and the two uptime readings advancing with the wall clock
 between them; the same ISO is the one tested in UTM.
 
-Not yet, honestly: more than one program alive at once —
-milestone 9 runs a guest alone, from its first byte to its
-leaving, and letting programs take turns (a scheduler) is the
-next stone on the road; and the feather package format that
+Not yet, honestly: a scheduler that takes the machine by
+force — milestone 10's programs take turns by courtesy, each
+yielding at the door, and a guest that never yields is never
+interrupted; preemptive switching on the timer's word is a
+stone still ahead; more than two programs alive at once — the
+floor keeps two guest books, no wider table; and the feather
+package format that
 will one day carry real programs — Chirpy first among them —
 onto the disc as citizens rather than samples, a stone after
 that; USB input — under either firmware, a

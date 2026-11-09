@@ -20,7 +20,13 @@
 #      the service-door stub behind vector 0x80, and the two hands
 #      that move the machine between the shell and a guest —
 #      cardnull_launch_program going out, and the door's exit path
-#      and cardnull_abandon_program coming home.
+#      and cardnull_abandon_program coming home. Milestone 10
+#      teaches the door a third answer — yield — and adds the pair
+#      hands below: cardnull_launch_pair, which opens a session of
+#      two guests whose whole states are kept in two books in .bss
+#      and entered in turn through one shared entering hand, and
+#      cardnull_abandon_guest_in_pair, the fault road homeward
+#      when a partner still lives.
 #   6. Keep the bootloader's word (milestone 5): the Multiboot2 header
 #      asks for a linear framebuffer — the UEFI door has no text grid
 #      to write in, only pixels — and the entry stub preserves EBX,
@@ -366,10 +372,15 @@ cardnull_isr14:
 # 2 are answered by Swift (cardnull_syscall_handler) and the guest
 # resumes; service 0 never resumes, and is answered here, in the
 # floor, because coming home is a matter of stacks and page-table
-# roots, not of policy.
+# roots, not of policy. Milestone 10 adds a third answer here for
+# the same reason: service 3 — yield — whose keeping is the pair
+# machinery further down (whose turn it is is a matter of books
+# and table roots, not of policy either).
 # ---------------------------------------------------------------------------
     .globl  cardnull_syscall_stub
 cardnull_syscall_stub:
+    cmp     $3, %rax                        # service 3 — yielding? (milestone 10)
+    je      cardnull_syscall_yield
     cmp     $0, %rax                        # service 0 — leaving?
     je      cardnull_syscall_exit
     PUSH_ALL                                # the guest's registers, kept
@@ -391,6 +402,8 @@ cardnull_syscall_stub:
 # the launch hand's caller resumes as if the launch were an
 # ordinary call that returned the value in rax.
 cardnull_syscall_exit:
+    cmpq    $0, cardnull_pair_active(%rip)  # a pair session stands? (milestone 10)
+    jne     cardnull_syscall_exit_pair
     mov     %rdi, %rax                      # the exit code is the return value
     mov     cardnull_return_cr3(%rip), %rcx
     mov     %rcx, %cr3                      # the kernel's own tables again
@@ -457,6 +470,261 @@ cardnull_abandon_program:
     pop     %rbp
     pop     %rbx
     sti
+    ret
+
+# ---------------------------------------------------------------------------
+# Milestone 10: two guests, taking turns.
+#
+# The door learns a third answer, and the floor learns to keep two
+# guests at once. Each guest's whole state — the ground it stands
+# on and the exact place it stopped — is kept in a book, a fixed
+# block of 176 bytes in .bss:
+#
+#     0   its page tables' root (the CR3 it runs under)
+#     8   its stack pointer
+#    16   its instruction pointer
+#    24   its flags
+#    32   its fifteen general registers: rax rbx rcx rdx rsi rdi
+#         rbp r8 r9 r10 r11 r12 r13 r14 r15, eight bytes each
+#   152   its verdict — the exit code it left by, or the verdict a
+#         stopping handed down
+#   160   its standing: 0 alive, 1 exited, 2 stopped
+#
+# Two books exactly, named A and B: two guests is the milestone's
+# honest measure, and no wider generality is pretended. Two
+# bookmarks name which book is the current guest's and which the
+# partner's, and one flag says whether a pair session stands at
+# all — while it does not, every road in this section sleeps and
+# milestone 9's roads run exactly as they did.
+#
+# The keeping is cooperative, and the word is load-bearing: a
+# guest holds the machine until it yields, leaves, or falls.
+# Nothing in this milestone takes the machine from a guest that
+# will not give it — the timer still ticks, but no hand here
+# answers it with a switch. Preemption is a later stone, named
+# as such in the design notes.
+# ---------------------------------------------------------------------------
+
+# Service 3 — yield. With no pair standing, or with the partner
+# already finished, there is no one to take the turn: the guest
+# simply resumes where it knocked, its courtesy noted and
+# unanswered. Otherwise its whole state is written into its
+# book — the live registers are still the guest's own at this
+# point, and the frame the processor built names the rest — the
+# books are swapped, and the shared entering hand below takes
+# the machine to the partner, which resumes exactly where it
+# last gave the machine up.
+cardnull_syscall_yield:
+    cmpq    $0, cardnull_pair_active(%rip)
+    je      cardnull_yield_resume
+    push    %rax                            # a borrowed hand, returned at once
+    mov     cardnull_guest_other(%rip), %rax
+    cmpq    $0, 160(%rax)                   # the partner still alive?
+    pop     %rax
+    jne     cardnull_yield_resume
+    push    %rbx                            # the guest's rbx, kept on the stack a breath
+    mov     cardnull_guest_current(%rip), %rbx
+    mov     %rax, 32(%rbx)
+    mov     %rcx, 48(%rbx)
+    mov     %rdx, 56(%rbx)
+    mov     %rsi, 64(%rbx)
+    mov     %rdi, 72(%rbx)
+    mov     %rbp, 80(%rbx)
+    mov     %r8, 88(%rbx)
+    mov     %r9, 96(%rbx)
+    mov     %r10, 104(%rbx)
+    mov     %r11, 112(%rbx)
+    mov     %r12, 120(%rbx)
+    mov     %r13, 128(%rbx)
+    mov     %r14, 136(%rbx)
+    mov     %r15, 144(%rbx)
+    mov     (%rsp), %rax                    # the guest's rbx, off the stack
+    mov     %rax, 40(%rbx)
+    mov     8(%rsp), %rax                   # the frame's instruction pointer
+    mov     %rax, 16(%rbx)
+    mov     24(%rsp), %rax                  # the frame's flags
+    mov     %rax, 24(%rbx)
+    mov     32(%rsp), %rax                  # the frame's stack pointer
+    mov     %rax, 8(%rbx)
+    mov     cardnull_guest_other(%rip), %rax
+    mov     %rbx, cardnull_guest_other(%rip)
+    mov     %rax, cardnull_guest_current(%rip)
+    jmp     cardnull_guest_enter
+
+cardnull_yield_resume:
+    iretq                                   # the frame stands as the guest left it
+
+# Service 0 with a partner standing: the leaver's verdict and
+# standing are written into its own book. If the partner is
+# finished too, the pair goes home; if not, the partner becomes
+# the current guest and runs on alone — its own leaving or
+# falling will take the pair home when it comes.
+cardnull_syscall_exit_pair:
+    mov     cardnull_guest_current(%rip), %rcx
+    mov     %rdi, 152(%rcx)                 # its exit code, in its own book
+    movq    $1, 160(%rcx)                   # standing: exited
+    mov     cardnull_guest_other(%rip), %rcx
+    cmpq    $0, 160(%rcx)                   # the partner still alive?
+    jne     cardnull_pair_home
+    mov     %rcx, cardnull_guest_current(%rip)
+    jmp     cardnull_guest_enter
+
+# cardnull_abandon_guest_in_pair(verdict) -> Never (called from Swift)
+#
+# The fault road with a partner standing: the page-fault handler
+# has reported the fault in Swift; the fallen guest is written
+# down as stopped, with the verdict the handler named, and the
+# machine goes to the survivor — or home, if the survivor is
+# finished too. The fallen guest's frame is left where it lies
+# on the ring-0 entry stack; the hardware reloads that stack's
+# top at the next knock, and nothing of the fallen is needed
+# from it, because everything a guest is lives in its book.
+    .globl  cardnull_abandon_guest_in_pair
+cardnull_abandon_guest_in_pair:
+    mov     cardnull_guest_current(%rip), %rcx
+    mov     %rdi, 152(%rcx)                 # the verdict, in its book
+    movq    $2, 160(%rcx)                   # standing: stopped
+    mov     cardnull_guest_other(%rip), %rcx
+    cmpq    $0, 160(%rcx)                   # the partner still alive?
+    jne     cardnull_pair_home
+    mov     %rcx, cardnull_guest_current(%rip)
+    jmp     cardnull_guest_enter
+
+# The pair's way home: both books are read into the result
+# bookmarks Swift reads once the launch has returned, the
+# session is closed, and the road is the old one — the kernel's
+# tables, the shell's stack, the gate open — with guest A's
+# verdict riding home in rax, as a single launch's code did.
+cardnull_pair_home:
+    lea     cardnull_guest_state_a(%rip), %rcx
+    mov     160(%rcx), %rax
+    mov     %rax, cardnull_result_status_a(%rip)
+    mov     152(%rcx), %rax                 # A's verdict: the return value
+    lea     cardnull_guest_state_b(%rip), %rcx
+    mov     152(%rcx), %rdx
+    mov     %rdx, cardnull_result_verdict_b(%rip)
+    mov     160(%rcx), %rdx
+    mov     %rdx, cardnull_result_status_b(%rip)
+    movq    $0, cardnull_pair_active(%rip)
+    mov     cardnull_return_cr3(%rip), %rcx
+    mov     %rcx, %cr3                      # the kernel's own tables again
+    mov     cardnull_shell_rsp(%rip), %rsp  # the shell's stack again
+    pop     %r15
+    pop     %r14
+    pop     %r13
+    pop     %r12
+    pop     %rbp
+    pop     %rbx
+    sti                                     # the shell lives with its gate open
+    ret
+
+# The shared entering hand: the current guest's book is made the
+# machine's state — its tables loaded, the frame iretq needs
+# built from its stack pointer, its flags and its place, its
+# registers restored — and the machine lands in ring 3. Reached
+# from the launch below, from a yield, and from either road that
+# ends one guest while its partner lives. The book's pointer
+# rides in rbx and is restored last, from its own page of the
+# book, when nothing else needs it.
+cardnull_guest_enter:
+    mov     cardnull_guest_current(%rip), %rbx
+    mov     (%rbx), %rax
+    mov     %rax, %cr3                      # the guest's tables
+    push    $0x23                           # SS: user data, ring 3
+    push    8(%rbx)                         # RSP: the guest's stack pointer
+    push    24(%rbx)                        # RFLAGS: the guest's flags
+    push    $0x1B                           # CS: user code, ring 3
+    push    16(%rbx)                        # RIP: the guest's place
+    mov     64(%rbx), %rsi
+    mov     72(%rbx), %rdi
+    mov     80(%rbx), %rbp
+    mov     88(%rbx), %r8
+    mov     96(%rbx), %r9
+    mov     104(%rbx), %r10
+    mov     112(%rbx), %r11
+    mov     120(%rbx), %r12
+    mov     128(%rbx), %r13
+    mov     136(%rbx), %r14
+    mov     144(%rbx), %r15
+    mov     32(%rbx), %rax
+    mov     48(%rbx), %rcx
+    mov     56(%rbx), %rdx
+    mov     40(%rbx), %rbx                  # the pointer itself, last
+    iretq
+
+# cardnull_launch_pair(tables A, entry A, stack A,
+#                      tables B, entry B, stack B) -> A's verdict
+#
+# The pair's going-out hand. The shell's ground is bookmarked
+# exactly as the single launch bookmarks it; the two books are
+# written fresh — each guest's tables, entry and stack laid
+# down, its flags with the gate open, and every other word of
+# the book wiped clean, so no byte of a past tenant is part of
+# a guest's world — the session is opened, guest A is made
+# current, and the shared entering hand takes the machine to
+# it. The hand returns only when both guests are finished, by
+# the pair's way home above.
+    .globl  cardnull_launch_pair
+cardnull_launch_pair:
+    push    %rbx
+    push    %rbp
+    push    %r12
+    push    %r13
+    push    %r14
+    push    %r15
+    mov     %rsp, cardnull_shell_rsp(%rip)
+    mov     %cr3, %rax
+    mov     %rax, cardnull_return_cr3(%rip)
+    lea     cardnull_guest_state_a(%rip), %rax
+    mov     %rdi, (%rax)                    # A's tables
+    mov     %rdx, 8(%rax)                   # A's stack top
+    mov     %rsi, 16(%rax)                  # A's entry
+    movq    $0x202, 24(%rax)                # A's flags: gate open, reserved bit
+    lea     cardnull_guest_state_b(%rip), %rax
+    mov     %rcx, (%rax)                    # B's tables
+    mov     %r9, 8(%rax)                     # B's stack top
+    mov     %r8, 16(%rax)                   # B's entry
+    movq    $0x202, 24(%rax)
+    lea     cardnull_guest_state_a(%rip), %rdx
+    call    cardnull_zero_guest_book
+    lea     cardnull_guest_state_b(%rip), %rdx
+    call    cardnull_zero_guest_book
+    lea     cardnull_guest_state_a(%rip), %rax
+    mov     %rax, cardnull_guest_current(%rip)
+    lea     cardnull_guest_state_b(%rip), %rax
+    mov     %rax, cardnull_guest_other(%rip)
+    movq    $1, cardnull_pair_active(%rip)
+    jmp     cardnull_guest_enter
+
+# Wipes one guest book from its registers onward (offset 32 to
+# the book's end at 176); the tables, stack, place and flags the
+# launch wrote stand above the wipe. The book's address rides in
+# rdx; rcx is the broom.
+cardnull_zero_guest_book:
+    mov     $32, %rcx
+1:
+    movq    $0, (%rdx, %rcx)
+    add     $8, %rcx
+    cmp     $176, %rcx
+    jne     1b
+    ret
+
+# The pair's results, read out by Swift once the launch has
+# returned: guest B's verdict, and the two standings. (Guest A's
+# verdict rides home in the launch's own return value.)
+    .globl  cardnull_pair_verdict_b
+cardnull_pair_verdict_b:
+    mov     cardnull_result_verdict_b(%rip), %rax
+    ret
+
+    .globl  cardnull_pair_status_a
+cardnull_pair_status_a:
+    mov     cardnull_result_status_a(%rip), %rax
+    ret
+
+    .globl  cardnull_pair_status_b
+cardnull_pair_status_b:
+    mov     cardnull_result_status_b(%rip), %rax
     ret
 
 # The stub address table: support.c builds the IDT from these.
@@ -547,6 +815,28 @@ cardnull_multiboot_info:
 cardnull_shell_rsp:
     .skip   8
 cardnull_return_cr3:
+    .skip   8
+
+# Milestone 10's books: the two guests' whole states (176 bytes
+# each, the layout written out above the pair machinery), the two
+# bookmarks naming which book is the current guest's and which
+# the partner's, the session's flag, and the result bookmarks the
+# pair's way home fills in for Swift to read.
+cardnull_guest_state_a:
+    .skip   176
+cardnull_guest_state_b:
+    .skip   176
+cardnull_guest_current:
+    .skip   8
+cardnull_guest_other:
+    .skip   8
+cardnull_pair_active:
+    .skip   8
+cardnull_result_verdict_b:
+    .skip   8
+cardnull_result_status_a:
+    .skip   8
+cardnull_result_status_b:
     .skip   8
 
     .align 4096

@@ -43,7 +43,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Eleven commands, for now:
+Press Enter and the prompt answers. Twelve commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -57,6 +57,7 @@ Press Enter and the prompt answers. Eleven commands, for now:
 - `ls` — what is on the disc (`ls /boot` looks inside a folder)
 - `cat` — print a file from the disc: `cat /welcome.txt`
 - `run` — run a program from the disc: `run /hello.bin`
+- `both` — run two programs, taking turns: `both /a.bin /b.bin`
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -129,5 +130,26 @@ ground is handed back, and the shell answers the next command
 as if nothing had happened (try `verse`). Unlike `faulttest`
 there is nothing to restart: the halt there is the kernel's
 own road, and this road was built to be survived.
+
+And since milestone 10, the disc carries two more guests —
+A.BIN and B.BIN — and the shell can keep two programs at once:
+`both /a.bin /b.bin`. Each is loaded into ground of its own,
+exactly as `run` loads one, and then they take turns: A prints
+a token (A1), yields the machine at the same door (a third
+service now, yield), and B prints B1 and yields back — A1 B1
+A2 B2 down the screen. A stops after five tokens and leaves;
+B, with seven, prints its last two alone. The shell reports
+each ending beside its name — "/a.bin exited: 5",
+"/b.bin exited: 7" (the guests leave with their counts, so
+you can check the report against the tokens). The taking of
+turns is cooperative: a program holds the machine until it
+yields, leaves, or falls — nothing snatches it away — and two
+programs is the measure, no more. The wall stands with
+company in the room: try `both /bad.bin /a.bin`, and BAD is
+stopped at the wall while A counts out all five of its tokens
+in the same session, undisturbed, after which the shell
+answers the next command as ever. When the session ends, both
+guests' ground is handed back frame by frame; `mem` reads the
+same numbers before a session and after it.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

@@ -179,6 +179,47 @@ func cardnullLaunchProgram(_ tables: UInt64, _ entry: UInt64,
 @_silgen_name("cardnull_abandon_program")
 func cardnullAbandonProgram(_ verdict: UInt64) -> Never
 
+/// Provided by the boot floor (boot.S): milestone 10's going-out
+/// hand for two guests. Bookmarks home exactly as the single
+/// launch does, writes each guest's whole state into one of the
+/// floor's two guest books — its tables, its entry, its stack,
+/// its flags, every other word wiped clean — and enters guest A.
+/// From there the guests trade the machine by the door's yield
+/// service until both have left or been stopped; only then does
+/// this hand return, carrying guest A's verdict. Guest B's
+/// verdict and the two standings wait in the floor's result
+/// bookmarks, read out by the three hands below.
+@_silgen_name("cardnull_launch_pair")
+func cardnullLaunchPair(_ tablesA: UInt64, _ entryA: UInt64,
+                        _ stackTopA: UInt64, _ tablesB: UInt64,
+                        _ entryB: UInt64, _ stackTopB: UInt64) -> UInt64
+
+/// Provided by the boot floor (boot.S): the pair's fault road.
+/// Called from the page-fault handler when a guest has faulted
+/// while a partner lives: the floor writes the fallen guest down
+/// as stopped, with the verdict the handler named, and takes the
+/// machine to the survivor — or home, if the survivor is finished
+/// too. Never returns here.
+@_silgen_name("cardnull_abandon_guest_in_pair")
+func cardnullAbandonGuestInPair(_ verdict: UInt64) -> Never
+
+/// Provided by the boot floor (boot.S): guest B's verdict from
+/// the last pair session, read out of the floor's result
+/// bookmarks after the pair launch has returned.
+@_silgen_name("cardnull_pair_verdict_b")
+func cardnullPairVerdictB() -> UInt64
+
+/// Provided by the boot floor (boot.S): guest A's standing from
+/// the last pair session — 1 when it left by the door, 2 when it
+/// was stopped — read out of the floor's result bookmarks.
+@_silgen_name("cardnull_pair_status_a")
+func cardnullPairStatusA() -> UInt64
+
+/// Provided by the boot floor (boot.S): guest B's standing from
+/// the last pair session, the companion to the hand above.
+@_silgen_name("cardnull_pair_status_b")
+func cardnullPairStatusB() -> UInt64
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -910,6 +951,13 @@ let reasonReserved: StaticString = "reserved bit set"
 /// verdict and answers for it below. A user-mode fault with no
 /// guest running keeps the old road: it cannot happen by any road
 /// the kernel knows, and honesty halts on it.
+///
+/// Milestone 10 forks the new road once more: while a pair
+/// session stands, the abandon hand is the pair's own, which
+/// writes the fallen guest down as stopped and takes the machine
+/// to its partner — the report above is the fallen guest's whole
+/// obituary, and the survivor runs on in the same session, in its
+/// own ground, exactly where it last stood.
 @_cdecl("cardnull_page_fault_handler")
 public func pageFaultHandler(_ errorCode: UInt64, _ faultAddress: UInt64) {
     cardnullCli()
@@ -917,6 +965,9 @@ public func pageFaultHandler(_ errorCode: UInt64, _ faultAddress: UInt64) {
         programFaultAddress = faultAddress
         programFaultError = errorCode
         printPageFaultReport(errorCode, faultAddress, pageFaultGuestTitle)
+        if pairRunning {
+            cardnullAbandonGuestInPair(programKilledVerdict)
+        }
         cardnullAbandonProgram(programKilledVerdict)
     }
     printPageFaultReport(errorCode, faultAddress, pageFaultTitle)
@@ -2473,18 +2524,28 @@ var lastComponentLength = 0
 /// directory the walk is standing in; each but the last must
 /// be a directory to walk into.
 func isoResolvePath(_ length: Int) -> Int {
+    return isoResolvePathIn(0, length)
+}
+
+/// The same walk over one reach of the scratch — the bytes from
+/// `start` up to `end` — because milestone 10's `both` keeps two
+/// paths in the one scratch and must resolve the second where it
+/// lies. The components' places in the scratch are the absolute
+/// ones the finder already speaks, so nothing else changes: the
+/// bounds are the only new word.
+func isoResolvePathIn(_ start: Int, _ end: Int) -> Int {
     let path = discPath()
     resolvedExtent = isoRootExtent
     resolvedSize = isoRootSize
     resolvedIsDirectory = true
     lastComponentStart = 0
     lastComponentLength = 0
-    var index = 0
-    while index < length && path[index] == 0x2F { index += 1 }
-    if index >= length { return pathFoundCode }
+    var index = start
+    while index < end && path[index] == 0x2F { index += 1 }
+    if index >= end { return pathFoundCode }
     while true {
         let componentStart = index
-        while index < length && path[index] != 0x2F { index += 1 }
+        while index < end && path[index] != 0x2F { index += 1 }
         let componentLength = index - componentStart
         lastComponentStart = componentStart
         lastComponentLength = componentLength
@@ -2495,8 +2556,8 @@ func isoResolvePath(_ length: Int) -> Int {
         }
         // More components beyond the slashes?
         var next = index
-        while next < length && path[next] == 0x2F { next += 1 }
-        if next < length {
+        while next < end && path[next] == 0x2F { next += 1 }
+        if next < end {
             if !entryIsDirectory { return pathNotDirectoryCode }
             resolvedExtent = entryExtent
             resolvedSize = entrySize
@@ -2848,7 +2909,9 @@ func runCat() {
 // Services 1 and 2 are answered by syscallHandler below; the
 // leaving is answered by the floor itself, which carries the
 // machine home — kernel tables, the shell's stack, the interrupt
-// gate open — and lets the launch return the code.
+// gate open — and lets the launch return the code. Milestone 10
+// adds a third service to the door — 3 yields — answered by the
+// floor beside the leaving, in the pair machinery below.
 //
 // A guest that reaches where it may not faults in user mode, and
 // the page-fault handler has a branch for exactly that: report
@@ -2871,6 +2934,37 @@ func runCat() {
 //   - When a guest leaves or is stopped, its estate is taken back
 //     leaf by leaf and table by table, every frame returned to the
 //     allocator's pool.
+//
+// Milestone 10: two guests at once, taking turns. The command is
+// `both`, and it does everything `run` does, twice — two files
+// resolved off the disc, two estates built, two images loaded —
+// and then hands the pair to the floor's pair launch, which
+// keeps each guest's whole state (its tables, its stack, its
+// place, its registers) in one of two books in its own storage
+// and enters the first. A guest runs until it knocks: services 1
+// and 2 are answered as ever, and it resumes; service 3 — yield —
+// writes its state into its book and wakes its partner exactly
+// where the partner last yielded; service 0 writes its exit code
+// into its book and, if its partner still lives, wakes the
+// partner to run on alone. When both books say finished — left,
+// or stopped — the launch returns, the shell reads the standings
+// and verdicts out of the floor's result bookmarks, reports each
+// guest truly in the order they were named, takes both estates
+// back frame by frame, and stands. A.BIN and B.BIN are the
+// witnesses: five tokens against seven, yielding between, so the
+// interleave can be read off the screen.
+//
+// The keeping is cooperative, honestly: a guest that never
+// yields keeps the machine — the timer ticks, but no hand in
+// this milestone answers it with a switch, and taking the
+// machine by force (preemption) is a named later stone. Two
+// guests exactly, likewise: the books are two, and no process
+// table is pretended. And the wall stands under company as it
+// stood alone — the page fault's pair road stops the guest that
+// fell and carries the machine to its partner, which finishes
+// its work in its own ground, undisturbed; `both /BAD.BIN
+// /A.BIN` is the proof, BAD stopped at the wall and A counting
+// out its five tokens in the same session.
 // ---------------------------------------------------------------------------
 
 /// The estate's fixed address: the guests' whole world begins here.
@@ -2905,6 +2999,40 @@ let programMaxImageBytes: UInt64 = 16 * pageSize
 /// to be reported and stopped; without it, every fault keeps the
 /// old road to the halt.
 var programRunning = false
+
+/// Is the running guest one of a pair (milestone 10)? The page-
+/// fault handler reads this beside programRunning: while it
+/// stands, a fallen guest is stopped by the floor's pair road,
+/// which carries the machine to its partner instead of home.
+var pairRunning = false
+
+/// The standings the floor writes in a finished guest's book, and
+/// copies into its result bookmarks for the shell to read: a
+/// guest that left by the door, and a guest that was stopped.
+/// (0, still alive, is the standing of a guest mid-session and is
+/// never read here: the pair launch returns only when neither
+/// guest wears it.)
+let pairStatusExited: UInt64 = 1
+let pairStatusStopped: UInt64 = 2
+
+/// The two paths of a `both` line, as reaches of the one path
+/// scratch: the first path is the bytes before bothFirstEnd, the
+/// second the bytes from bothSecondStart to bothSecondEnd. The
+/// splitter below leaves them; the resolver, the report and the
+/// running line read them.
+var bothFirstEnd = 0
+var bothSecondStart = 0
+var bothSecondEnd = 0
+
+/// both's vocabulary: the usage, the running line's joints, and
+/// the two reports — a leaving spoken with its code, a stopping
+/// spoken plainly — each beside the path as it was typed.
+let bothUsageLine: StaticString =
+    "both wants two programs: both /A.BIN /B.BIN"
+let bothAndWord: StaticString = " and "
+let bothTogetherSuffix: StaticString = " together:"
+let bothExitedWord: StaticString = " exited: "
+let bothStoppedSuffix: StaticString = " was stopped."
 
 /// The stopped guest's testimony, kept by the fault handler before
 /// the abandon: the address it reached for and the error code's
@@ -3125,6 +3253,10 @@ func loadProgramImage(_ extent: UInt32, _ size: UInt32) -> Bool {
 ///
 /// Service 0, the leaving, never arrives here: the floor answers
 /// it, because coming home is stacks and table roots, not policy.
+/// Service 3, the yielding (milestone 10), never arrives either,
+/// for the same reason: whose turn it is is books and table
+/// roots. What reaches this voice is speech — services 1 and 2 —
+/// and anything else, which is answered no.
 @_cdecl("cardnull_syscall_handler")
 public func syscallHandler(_ service: UInt64, _ first: UInt64,
                            _ second: UInt64) -> UInt64 {
@@ -3245,6 +3377,176 @@ func runProgram() {
     }
 }
 
+/// Writes one reach of the path scratch, as the typist wrote it:
+/// the bytes from `start` up to `end`. `both` keeps two paths in
+/// the one scratch, and its answers name each as it was asked
+/// for, so the whole-scratch writer above is not enough.
+func writePathSlice(_ start: Int, _ end: Int) {
+    let path = discPath()
+    var index = start
+    while index < end {
+        writeChar(path[index])
+        index += 1
+    }
+}
+
+/// Splits the argument already copied into the path scratch by
+/// copyArgumentToScratch into exactly two tokens — no more, no
+/// fewer, because `both` carries two guests and pretending
+/// otherwise would be a quiet lie. The first token stands at the
+/// scratch's head; the second's reach is left in bothSecondStart
+/// and bothSecondEnd. False when the line does not hold exactly
+/// two tokens; the caller answers with the usage.
+func splitBothArguments(_ length: Int) -> Bool {
+    let path = discPath()
+    var index = 0
+    while index < length && path[index] != 0x20 { index += 1 }
+    bothFirstEnd = index
+    if bothFirstEnd == 0 { return false }
+    while index < length && path[index] == 0x20 { index += 1 }
+    if index >= length { return false }
+    bothSecondStart = index
+    while index < length && path[index] != 0x20 { index += 1 }
+    bothSecondEnd = index
+    while index < length && path[index] == 0x20 { index += 1 }
+    return index >= length
+}
+
+/// One guest file weighed for the road, in the reach of the
+/// scratch where its path lies: resolved through the milestone-8
+/// reader and measured against the estate's laws — a file, not a
+/// directory; something in it; no more than the cap. The refusal
+/// that fits is spoken, naming the path as typed, and false
+/// returned; on success the resolved extent and size stand in
+/// resolvedExtent and resolvedSize, as `run` leaves them. `run`
+/// keeps its own inlined walk, word for word as milestone 9 left
+/// it; this is `both`'s twin of it, shared by its two guests.
+func resolveGuestFile(_ start: Int, _ end: Int) -> Bool {
+    discReadFailed = false
+    let outcome = isoResolvePathIn(start, end)
+    if outcome == pathMissingCode {
+        writeStatic(notOnDiscPrefix)
+        writePathSlice(start, end)
+        writeNewline()
+        return false
+    }
+    if outcome == pathNotDirectoryCode {
+        writePathSlice(start, end)
+        writeLine(notDirectorySuffix)
+        return false
+    }
+    if outcome == pathReadErrorCode {
+        writeLine(discReadErrorLine)
+        return false
+    }
+    if resolvedIsDirectory {
+        writePathSlice(start, end)
+        writeLine(isDirectorySuffix)
+        return false
+    }
+    if resolvedSize == 0 {
+        writePathSlice(start, end)
+        writeLine(runEmptySuffix)
+        return false
+    }
+    if UInt64(resolvedSize) > programMaxImageBytes {
+        writeLine(runTooBigLine)
+        return false
+    }
+    return true
+}
+
+/// One guest's report at a pair session's end, in the order the
+/// guests were named: the path as typed, then its ending — the
+/// exit code when it left by the door, the plain word when it
+/// was stopped.
+func reportBothGuest(_ start: Int, _ end: Int,
+                     _ status: UInt64, _ verdict: UInt64) {
+    writePathSlice(start, end)
+    if status == pairStatusStopped {
+        writeLine(bothStoppedSuffix)
+    } else {
+        writeStatic(bothExitedWord)
+        writeNumber(verdict)
+        writeNewline()
+    }
+}
+
+/// `both`: milestone 10's whole road — `run`'s walk walked twice,
+/// then the pair launch. Two files are weighed and read off the
+/// disc, two estates built and filled; the floor's pair launch
+/// enters the first guest and keeps the turning from there. When
+/// it returns, both guests stand finished — left or stopped —
+/// and the shell reads their standings and verdicts out of the
+/// floor's result bookmarks, reports each truly, and takes both
+/// estates back frame by frame, so `mem` reads the same numbers
+/// before a session and after it, as it did for `run`.
+func runBoth() {
+    if !discDriveFound {
+        writeLine(discAbsentLine)
+        return
+    }
+    if !discIsoFound {
+        writeLine(discUnknownFsLine)
+        return
+    }
+    let length = copyArgumentToScratch()
+    if length == 0 || !splitBothArguments(length) {
+        writeLine(bothUsageLine)
+        return
+    }
+    if !pagingReady {
+        writeLine(runNoPagingLine)
+        return
+    }
+    if !resolveGuestFile(0, bothFirstEnd) { return }
+    let extentA = resolvedExtent
+    let sizeA = resolvedSize
+    if !resolveGuestFile(bothSecondStart, bothSecondEnd) { return }
+    let extentB = resolvedExtent
+    let sizeB = resolvedSize
+    let rootA = buildProgramSpace(sizeA)
+    if rootA == 0 {
+        writeLine(runNoMemoryLine)
+        return
+    }
+    if !loadProgramImage(extentA, sizeA) {
+        teardownProgramSpace(rootA)
+        writeLine(discReadErrorLine)
+        return
+    }
+    let rootB = buildProgramSpace(sizeB)
+    if rootB == 0 {
+        teardownProgramSpace(rootA)
+        writeLine(runNoMemoryLine)
+        return
+    }
+    if !loadProgramImage(extentB, sizeB) {
+        teardownProgramSpace(rootB)
+        teardownProgramSpace(rootA)
+        writeLine(discReadErrorLine)
+        return
+    }
+    writeStatic(runRunningPrefix)
+    writePathSlice(0, bothFirstEnd)
+    writeStatic(bothAndWord)
+    writePathSlice(bothSecondStart, bothSecondEnd)
+    writeLine(bothTogetherSuffix)
+    programRunning = true
+    pairRunning = true
+    let verdictA = cardnullLaunchPair(rootA, programBase, programStackTop,
+                                      rootB, programBase, programStackTop)
+    pairRunning = false
+    programRunning = false
+    let statusA = cardnullPairStatusA()
+    let statusB = cardnullPairStatusB()
+    let verdictB = cardnullPairVerdictB()
+    teardownProgramSpace(rootA)
+    teardownProgramSpace(rootB)
+    reportBothGuest(0, bothFirstEnd, statusA, verdictA)
+    reportBothGuest(bothSecondStart, bothSecondEnd, statusB, verdictB)
+}
+
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -3279,6 +3581,11 @@ func runProgram() {
 //   run     a program from the disc, loaded into ground of its
 //           own and run in ring 3 (milestone 9; matched by its
 //           first word, like ls and cat, the path being its own)
+//   both    two programs from the disc, loaded into ground of
+//           their own and run in ring 3, taking turns by the
+//           door's yield service until both have finished
+//           (milestone 10; matched by its first word, the two
+//           paths being its own)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -3299,6 +3606,7 @@ let faulttestCommand: StaticString = "faulttest"
 let lsCommand: StaticString = "ls"
 let catCommand: StaticString = "cat"
 let runCommand: StaticString = "run"
+let bothCommand: StaticString = "both"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -3313,6 +3621,8 @@ let helpFaultLine: StaticString = "  faulttest  take a page fault on purpose"
 let helpLsLine: StaticString = "  ls      list the disc's files (ls /path)"
 let helpCatLine: StaticString = "  cat     print a file from the disc (cat /path)"
 let helpRunLine: StaticString = "  run     run a program from the disc (run /path)"
+let helpBothLine: StaticString =
+    "  both    run two programs, taking turns (both /A.BIN /B.BIN)"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -3589,6 +3899,7 @@ func submitLine() {
     let isLs = firstWordMatches(lsCommand)
     let isCat = firstWordMatches(catCommand)
     let isRun = firstWordMatches(runCommand)
+    let isBoth = firstWordMatches(bothCommand)
 
     writeNewline()
     if !blank {
@@ -3605,6 +3916,7 @@ func submitLine() {
             writeLine(helpLsLine)
             writeLine(helpCatLine)
             writeLine(helpRunLine)
+            writeLine(helpBothLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -3627,6 +3939,8 @@ func submitLine() {
             runCat()
         } else if isRun {
             runProgram()
+        } else if isBoth {
+            runBoth()
         } else {
             writeLine(unknownLine)
         }

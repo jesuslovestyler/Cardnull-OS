@@ -11,14 +11,14 @@ here.
      with clang, freestanding;
   2. assembles the guest programs (`programs/*.s`) with clang and
      flattens them with ld.lld — flat binaries the disc carries as
-     files, never linked into the kernel (milestone 9);
+     files, never linked into the kernel (milestones 9 and 10);
   3. compiles the Swift kernel (`Sources/kernel/Kernel.swift`) with
      swiftc in **Embedded Swift** mode for `x86_64-unknown-none-elf`;
   4. links `build/kernel.bin` with ld.lld and
      `Sources/boot/linker.ld`;
   5. packs **`dist/cardnull.iso`** with grub-mkrescue — a GRUB that
      loads `/boot/kernel.bin` by Multiboot2, the disc also carrying
-     WELCOME.TXT and the three guest binaries at its root.
+     WELCOME.TXT and the five guest binaries at its root.
 
   Run it from anywhere: `tools/build-iso.sh`. Needs: swiftc (Swift 6+),
   clang, ld.lld, grub-mkrescue (xorriso and mtools under it). Set

@@ -64,14 +64,15 @@ clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
     "$ROOT/Sources/boot/font8x8.c" -o "$BUILD/font8x8.o"
 
-echo "==> [2/5] Assembling the guest programs (milestone 9)"
+echo "==> [2/5] Assembling the guest programs (milestones 9 and 10)"
 # The guests: standalone assembly in programs/, linked at the
 # address the kernel will lay them down at (0x40000000, the base
 # of a guest's estate) and flattened to raw binaries. They are
 # packed onto the disc in step 5 as files — never linked into the
 # kernel — and the running OS reads them off the real disc, which
-# is the milestone's whole point.
-for guest in hello count bad; do
+# is the milestone's whole point. Milestone 10 adds the pair —
+# a and b, the two guests that take turns under `both`.
+for guest in hello count bad a b; do
     clang --target="$TARGET" -c \
         "$ROOT/programs/$guest.s" -o "$BUILD/$guest.o"
     "$LD" -Ttext=0x40000000 --oformat binary \
@@ -103,13 +104,16 @@ cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
 # off the real disc through its own ATAPI driver and ISO9660
 # reader, which is the milestone's whole point.
 cp "$ROOT/disc/WELCOME.TXT" "$ISO_DIR/WELCOME.TXT"
-# The guest programs (milestone 9): the flat binaries built in
-# step 2, at the disc's root under the names their milestone
-# wears. Files, like the welcome — the OS reads them off the
-# disc, lays them in ground of their own, and runs them.
+# The guest programs (milestones 9 and 10): the flat binaries
+# built in step 2, at the disc's root under the names their
+# milestones wear. Files, like the welcome — the OS reads them
+# off the disc, lays them in ground of their own, and runs them,
+# one at a time under `run` or two at a time under `both`.
 cp "$BUILD/hello.bin" "$ISO_DIR/HELLO.BIN"
 cp "$BUILD/count.bin" "$ISO_DIR/COUNT.BIN"
 cp "$BUILD/bad.bin" "$ISO_DIR/BAD.BIN"
+cp "$BUILD/a.bin" "$ISO_DIR/A.BIN"
+cp "$BUILD/b.bin" "$ISO_DIR/B.BIN"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
 # Behind the UEFI door, GRUB speaks through the firmware's text
 # console until it is told otherwise — and a console is not a video
