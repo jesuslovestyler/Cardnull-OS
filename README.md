@@ -47,6 +47,9 @@ kernel, written line by line, so that what we give away is truly ours to give.
    commands to prove them.)*
 4. **Work** — run programs; one thing at a time, then many.
 5. **Dress** — a simple graphical face.
+   *(Done with milestone 12 — November 9, 2026: a drawn desktop
+   and one window, a PS/2 mouse pointer, a button that counts
+   its clicks, and the close box or Esc home to the shell.)*
 6. **Carry** — Chirpy Browser and the Catholic Bible, at home.
 
 ## Building
@@ -63,7 +66,50 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 11 stands (November 9, 2026): **the OS learns its
+Milestone 12 stands (November 9, 2026): **the OS gets a
+face — and with it, the original ladder is complete.** A
+fourteenth command, `gui`, leaves the text console and draws
+a desktop on the framebuffer the boot provided: a
+deep-cardinal gradient, the Cardnull OS name standing in
+gold, and one window — Welcome — with a cardinal title bar,
+a parchment body, the greeting, and John 1:1 in the
+Douay-Rheims, in three lines with its attribution. The
+mouse is a citizen now: woken once at boot (the PS/2
+controller's ceremony, spoken with the interrupt gate still
+closed, because it shares a data port with the keyboard),
+it reports by IRQ12 — the slave PIC's fourth child, its
+gate and masks raised with the rest — into a ring the face
+drains, three bytes to a packet. The pointer is a
+twelve-by-sixteen arrow that opens at the screen's centre;
+the pixels beneath it are lifted into a cushion the floor
+lends before it is drawn and laid back when it moves, so
+it leaves no trail. There is one honest interaction: a
+button in the window that counts its clicks — "Clicks: 1"
+stands witnessed — wearing its pressed face exactly while
+the packet's own button bit says the real button is held.
+And there are two ways home, both always open: the
+window's close box, a drawn square carrying an X, clicked;
+and Esc. Either restores the text console exactly — the
+grid was never touched, so the conversation stands as it
+was — and the shell answers the next command in the same
+session. The face is frugal by construction: it paints
+the framebuffer the boot already owned and keeps no back
+buffer, so it takes no frames and no heap: behind the UEFI
+door, `mem` reads 29,831 frames free of 31,176 before a
+visit and 29,831 after it (1,345 used — four more than
+milestone 11's count, the grown kernel and its tables
+alone). What the face is not is stated in its own section
+of the kernel: one window, in one place, that cannot be
+dragged or resized; no window manager; and no program but
+the kernel draws — graphical feathers are a later era.
+Verified in QEMU behind both doors — the desktop, the
+moved pointer, the counted click, `help`'s fourteen
+commands, and both roads home under UEFI (`verse` answered
+after the close box, `mem` after Esc); the desktop, a
+counted click, and the Esc road home behind BIOS, whose
+GRUB hands over the same kind of framebuffer.
+
+Before that, milestone 11 (November 9, 2026): **the OS learns its
 own package format — the feather.** The format is written
 down in `docs/FEATHER.md`: one file holding a plain-text card
 and, behind a line of three dashes, the program itself — a
@@ -333,20 +379,33 @@ typed through the emulator's keyboard, answered on the kernel's
 screen, and the two uptime readings advancing with the wall clock
 between them; the same ISO is the one tested in UTM.
 
-Not yet, honestly: a scheduler that takes the machine by
-force — milestone 10's programs take turns by courtesy, each
-yielding at the door, and a guest that never yields is never
-interrupted; preemptive switching on the timer's word is a
-stone still ahead; more than two programs alive at once — the
-floor keeps two guest books, no wider table; the signed
-feather — milestone 11's checksum proves a program matches
+Not yet, honestly — the later doors, now that the ladder
+stands climbed: a writable disc and an installer — the OS
+still lives on a read-only CD, read by its own driver;
+a hard drive it can write to, and an installer that lays
+it there, are the road to a machine of its own; a scheduler
+that takes the machine by force — milestone 10's programs
+take turns by courtesy, each yielding at the door, and a
+guest that never yields is never interrupted; preemptive
+switching on the timer's word is a stone still ahead; more
+than two programs alive at once — the floor keeps two
+guest books, no wider table; the signed feather and its
+store — milestone 11's checksum proves a program matches
 its card, and no more; the reviewed, cryptographically
 signed feather of the store era, the only kind that will
-one day be allowed to carry real programs as citizens, is a
-stone still ahead; USB input — under either firmware, a
-USB-only keyboard is beyond us still, which is why the UTM drill
-keeps the PS/2 controller forced on and USB input off; and a
-native EFI entry of our own — the UEFI door today is GRUB's EFI
-build loading the same Multiboot2 kernel, so it is GRUB that
-speaks to the firmware and calls ExitBootServices on that road.
+one day be allowed to carry real programs as citizens, is
+a stone still ahead; networking — no driver, no stack, no
+wire spoken to yet; Little Cardnull, the small local model
+that is to live on Cardinal computers, which waits on
+everything above having somewhere to live; the face's own
+growing — milestone 12's window stands in one place,
+undragged, and no program but the kernel draws; more
+windows, a window manager, and graphical feathers are
+their own era; USB input — under either firmware, a
+USB-only keyboard or mouse is beyond us still, which is
+why the UTM drill keeps the PS/2 controller forced on and
+USB input off; and a native EFI entry of our own — the
+UEFI door today is GRUB's EFI build loading the same
+Multiboot2 kernel, so it is GRUB that speaks to the
+firmware and calls ExitBootServices on that road.
 Those are the milestones onward, taken one at a time.

@@ -43,7 +43,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Thirteen commands, for now:
+Press Enter and the prompt answers. Fourteen commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -60,6 +60,7 @@ Press Enter and the prompt answers. Thirteen commands, for now:
 - `both` — run two programs, taking turns: `both /a.bin /b.bin`
 - `feather` — open a feather package and run its program:
   `feather /hello.feather`
+- `gui` — open the graphical desktop (Esc brings you home)
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -181,5 +182,33 @@ turn and sends you to `feather` — a package's card is never
 executed as code. As ever, the ground a feather's program
 stood on is handed back: `mem` reads the same numbers
 before an opening and after it.
+
+And since milestone 12, the OS has a face. Type `gui` and
+the text console gives way to a drawn desktop: a
+deep-cardinal field, the Cardnull OS name standing in gold,
+and one window — Welcome — carrying a greeting and John
+1:1 in the Douay-Rheims. The pointer opens at the screen's
+centre; move the mouse and it follows, and the painting
+beneath it is left exactly as it was — the pointer lifts
+its ground into safekeeping before it is drawn and lays
+it back when it moves, so it never leaves a trail. In the
+window stands a button: click it — really click, with the
+machine's mouse — and the count beside it rises ("Clicks:
+1"), and the button wears its pressed face while you hold
+it down. Two ways home, both always open: click the X in
+the window's title bar, or press Esc. Either way the shell
+returns exactly as it was — the conversation never left
+the screen's own keeping — and answers the next command in
+the same session. The drill needs nothing new for this:
+the mouse is a PS/2 device, spoken to through the same
+controller the settings already force on (USB stays off).
+The face is deliberately small, and says so in the kernel:
+one window, in one place, that cannot be dragged or
+resized; no window manager; no program but the kernel
+draws. Graphical programs are a later era. And the visit
+costs the machine nothing it was not already spending —
+the face paints the framebuffer the boot already owned
+and keeps no memory of its own: `mem` reads the same
+numbers before a visit and after it.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

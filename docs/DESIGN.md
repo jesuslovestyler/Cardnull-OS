@@ -140,6 +140,33 @@ it bends.*
    signature, and the reviewed, signed feather belongs to
    the store era, still to come.)*
 5. A simple graphical interface.
+   *(Done — November 9, 2026: milestone 12 gave the OS its
+   face. A `gui` command leaves the text console and draws a
+   desktop on the framebuffer the boot provided — a cardinal
+   gradient, the OS's name in gold, and one window, Welcome,
+   carrying the greeting and John 1:1 in the Douay-Rheims.
+   The PS/2 mouse, woken once at boot before the interrupt
+   gate opens and reporting by IRQ12 into a ring, drives a
+   pointer whose ground is lifted into a cushion before it
+   is drawn and laid back when it moves, so it never smears
+   a trail. One interaction is honest and real: a button
+   that counts its clicks, read from the packets' own
+   button state. The window's close box and Esc both
+   restore the text console exactly — the character grid is
+   never touched — and the face takes no frames and no
+   heap, painting ground the boot already reserved; `mem`
+   reads the same numbers before a visit and after it. Its
+   limits are stated in the kernel: one window, in one
+   place, undragged and unresized; no window manager; no
+   program but the kernel draws. With this stone, the
+   ladder these notes described at the choosing of the
+   language stands climbed: boot, speak, remember, work,
+   dress. What remains is the sixth step, and the later
+   doors it opens onto: a writable disc and an installer,
+   so the OS can live on a machine's own drive; preemption
+   — the timer taking the machine by force; the signed
+   feather and its store; networking; and Little
+   Cardnull.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

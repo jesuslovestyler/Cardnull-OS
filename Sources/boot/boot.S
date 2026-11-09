@@ -280,6 +280,21 @@ cardnull_irq1_stub:
     POP_ALL
     iretq
 
+# IRQ12 — the mouse (milestone 12). It lives on the slave PIC, so
+# it arrives at IDT vector 0x2C, but the stub's work is the same
+# shape as its two elders': the Swift handler takes one byte out
+# of the controller and lays it in the mouse ring, and the face
+# reads it later, at its leisure.
+    .globl  cardnull_irq12_stub
+cardnull_irq12_stub:
+    PUSH_ALL
+    cld
+    sub     $8, %rsp
+    call    cardnull_mouse_interrupt
+    add     $8, %rsp
+    POP_ALL
+    iretq
+
 # The exceptions share one door: the vector number is the Swift
 # handler's argument, and the handler never returns — it prints one
 # plain sentence and halts. A clean, aligned stack is all it needs.
@@ -729,9 +744,10 @@ cardnull_pair_status_b:
 
 # The stub address table: support.c builds the IDT from these.
 # Entries 0..31 are the exception vectors in order; entry 32 is IRQ0
-# (IDT vector 0x20), entry 33 is IRQ1 (IDT vector 0x21), and entry 34
+# (IDT vector 0x20), entry 33 is IRQ1 (IDT vector 0x21), entry 34
 # is the milestone-9 service door (IDT vector 0x80, the one gate a
-# guest may knock on).
+# guest may knock on), and entry 35 is IRQ12 (IDT vector 0x2C,
+# milestone 12's mouse).
     .section .rodata
     .align 8
     .globl  cardnull_stub_table
@@ -771,6 +787,7 @@ cardnull_stub_table:
     .quad   cardnull_irq0_stub
     .quad   cardnull_irq1_stub
     .quad   cardnull_syscall_stub
+    .quad   cardnull_irq12_stub
 
 # ---------------------------------------------------------------------------
 # The 64-bit GDT. Long mode mostly ignores segmentation, but the processor

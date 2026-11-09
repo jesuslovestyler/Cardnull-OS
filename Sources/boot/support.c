@@ -30,6 +30,15 @@
  *     not letters — so the kernel keeps the grid itself now, here,
  *     and paints it through whichever screen is live. Which screen
  *     that is, and what the letters mean, are decided in Swift.
+ *   - The mouse's keepings (milestone 12): a 256-byte ring for the
+ *     PS/2 mouse's bytes, filled by IRQ12's handler one byte at a
+ *     time and drained by the graphical face at its leisure, and a
+ *     small cushion of raw pixel words — the ground the pointer
+ *     stands on, saved before it is drawn and restored when it
+ *     moves, so the pointer leaves no trail. The IDT gains the
+ *     mouse's gate (vector 0x2C) and the PIC masks open the
+ *     cascade and IRQ12 to let it speak. What the bytes mean is
+ *     decided in Swift, above.
  *
  * Written by hand, in the open, in the public domain.
  */
@@ -175,8 +184,9 @@ struct idt_pointer {
 } __attribute__((packed));
 
 /* boot.S exports the stub addresses: entries 0..31 are the exception
- * stubs in vector order, entry 32 is IRQ0's stub, 33 is IRQ1's, and
- * entry 34 is the milestone-9 service-door stub. */
+ * stubs in vector order, entry 32 is IRQ0's stub, 33 is IRQ1's,
+ * entry 34 is the milestone-9 service-door stub, and entry 35 is
+ * IRQ12's stub — the mouse's (milestone 12). */
 extern const unsigned long cardnull_stub_table[];
 
 static void idt_set_gate(int vector, unsigned long handler) {
@@ -219,13 +229,17 @@ void cardnull_setup_interrupts(void) {
      * table lives in .bss and starts zeroed, as the boot leaves it.)
      * Milestone 9 adds one more gate after these: vector 0x80, the
      * guests' service door, stamped for ring 3 — the only door in
-     * the wall a program is ever allowed to knock on. */
+     * the wall a program is ever allowed to knock on. Milestone 12
+     * adds the last of this raising: vector 0x2C, IRQ12 — the mouse,
+     * which lives on the slave PIC (vectors 0x28 and up) as its
+     * fourth child. */
     for (vector = 0; vector < 32; vector++) {
         idt_set_gate(vector, cardnull_stub_table[vector]);
     }
     idt_set_gate(0x20, cardnull_stub_table[32]);
     idt_set_gate(0x21, cardnull_stub_table[33]);
     idt_set_user_gate(0x80, cardnull_stub_table[34]);
+    idt_set_gate(0x2C, cardnull_stub_table[35]);
 
     pointer.limit = (unsigned short)(sizeof(cardnull_idt) - 1);
     pointer.base = (unsigned long)cardnull_idt;
@@ -235,9 +249,13 @@ void cardnull_setup_interrupts(void) {
      * vectors — master to 0x20, slave to 0x28, clear of the exception
      * vectors the BIOS left them sitting on; ICW3 states the cascade
      * wiring (the slave hangs off the master's IRQ2); ICW4 asks for
-     * plain 8086 mode. Then the masks: on the master, IRQ0 (timer)
-     * and IRQ1 (keyboard) are open and all else shut; the slave is
-     * shut entirely — we take nothing from it yet. */
+     * plain 8086 mode. Then the masks: on the master, IRQ0 (timer),
+     * IRQ1 (keyboard), and IRQ2 — the cascade, the wire the slave
+     * hangs from — are open and all else shut; on the slave, only
+     * IRQ12 (the mouse, milestone 12) is open. The mouse itself is
+     * woken by the kernel before this raising (its enable is a
+     * polled conversation that must happen with the gate closed),
+     * so no byte of its can arrive before its gate stands here. */
     cardnull_outb(0x20, 0x11); io_wait();   /* master ICW1 */
     cardnull_outb(0xA0, 0x11); io_wait();   /* slave ICW1 */
     cardnull_outb(0x21, 0x20); io_wait();   /* master ICW2: vectors at 0x20 */
@@ -246,8 +264,8 @@ void cardnull_setup_interrupts(void) {
     cardnull_outb(0xA1, 0x02); io_wait();   /* slave ICW3: cascade identity */
     cardnull_outb(0x21, 0x01); io_wait();   /* master ICW4: 8086 mode */
     cardnull_outb(0xA1, 0x01); io_wait();   /* slave ICW4 */
-    cardnull_outb(0x21, 0xFC);              /* master mask: IRQ0 + IRQ1 open */
-    cardnull_outb(0xA1, 0xFF);              /* slave mask: all shut */
+    cardnull_outb(0x21, 0xF8);              /* master mask: IRQ0 + IRQ1 + cascade open */
+    cardnull_outb(0xA1, 0xEF);              /* slave mask: IRQ12 (mouse) open */
 
     /* The timer: PIT channel 0, square wave, divisor 11932 — the
      * 1,193,182 Hz input clock divided down to a 100 Hz heartbeat. */
@@ -289,6 +307,39 @@ static unsigned char text_grid[80 * 25];
 
 unsigned char *cardnull_text_grid(void) {
     return text_grid;
+}
+
+/* ------------------------------------------------------------------ */
+/* Milestone 12: the mouse's two keepings.                             */
+/*                                                                     */
+/* The mouse speaks in threes — three bytes to a packet — and it      */
+/* speaks by IRQ12, one byte per knock. The floor lends the two       */
+/* places the kernel keeps them in, for the same reason it lends      */
+/* the key ring: Embedded Swift cannot name fixed mutable storage     */
+/* without a heap.                                                    */
+/*                                                                     */
+/*   - The mouse ring: 256 bytes the IRQ12 handler fills and the      */
+/*     graphical face drains at its leisure. The number 256 is        */
+/*     agreed with the kernel's mouseRingSize.                        */
+/*   - The pointer's cushion: 32 x 32 raw pixel words — the ground    */
+/*     under the pointer, lifted into safekeeping before the          */
+/*     pointer is drawn on it and laid back when the pointer          */
+/*     moves or goes home, so it never smears a trail across the      */
+/*     face. 32 is the largest pointer the face will ever draw;       */
+/*     the kernel's pointer is smaller, and clips its drawing to      */
+/*     the screen's edge besides.                                     */
+/* ------------------------------------------------------------------ */
+
+static unsigned char mouse_ring[256];
+
+unsigned char *cardnull_mouse_ring(void) {
+    return mouse_ring;
+}
+
+static unsigned int gui_cushion[32 * 32];
+
+unsigned int *cardnull_gui_cushion(void) {
+    return gui_cushion;
 }
 
 /* ------------------------------------------------------------------ */

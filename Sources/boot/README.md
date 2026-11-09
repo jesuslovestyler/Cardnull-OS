@@ -31,9 +31,10 @@ every line says why it exists.
   - the **interrupt stubs** (milestone 4): one door per exception
     vector — vectors without a CPU error code get a dummy, so every
     frame is the same shape — all ending in a shared entry that hands
-    the vector number to Swift's exception handler; two IRQ stubs
-    (timer, keyboard) that save every register, call their Swift
-    handler, and return by `iretq`; and `cardnull_stub_table`, the
+    the vector number to Swift's exception handler; three IRQ stubs
+    (timer, keyboard, and — milestone 12 — the mouse on IRQ12)
+    that save every register, call their Swift handler, and
+    return by `iretq`; and `cardnull_stub_table`, the
     address table the IDT is built from. Milestone 7 replaced vector
     14's macro-born stub with a hand-written one: the page fault owes
     the kernel two facts the shared door cannot carry — the error
@@ -62,7 +63,9 @@ every line says why it exists.
     guest that leaves or falls while its partner still lives
     (`cardnull_abandon_guest_in_pair` for the fault road), and
     three small hands that read a finished session's results out
-    of their bookmarks for Swift.
+    of their bookmarks for Swift. Milestone 12 grew the table by
+    one more stub — IRQ12's, the mouse's door at IDT vector
+    0x2C — of exactly the IRQ stubs' shape above.
 - **`support.c`** — runtime support shims: the stack-protector guard
   word and failure path, allocation entry points that honestly
   decline (there is no heap yet), and the port I/O hands
@@ -114,6 +117,18 @@ every line says why it exists.
   written. And `cardnull_setup_interrupts` stamps one gate
   more than it used to: vector 0x80, with privilege level 3 —
   the only door in the wall a guest is allowed to knock on.
+  Milestone 12 raised one gate more in the same raising —
+  vector 0x2C for IRQ12, the mouse — and opened the PIC masks
+  to let it speak: the master's cascade wire (IRQ2, the wire
+  the slave hangs from) and the slave's fourth child (IRQ12)
+  both stand open now. The same milestone added two lendings
+  of storage for the face: 256 bytes of mouse ring
+  (`cardnull_mouse_ring`), filled one byte at a time by
+  IRQ12's handler and drained by the kernel at its leisure,
+  and 32 x 32 raw pixel words (`cardnull_gui_cushion`) — the
+  ground under the pointer, lifted into safekeeping before
+  the pointer is drawn on it and laid back when it moves,
+  so the pointer leaves no trail.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),
@@ -143,6 +158,6 @@ with page tables of its own building as soon as the frame
 allocator stands, and raises its heap (in Swift, above) on the
 far side of the switch. The floor grows only when the kernel
 above it honestly requires more. The IDT's gates beyond the
-exceptions, IRQ0/IRQ1, and milestone 9's one guest door stand
-empty, likewise: a vector earns a stub when a device or a duty
-honestly arrives, not before.
+exceptions, IRQ0/IRQ1, milestone 12's IRQ12, and milestone 9's
+one guest door stand empty, likewise: a vector earns a stub
+when a device or a duty honestly arrives, not before.

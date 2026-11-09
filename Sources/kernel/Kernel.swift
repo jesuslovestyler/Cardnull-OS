@@ -80,6 +80,25 @@ func cardnullKeyRing() -> UnsafeMutablePointer<UInt8>
 @_silgen_name("cardnull_text_grid")
 func cardnullTextGrid() -> UnsafeMutablePointer<UInt8>
 
+/// Provided by the boot floor (support.c): the raw storage of the
+/// mouse ring buffer — 256 bytes the floor lends, for the same
+/// reason as the key ring. Milestone 12's IRQ12 handler fills it
+/// one byte at a time; the graphical face drains it at its leisure
+/// and makes packets of the bytes. Every decision about the bytes
+/// is the kernel's, below; the floor only keeps the memory.
+@_silgen_name("cardnull_mouse_ring")
+func cardnullMouseRing() -> UnsafeMutablePointer<UInt8>
+
+/// Provided by the boot floor (support.c): the pointer's cushion —
+/// 32 x 32 raw pixel words the floor lends. Before the face draws
+/// its pointer it lifts the pixels underneath into this cushion,
+/// and when the pointer moves or goes home it lays them back, so
+/// the pointer never leaves a trail across the desktop. What the
+/// words hold — one framebuffer pixel each, in the screen's own
+/// packing — is the kernel's business, below.
+@_silgen_name("cardnull_gui_cushion")
+func cardnullGuiCushion() -> UnsafeMutablePointer<UInt32>
+
 /// Provided by the boot floor (font8x8.c): the 8x8 bitmap font the
 /// framebuffer backend draws letters from — 128 glyphs of 8 bytes,
 /// one byte per row, bit 0 the leftmost pixel. Daniel Hepper's
@@ -313,6 +332,20 @@ var framebufferBpp = 0
 /// any packing, so only white needs reckoning.
 var framebufferWhite: UInt32 = 0
 
+/// The framebuffer's channel layout, remembered from the tag:
+/// where the red, green, and blue fields sit inside a pixel and
+/// how wide each is. Milestone 5 needed only white and black,
+/// which any packing renders the same; milestone 12's face paints
+/// in colour, and colour must be packed in the mode's own fields
+/// or it comes out as some other colour entirely. All six are 0
+/// until a framebuffer is chosen.
+var framebufferRedPosition = 0
+var framebufferRedSize = 0
+var framebufferGreenPosition = 0
+var framebufferGreenSize = 0
+var framebufferBluePosition = 0
+var framebufferBlueSize = 0
+
 /// The glyph magnification: 2 when the pixel field is roomy enough
 /// (a cell becomes 16x16 pixels, near the text grid's own stature),
 /// else 1 (8x8 cells, small but honest).
@@ -381,6 +414,12 @@ func chooseScreen(infoAddress: UInt64) {
                     channelWhite(base[offset + 32], base[offset + 33])
                     | channelWhite(base[offset + 34], base[offset + 35])
                     | channelWhite(base[offset + 36], base[offset + 37])
+                framebufferRedPosition = Int(base[offset + 32])
+                framebufferRedSize = Int(base[offset + 33])
+                framebufferGreenPosition = Int(base[offset + 34])
+                framebufferGreenSize = Int(base[offset + 35])
+                framebufferBluePosition = Int(base[offset + 36])
+                framebufferBlueSize = Int(base[offset + 37])
                 useFramebuffer = true
             }
         }
@@ -754,6 +793,12 @@ func ascii(forScancode code: UInt8) -> UInt8 {
 //         controller and lays it in a small ring buffer, and the
 //         shell drains the ring at its leisure through the same
 //         handleScancode the polling years used.
+//   IRQ12 the mouse (milestone 12): the handler takes one byte —
+//         a third of a packet — out of the same controller and
+//         lays it in the mouse's own ring; the graphical face
+//         drains that ring and makes packets of the bytes. It
+//         lives on the slave PIC, so its thanks are owed twice:
+//         to the slave first, then to the master it hangs from.
 //   0-31  the exceptions: a stub per vector, all ending here, in a
 //         handler that prints one plain line and halts — a fault is
 //         spoken aloud, never a silent triple fault in the dark.
@@ -819,6 +864,51 @@ func nextScancode() -> UInt8? {
     let code = cardnullKeyRing()[keyRingTail]
     keyRingTail = (keyRingTail + 1) & (keyRingSize - 1)
     return code
+}
+
+/// The slave PIC's command port. IRQ12 lives on the slave, so its
+/// handler thanks the slave here — with the same EOI word the
+/// master's handlers use — and then thanks the master as well, for
+/// the cascade wire the knock arrived on. An interrupt thanked
+/// only once, on the wrong chip, is the last one either delivers.
+let picSlaveCommandPort: UInt16 = 0xA0
+
+/// The mouse ring's shape: 256 slots, the number agreed with the
+/// floor's storage in support.c. A power of two, so the wrap is a
+/// mask, not a division.
+let mouseRingSize = 256
+
+/// The mouse ring's two hands, kept exactly as the keyboard's are:
+/// the handler fills at the head; the face drains at the tail.
+var mouseRingHead = 0
+var mouseRingTail = 0
+
+/// IRQ12's whole work: take the byte out of the controller — the
+/// read itself is what clears the controller to speak again — lay
+/// it in the mouse ring if there is room (a full ring lets the
+/// byte go; a pointer's old news is not worth wedging the machine
+/// for), and thank both PICs, the slave first and then the master.
+/// What the byte means — which third of which packet — is the
+/// face's business, below; the handler keeps no such company.
+@_cdecl("cardnull_mouse_interrupt")
+public func mouseInterrupt() {
+    let byte = cardnullInb(keyboardDataPort)
+    let next = (mouseRingHead + 1) & (mouseRingSize - 1)
+    if next != mouseRingTail {
+        cardnullMouseRing()[mouseRingHead] = byte
+        mouseRingHead = next
+    }
+    cardnullOutb(picSlaveCommandPort, picEOI)
+    cardnullOutb(picCommandPort, picEOI)
+}
+
+/// Takes one waiting byte out of the mouse ring, or nil when the
+/// mouse has said nothing since the last look.
+func nextMouseByte() -> UInt8? {
+    if mouseRingTail == mouseRingHead { return nil }
+    let byte = cardnullMouseRing()[mouseRingTail]
+    mouseRingTail = (mouseRingTail + 1) & (mouseRingSize - 1)
+    return byte
 }
 
 /// The exceptions' one answer. A fault leaves no promise standing —
@@ -4076,6 +4166,697 @@ func runFeather() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// The graphical face (milestone 12).
+//
+// The last stone of the first ladder: the OS gets a face. Since
+// milestone 5 the screen has been a field of pixels with letters
+// drawn on it; this milestone draws the rest — a desktop, one
+// window standing on it, and a pointer that answers the mouse.
+//
+// The face is deliberately small, and its smallness is stated
+// plainly: one window, in one place, that cannot be dragged or
+// resized; one button that counts its clicks; one close box.
+// There is no window manager here and no program but the kernel
+// draws — graphical guests are a later era, and nothing in this
+// section pretends otherwise.
+//
+// How it is put together:
+//
+//   Painting. The kernel draws straight into the framebuffer the
+//   boot handed over — the same ground the text console paints
+//   its grid into, already reserved out of the frame pool's reach
+//   at boot. No back buffer is kept: the desktop is drawn once,
+//   whole, and after that only small rects are ever repainted
+//   (the button's face, the click count). The face therefore
+//   takes NO frames and NO heap: entering and leaving it leaves
+//   `mem` and `heap` reading exactly as they read before, which
+//   the milestone's proof leans on.
+//
+//   Colour. A colour is reckoned once into the framebuffer's own
+//   packing — each 8-bit channel scaled into the field the boot
+//   tag named for it — and laid down as one raw word. At 24 bits
+//   the "word" is the pixel's three bytes, each channel's byte in
+//   its own slot. guiRawPixel is the only place that knows this.
+//
+//   The pointer. A twelve-by-sixteen arrow, drawn from the art
+//   below. It is the only thing that ever moves across finished
+//   painting, so it alone needs an undo: before it is drawn, the
+//   pixels beneath it are lifted into the floor's cushion, and
+//   when it moves or goes home they are laid back — no trail,
+//   because the ground is restored, not repainted from memory.
+//
+//   The mouse. The PS/2 mouse is woken once at boot (initMouse,
+//   in this section, called from kmain while the interrupt gate
+//   is still closed) and speaks by IRQ12 into the mouse ring. The face
+//   drains the ring and makes packets of the bytes: three to a
+//   packet — buttons and signed motion first, then the X travel,
+//   then the Y. The first byte always carries bit 3; a byte
+//   without it is a byte astray and is let go, which is how the
+//   face resynchronises if a byte is ever lost. The mouse
+//   reckons up as forward; the screen reckons down, so the Y
+//   travel is turned over. Clicks are read from the packet's own
+//   button bit — the real PS/2 button state, nothing simulated.
+//
+//   The way home. Two doors, always open: the window's close
+//   box, and Esc on the keyboard. While the face holds the room
+//   it drains the key ring itself and answers nothing but Esc;
+//   every other key is let go. Leaving restores the console
+//   exactly: the text grid was never touched — the conversation
+//   stands in it still — so the whole pixel field is blackened
+//   (the desktop ranged past the grid's rows) and the grid is
+//   painted back through the screen, and the shell's prompt
+//   opens beneath it in the same session.
+// ---------------------------------------------------------------------------
+
+/// The face's palette. Each colour is a plain 0xRRGGBB word here;
+/// guiRawPixel translates it into the screen's own packing.
+let guiDesktopTopColor: UInt32 = 0x3D0D1A     // deep cardinal
+let guiDesktopBottomColor: UInt32 = 0x100308  // settling to near black
+let guiGoldColor: UInt32 = 0xD9B36A
+let guiHintColor: UInt32 = 0xCBB9A0
+let guiParchmentColor: UInt32 = 0xF4EDDE
+let guiCardinalColor: UInt32 = 0x7A1220
+let guiCloseColor: UInt32 = 0xA01828
+let guiBorderColor: UInt32 = 0x2A1A12
+let guiShadowColor: UInt32 = 0x0A0206
+let guiInkColor: UInt32 = 0x241A12
+let guiButtonColor: UInt32 = 0xE4D9C2
+let guiPressedColor: UInt32 = 0xC9B184
+let guiWhiteColor: UInt32 = 0xFFFFFF
+let guiPointerEdgeColor: UInt32 = 0x101010
+
+/// The face's words.
+let guiDesktopName: StaticString = "Cardnull OS"
+let guiHintLine: StaticString = "Click the button. Esc brings you home."
+let guiWindowTitle: StaticString = "Welcome"
+let guiGreetingLine: StaticString = "Welcome to Cardnull OS."
+let guiVerseLine1: StaticString = "In the beginning was the Word, and"
+let guiVerseLine2: StaticString = "the Word was with God, and the Word"
+let guiVerseLine3: StaticString = "was God."
+let guiVerseAttribution: StaticString = "- John 1:1 (Douay-Rheims)"
+let guiButtonText: StaticString = "Click me"
+let guiClicksLabel: StaticString = "Clicks: "
+let guiNoScreenLine: StaticString =
+    "The boot brought no graphics screen; the desktop cannot open."
+
+/// Scales one 8-bit colour channel into the width the framebuffer
+/// keeps for it: the component spread over the field's whole
+/// range, so full brightness is the field filled with ones.
+func guiPackChannel(_ component: UInt32, _ position: Int,
+                    _ size: Int) -> UInt32 {
+    if size == 0 { return 0 }
+    let full = (UInt32(1) << UInt32(size)) - 1
+    return ((component * full + 127) / 255) << UInt32(position)
+}
+
+/// Reckons one colour (0xRRGGBB) into the raw word the
+/// framebuffer keeps for it: at 32 bits, the channels packed in
+/// their named fields; at 24, each channel's full byte laid in
+/// its own byte slot — which is the same reckoning, read as
+/// bytes, since a 24-bit field is exactly a byte wide.
+func guiRawPixel(_ rgb: UInt32) -> UInt32 {
+    guiPackChannel((rgb >> 16) & 0xFF, framebufferRedPosition,
+                   framebufferRedSize)
+        | guiPackChannel((rgb >> 8) & 0xFF, framebufferGreenPosition,
+                         framebufferGreenSize)
+        | guiPackChannel(rgb & 0xFF, framebufferBluePosition,
+                         framebufferBlueSize)
+}
+
+/// Lays one raw pixel word into the framebuffer. No clipping —
+/// the callers keep the face on the screen, and the two readers
+/// and writers of raw words are used by nothing else.
+@inline(__always)
+func guiWriteRaw(_ x: Int, _ y: Int, _ raw: UInt32) {
+    let rowStart = framebufferAddress + UInt64(y * framebufferPitch)
+    if framebufferBpp == 32 {
+        let pixel = UnsafeMutablePointer<UInt32>(
+            bitPattern: UInt(rowStart + UInt64(x * 4)))!
+        pixel.pointee = raw
+    } else {
+        let pixel = UnsafeMutablePointer<UInt8>(
+            bitPattern: UInt(rowStart + UInt64(x * 3)))!
+        pixel[0] = UInt8(raw & 0xFF)
+        pixel[1] = UInt8((raw >> 8) & 0xFF)
+        pixel[2] = UInt8((raw >> 16) & 0xFF)
+    }
+}
+
+/// Takes one raw pixel word back out of the framebuffer — the
+/// pointer's cushion is filled through this hand.
+@inline(__always)
+func guiReadRaw(_ x: Int, _ y: Int) -> UInt32 {
+    let rowStart = framebufferAddress + UInt64(y * framebufferPitch)
+    if framebufferBpp == 32 {
+        let pixel = UnsafeMutablePointer<UInt32>(
+            bitPattern: UInt(rowStart + UInt64(x * 4)))!
+        return pixel.pointee
+    }
+    let pixel = UnsafeMutablePointer<UInt8>(
+        bitPattern: UInt(rowStart + UInt64(x * 3)))!
+    return UInt32(pixel[0]) | UInt32(pixel[1]) << 8
+        | UInt32(pixel[2]) << 16
+}
+
+/// Fills a rect with one colour, clipped to the screen. The
+/// colour is reckoned into the screen's packing once, however
+/// many pixels the rect holds.
+func guiFillRect(_ x: Int, _ y: Int, _ width: Int, _ height: Int,
+                 _ rgb: UInt32) {
+    let x0 = max(x, 0)
+    let y0 = max(y, 0)
+    let x1 = min(x + width, framebufferWidth)
+    let y1 = min(y + height, framebufferHeight)
+    if x1 <= x0 || y1 <= y0 { return }
+    let raw = guiRawPixel(rgb)
+    for row in y0 ..< y1 {
+        for col in x0 ..< x1 {
+            guiWriteRaw(col, row, raw)
+        }
+    }
+}
+
+/// Draws one glyph of the floor's 8x8 font at a magnification,
+/// in one colour, over whatever is already painted — the
+/// unpainted pixels of the glyph are left exactly as they were,
+/// so text can stand on any ground the face has laid.
+func guiDrawGlyph(_ x: Int, _ y: Int, _ scale: Int,
+                  _ character: UInt8, _ rgb: UInt32) {
+    let glyph = Int(character & 0x7F)
+    let font = cardnullFont8x8()
+    for glyphY in 0 ..< 8 {
+        let bits = font[glyph * 8 + glyphY]
+        if bits == 0 { continue }
+        for glyphX in 0 ..< 8 {
+            if bits & (UInt8(1) << UInt8(glyphX)) != 0 {
+                guiFillRect(x + glyphX * scale, y + glyphY * scale,
+                            scale, scale, rgb)
+            }
+        }
+    }
+}
+
+/// Draws a line of text, and returns the column just past its
+/// last glyph — so a number can be set beside its label, the
+/// way the fault report's hands do it on the grid.
+@discardableResult
+func guiDrawText(_ x: Int, _ y: Int, _ scale: Int,
+                 _ text: StaticString, _ rgb: UInt32) -> Int {
+    var penX = x
+    var index = 0
+    while true {
+        let character = text.utf8Start[index]
+        if character == 0 { break }
+        guiDrawGlyph(penX, y, scale, character, rgb)
+        penX += 8 * scale
+        index += 1
+    }
+    return penX
+}
+
+/// Draws a value in decimal: the digits reckoned by a falling
+/// divisor and set down one at a time, like writeDecimalAt on
+/// the grid — here in pixels, for the click count.
+func guiDrawDecimal(_ x: Int, _ y: Int, _ scale: Int,
+                    _ value: UInt64, _ rgb: UInt32) {
+    var divisor: UInt64 = 1
+    while value / divisor >= 10 { divisor *= 10 }
+    var remaining = value
+    var penX = x
+    while true {
+        guiDrawGlyph(penX, y, scale, 0x30 + UInt8(remaining / divisor),
+                     rgb)
+        penX += 8 * scale
+        remaining %= divisor
+        if divisor == 1 { break }
+        divisor /= 10
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The window: one window, in one place. Its geometry is reckoned
+// at the face's opening from the screen's own size — 680 x 400
+// where the screen has room for it, less where it does not, and
+// centred either way. Every part's place is a fixed offset from
+// the window's corner, so the painting hands and the click's
+// hit-tests read the same numbers and cannot disagree.
+// ---------------------------------------------------------------------------
+
+var guiWinX = 0
+var guiWinY = 0
+var guiWinW = 0
+var guiWinH = 0
+
+/// The close box: the title bar's right-hand end, 40 x 28,
+/// standing 8 from the window's right edge and 4 below its top.
+func guiCloseBoxContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiWinX + guiWinW - 48 && x < guiWinX + guiWinW - 8
+        && y >= guiWinY + 4 && y < guiWinY + 32
+}
+
+/// The button: 220 x 48, standing 32 from the window's left edge
+/// and 52 above its bottom.
+func guiButtonContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiWinX + 32 && x < guiWinX + 252
+        && y >= guiWinY + guiWinH - 100
+        && y < guiWinY + guiWinH - 52
+}
+
+/// Paints the close box: its face, and the X across it — two
+/// diagonals, each drawn two pixels thick so it reads at a
+/// glance.
+func guiPaintCloseBox() {
+    let boxX = guiWinX + guiWinW - 48
+    let boxY = guiWinY + 4
+    guiFillRect(boxX, boxY, 40, 28, guiCloseColor)
+    for step in 0 ..< 14 {
+        guiFillRect(boxX + 13 + step, boxY + 7 + step, 2, 2,
+                    guiWhiteColor)
+        guiFillRect(boxX + 26 - step, boxY + 7 + step, 2, 2,
+                    guiWhiteColor)
+    }
+}
+
+/// Paints the button, in its resting face or its pressed one —
+/// the pressed face stands from the click until the button is
+/// released, the face's one piece of theatre, and honest
+/// theatre: it is the real button state that paints it.
+func guiPaintButton() {
+    let buttonX = guiWinX + 32
+    let buttonY = guiWinY + guiWinH - 100
+    guiFillRect(buttonX, buttonY, 220, 48,
+                guiButtonHeld ? guiPressedColor : guiButtonColor)
+    guiFillRect(buttonX, buttonY, 220, 2, guiBorderColor)
+    guiFillRect(buttonX, buttonY + 46, 220, 2, guiBorderColor)
+    guiFillRect(buttonX, buttonY, 2, 48, guiBorderColor)
+    guiFillRect(buttonX + 218, buttonY, 2, 48, guiBorderColor)
+    guiDrawText(buttonX + 46, buttonY + 16, 2, guiButtonText,
+                guiInkColor)
+}
+
+/// Paints the click count beside the button: the label and the
+/// number, over a fresh patch of the window's parchment — the
+/// patch is repainted whole each time, so a shrinking count
+/// leaves no ghost of its longer self behind.
+func guiPaintClicks() {
+    let clicksX = guiWinX + 272
+    let clicksY = guiWinY + guiWinH - 92
+    guiFillRect(clicksX, clicksY, 260, 32, guiParchmentColor)
+    let endX = guiDrawText(clicksX + 8, clicksY + 8, 2,
+                           guiClicksLabel, guiInkColor)
+    guiDrawDecimal(endX + 4, clicksY + 8, 2, UInt64(guiClickCount),
+                   guiInkColor)
+}
+
+/// Paints the window whole: its shadow, its parchment body and
+/// border, the cardinal title bar with its name and close box,
+/// the greeting, the house verse in its three lines with its
+/// attribution, and the button with its count beside it.
+func guiPaintWindow() {
+    guiFillRect(guiWinX + 10, guiWinY + 12, guiWinW, guiWinH,
+                guiShadowColor)
+    guiFillRect(guiWinX, guiWinY, guiWinW, guiWinH,
+                guiParchmentColor)
+    guiFillRect(guiWinX, guiWinY, guiWinW, 2, guiBorderColor)
+    guiFillRect(guiWinX, guiWinY + guiWinH - 2, guiWinW, 2,
+                guiBorderColor)
+    guiFillRect(guiWinX, guiWinY, 2, guiWinH, guiBorderColor)
+    guiFillRect(guiWinX + guiWinW - 2, guiWinY, 2, guiWinH,
+                guiBorderColor)
+    guiFillRect(guiWinX, guiWinY, guiWinW, 36, guiCardinalColor)
+    guiDrawText(guiWinX + 16, guiWinY + 10, 2, guiWindowTitle,
+                guiWhiteColor)
+    guiPaintCloseBox()
+    guiDrawText(guiWinX + 32, guiWinY + 64, 2, guiGreetingLine,
+                guiInkColor)
+    guiDrawText(guiWinX + 32, guiWinY + 112, 2, guiVerseLine1,
+                guiInkColor)
+    guiDrawText(guiWinX + 32, guiWinY + 140, 2, guiVerseLine2,
+                guiInkColor)
+    guiDrawText(guiWinX + 32, guiWinY + 168, 2, guiVerseLine3,
+                guiInkColor)
+    guiDrawText(guiWinX + 32, guiWinY + 196, 2, guiVerseAttribution,
+                guiInkColor)
+    guiPaintButton()
+    guiPaintClicks()
+}
+
+/// Paints the desktop whole: the gradient — deep cardinal at
+/// the top settling toward near-black at the bottom, each row's
+/// colour mixed once and laid across the row — then the OS's
+/// name standing large above the window, the hint along the
+/// bottom, and the window itself.
+func guiPaintDesktop() {
+    let span = max(framebufferHeight - 1, 1)
+    for row in 0 ..< framebufferHeight {
+        let red = 0x3D + (0x10 - 0x3D) * row / span
+        let green = 0x0D + (0x03 - 0x0D) * row / span
+        let blue = 0x1A + (0x08 - 0x1A) * row / span
+        let rgb = UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+        guiFillRect(0, row, framebufferWidth, 1, rgb)
+    }
+    // Eleven glyphs at fourfold size: 352 pixels of name,
+    // centred over the screen.
+    guiDrawText((framebufferWidth - 352) / 2, 40, 4, guiDesktopName,
+                guiGoldColor)
+    guiDrawText(24, framebufferHeight - 44, 2, guiHintLine,
+                guiHintColor)
+    guiPaintWindow()
+}
+
+// ---------------------------------------------------------------------------
+// The pointer: a twelve-by-sixteen arrow. In the art below, '#'
+// is its dark edge, 'W' its white body, and '.' is no pixel at
+// all — the ground shows through. Its point — the top-left
+// corner, the pixel the clicks are reckoned by — is the place
+// the mouse's travels are added to.
+//
+//     #...........
+//     ##..........
+//     #W#.........
+//     #WW#........
+//     #WWW#.......
+//     #WWWW#......
+//     #WWWWW#.....
+//     #WWWWWW#....
+//     #WWWWW#.....
+//     #WW##W#.....
+//     #W#.#W#.....
+//     #..#WW#.....
+//     ....#WW#....
+//     ....#WW#....
+//     .....#W#....
+//     ......#.....
+// ---------------------------------------------------------------------------
+
+let pointerArtWidth = 12
+let pointerArtHeight = 16
+let pointerArt: StaticString =
+    "#...........##..........#W#.........#WW#........#WWW#.......#WWWW#......#WWWWW#.....#WWWWWW#....#WWWWW#.....#WW##W#.....#W#.#W#.....#..#WW#.........#WW#........#WW#.........#W#..........#....."
+
+/// Where the pointer's point stands, and whether it is drawn.
+var pointerX = 0
+var pointerY = 0
+var pointerIsDrawn = false
+
+/// The rect the cushion currently holds: the pointer's last
+/// drawn place, clipped to the screen.
+var pointerUnderX = 0
+var pointerUnderY = 0
+var pointerUnderW = 0
+var pointerUnderH = 0
+
+/// Lays the cushion back: the ground the pointer was standing
+/// on is restored, pixel for pixel, and the pointer is nowhere.
+func pointerHide() {
+    if !pointerIsDrawn { return }
+    let cushion = cardnullGuiCushion()
+    for row in 0 ..< pointerUnderH {
+        for col in 0 ..< pointerUnderW {
+            guiWriteRaw(pointerUnderX + col, pointerUnderY + row,
+                        cushion[row * pointerArtWidth + col])
+        }
+    }
+    pointerIsDrawn = false
+}
+
+/// Draws the pointer where it stands: first the ground beneath
+/// it is lifted into the cushion, then the arrow is laid over.
+func pointerShow() {
+    let width = min(pointerArtWidth, framebufferWidth - pointerX)
+    let height = min(pointerArtHeight, framebufferHeight - pointerY)
+    if width <= 0 || height <= 0 { return }
+    pointerUnderX = pointerX
+    pointerUnderY = pointerY
+    pointerUnderW = width
+    pointerUnderH = height
+    let cushion = cardnullGuiCushion()
+    for row in 0 ..< height {
+        for col in 0 ..< width {
+            cushion[row * pointerArtWidth + col] =
+                guiReadRaw(pointerX + col, pointerY + row)
+        }
+    }
+    for row in 0 ..< height {
+        for col in 0 ..< width {
+            let cell = pointerArt.utf8Start[row * pointerArtWidth + col]
+            if cell == 0x23 {          // '#'
+                guiFillRect(pointerX + col, pointerY + row, 1, 1,
+                            guiPointerEdgeColor)
+            } else if cell == 0x57 {   // 'W'
+                guiFillRect(pointerX + col, pointerY + row, 1, 1,
+                            guiWhiteColor)
+            }
+        }
+    }
+    pointerIsDrawn = true
+}
+
+// ---------------------------------------------------------------------------
+// The mouse's conversation: packets, clicks, and the door home.
+// ---------------------------------------------------------------------------
+
+/// The packet assembly: which byte of the three is expected
+/// next, and the first two bytes held while the third is coming.
+var mouseStage = 0
+var mouseFirstByte: UInt8 = 0
+var mouseSecondByte: UInt8 = 0
+
+/// The left button's last known state, so a press is the edge —
+/// the change — and not the holding.
+var mouseLeftWasDown = false
+
+/// The face's books: how many times the button has been clicked,
+/// whether it stands pressed, and whether the way home has been
+/// asked for — by the close box or by Esc, both roads land here.
+var guiClickCount = 0
+var guiButtonHeld = false
+var guiWantsHome = false
+
+/// A press at the pointer's point. The close box is asked first
+/// — leaving is always the senior road — then the button: the
+/// count rises, the button takes its pressed face, and both are
+/// repainted with the pointer lifted and laid back over them.
+func guiPressAt(_ x: Int, _ y: Int) {
+    if guiCloseBoxContains(x, y) {
+        guiWantsHome = true
+        return
+    }
+    if guiButtonContains(x, y) {
+        guiClickCount += 1
+        guiButtonHeld = true
+        pointerHide()
+        guiPaintButton()
+        guiPaintClicks()
+        pointerShow()
+    }
+}
+
+/// A release: if the button stood pressed, it takes its resting
+/// face again.
+func guiRelease() {
+    if guiButtonHeld {
+        guiButtonHeld = false
+        pointerHide()
+        guiPaintButton()
+        pointerShow()
+    }
+}
+
+/// Takes one byte of the mouse's conversation. The first byte of
+/// a packet always carries bit 3, and the stage only advances
+/// on it — a byte without it is astray (a leftover, a lost
+/// partner) and is let go, which is how the assembly finds its
+/// feet again after any stumble. A whole packet moves the
+/// pointer — restoring its old ground and drawing it new — and
+/// answers the button's edges.
+func guiTakeMouseByte(_ byte: UInt8) {
+    if mouseStage == 0 {
+        if byte & 0x08 == 0 { return }
+        mouseFirstByte = byte
+        mouseStage = 1
+        return
+    }
+    if mouseStage == 1 {
+        mouseSecondByte = byte
+        mouseStage = 2
+        return
+    }
+    mouseStage = 0
+    var travelX = Int(mouseSecondByte)
+    if mouseFirstByte & 0x10 != 0 { travelX -= 256 }
+    var travelY = Int(byte)
+    if mouseFirstByte & 0x20 != 0 { travelY -= 256 }
+    // The mouse reckons up as forward; the screen reckons down,
+    // so the Y travel is turned over as it is added.
+    let newX = min(max(pointerX + travelX, 0), framebufferWidth - 1)
+    let newY = min(max(pointerY - travelY, 0), framebufferHeight - 1)
+    if newX != pointerX || newY != pointerY {
+        pointerHide()
+        pointerX = newX
+        pointerY = newY
+        pointerShow()
+    }
+    let leftDown = mouseFirstByte & 0x01 != 0
+    if leftDown && !mouseLeftWasDown {
+        guiPressAt(pointerX, pointerY)
+    } else if !leftDown && mouseLeftWasDown {
+        guiRelease()
+    }
+    mouseLeftWasDown = leftDown
+}
+
+/// Waits, with a bound, for the controller to be ready to be
+/// spoken to — its input buffer empty. The bound matters: a
+/// machine with no mouse must not hang the boot on a courtesy.
+func mouseWaitWrite() {
+    var spins = 0
+    while cardnullInb(0x64) & 0x02 != 0 && spins < 100000 {
+        spins += 1
+    }
+}
+
+/// Waits, with the same bound, for the controller to have
+/// something to say — its output buffer full — and reports
+/// whether it did.
+func mouseWaitRead() -> Bool {
+    var spins = 0
+    while cardnullInb(0x64) & 0x01 == 0 && spins < 100000 {
+        spins += 1
+    }
+    return cardnullInb(0x64) & 0x01 != 0
+}
+
+/// Speaks one byte to the mouse itself, through the controller's
+/// 0xD4 prefix — the next byte written to the data port is for
+/// the mouse, not the keyboard — and takes its answer (0xFA,
+/// understood) and lets it go. No answer is not a failure: the
+/// polls simply run out, and the boot walks on.
+func mouseSendToMouse(_ byte: UInt8) {
+    mouseWaitWrite()
+    cardnullOutb(0x64, 0xD4)
+    mouseWaitWrite()
+    cardnullOutb(0x60, byte)
+    if mouseWaitRead() {
+        _ = cardnullInb(0x60)
+    }
+}
+
+/// Wakes the mouse, once, at boot — called from kmain with the
+/// interrupt gate still closed, because the waking is a polled
+/// conversation on the same data port the keyboard speaks
+/// through, and no IRQ may reach into the middle of it. The
+/// steps are the PS/2 controller's old ceremony, in order:
+///
+///   - whatever the controller still holds from the bootloader's
+///     day is taken out and let go, so the answers read below
+///     are the mouse's own;
+///   - the auxiliary port — the mouse's side of the controller —
+///     is enabled (0xA8);
+///   - the configuration byte is read (ask with 0x20, then take
+///     it), amended — the mouse's IRQ may knock, and its clock
+///     runs — and written back (0x60);
+///   - the mouse is told its defaults (0xF6) and then to begin
+///     reporting (0xF4): from there, motion and buttons arrive
+///     as packets, one IRQ12 per byte.
+///
+/// If no mouse answers, nothing above hangs and nothing fails:
+/// every wait is bounded, and the face will still open — Esc
+/// alone brings it home on a mouseless machine.
+func initMouse() {
+    var guardCount = 0
+    while cardnullInb(0x64) & 0x01 != 0 && guardCount < 32 {
+        _ = cardnullInb(0x60)
+        guardCount += 1
+    }
+    mouseWaitWrite()
+    cardnullOutb(0x64, 0xA8)
+    mouseWaitWrite()
+    cardnullOutb(0x64, 0x20)
+    var config: UInt8 = 0x47
+    if mouseWaitRead() {
+        config = cardnullInb(0x60)
+    }
+    config |= 0x02        // the mouse's IRQ (IRQ12) may knock
+    config &= ~0x20       // the mouse's clock runs
+    mouseWaitWrite()
+    cardnullOutb(0x64, 0x60)
+    mouseWaitWrite()
+    cardnullOutb(0x60, config)
+    mouseSendToMouse(0xF6)
+    mouseSendToMouse(0xF4)
+}
+
+/// The `gui` command's work: open the face, keep it until the
+/// way home is asked for, and restore the console exactly.
+///
+/// On a boot that brought no framebuffer there is no face to
+/// open — the VGA text grid keeps pixels for no one — and the
+/// command says so plainly, in the shell, and that is all.
+func runGui() {
+    if !useFramebuffer {
+        writeLine(guiNoScreenLine)
+        return
+    }
+    guiWinW = min(680, framebufferWidth - 40)
+    guiWinH = min(400, framebufferHeight - 40)
+    guiWinX = (framebufferWidth - guiWinW) / 2
+    guiWinY = (framebufferHeight - guiWinH) / 2
+    guiClickCount = 0
+    guiButtonHeld = false
+    guiWantsHome = false
+    mouseStage = 0
+    mouseLeftWasDown = false
+    // The mouse may have spoken while the shell held the room.
+    // That is old news: the ring is drained, so the face opens
+    // on a clean ring and a whole packet boundary.
+    while nextMouseByte() != nil {}
+    // The pointer opens at the screen's centre — a known place,
+    // so its first standing can be witnessed, not guessed.
+    pointerX = framebufferWidth / 2
+    pointerY = framebufferHeight / 2
+    pointerIsDrawn = false
+    guiPaintDesktop()
+    pointerShow()
+    // The face's whole work: drain the mouse's ring into
+    // packets, drain the keyboard's ring looking only for Esc,
+    // and rest in `hlt` whenever both are quiet — the timer's
+    // heartbeat wakes the resting a hundred times a second,
+    // which no hand will ever notice.
+    while !guiWantsHome {
+        var worked = false
+        while let byte = nextMouseByte() {
+            guiTakeMouseByte(byte)
+            worked = true
+            if guiWantsHome { break }
+        }
+        if guiWantsHome { break }
+        while let code = nextScancode() {
+            worked = true
+            if code == 0x01 {          // Esc, pressed
+                guiWantsHome = true
+            }
+        }
+        if !worked {
+            cardnullHltOnce()
+        }
+    }
+    pointerHide()
+    // The way home. The text grid was never touched — the whole
+    // conversation still stands in it — so blacken the whole
+    // pixel field, the desktop having ranged past the grid's
+    // rows, and paint the grid back through the screen. The
+    // shell's own hands then open the next prompt beneath it.
+    for row in 0 ..< framebufferHeight {
+        for col in 0 ..< framebufferWidth {
+            putPixel(x: col, y: row, white: false)
+        }
+    }
+    repaintScreen()
+    moveHardwareCursor()
+}
+
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -4120,6 +4901,9 @@ func runFeather() {
 //           only then run in ring 3 down run's own road
 //           (milestone 11; matched by its first word, the path
 //           being its own)
+//   gui     the graphical face: a drawn desktop, one window, and
+//           a pointer that answers the PS/2 mouse, until the
+//           close box or Esc brings the shell home (milestone 12)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -4142,6 +4926,7 @@ let catCommand: StaticString = "cat"
 let runCommand: StaticString = "run"
 let bothCommand: StaticString = "both"
 let featherCommand: StaticString = "feather"
+let guiCommand: StaticString = "gui"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -4160,6 +4945,8 @@ let helpBothLine: StaticString =
     "  both    run two programs, taking turns (both /A.BIN /B.BIN)"
 let helpFeatherLine: StaticString =
     "  feather open a feather package and run it (feather /path)"
+let helpGuiLine: StaticString =
+    "  gui     open the graphical desktop (Esc brings you home)"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -4438,6 +5225,7 @@ func submitLine() {
     let isRun = firstWordMatches(runCommand)
     let isBoth = firstWordMatches(bothCommand)
     let isFeather = firstWordMatches(featherCommand)
+    let isGui = commandMatches(guiCommand)
 
     writeNewline()
     if !blank {
@@ -4456,6 +5244,7 @@ func submitLine() {
             writeLine(helpRunLine)
             writeLine(helpBothLine)
             writeLine(helpFeatherLine)
+            writeLine(helpGuiLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -4482,6 +5271,8 @@ func submitLine() {
             runBoth()
         } else if isFeather {
             runFeather()
+        } else if isGui {
+            runGui()
         } else {
             writeLine(unknownLine)
         }
@@ -4621,6 +5412,14 @@ public func kmain(_ multibootInfo: UInt64) {
     // The first prompt, and the cursor resting just past it.
     startLine()
     moveHardwareCursor()
+
+    // Wake the mouse (milestone 12), while the interrupt gate is
+    // still closed: its waking is a polled conversation on the
+    // PS/2 controller's data port — the same port the keyboard
+    // speaks through — and no IRQ may reach into the middle of
+    // it. From here the mouse reports its packets on its own;
+    // IRQ12's gate is raised with the rest, just below.
+    initMouse()
 
     // Raise the interrupts: IDT, PICs, the 100 Hz heartbeat, and an
     // open gate. From here the machine can speak first — a keypress
