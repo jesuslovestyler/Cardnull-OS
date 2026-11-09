@@ -14,6 +14,13 @@
 #      their addresses the IDT is built from. Milestone 7 gives the
 #      page fault (vector 14) a hand-written door of its own, below,
 #      which carries the faulting address and error code up to Swift.
+#   7. Carry milestone 9's program machinery: two user segments and
+#      an empty TSS slot in the GDT (support.c fills the slot and
+#      loads the register while the floor's own map still stands),
+#      the service-door stub behind vector 0x80, and the two hands
+#      that move the machine between the shell and a guest —
+#      cardnull_launch_program going out, and the door's exit path
+#      and cardnull_abandon_program coming home.
 #   6. Keep the bootloader's word (milestone 5): the Multiboot2 header
 #      asks for a linear framebuffer — the UEFI door has no text grid
 #      to write in, only pixels — and the entry stub preserves EBX,
@@ -342,9 +349,121 @@ cardnull_isr14:
     call    cardnull_page_fault_handler
     jmp     cardnull_halt                       # unreachable, by contract
 
+# ---------------------------------------------------------------------------
+# Milestone 9: the door between the kernel and its guests.
+#
+# A guest runs in ring 3, on page tables of its own (built in Swift),
+# and speaks to the kernel through one software interrupt, 0x80 —
+# the only IDT gate whose descriptor lets ring 3 knock (support.c
+# stamps it DPL 3; every other gate stays shut to guests). On entry
+# the processor has already changed stacks, to the TSS's ring-0
+# stack in support.c, and pushed the guest's frame.
+#
+# The guest's side of the door (written out in programs/hello.s):
+# rax names the service — 1 writes a string (rsi = its address in
+# the guest's own ground, rdx = its length), 2 writes one character
+# (rsi's low byte), 0 leaves (rdi = the exit code). Services 1 and
+# 2 are answered by Swift (cardnull_syscall_handler) and the guest
+# resumes; service 0 never resumes, and is answered here, in the
+# floor, because coming home is a matter of stacks and page-table
+# roots, not of policy.
+# ---------------------------------------------------------------------------
+    .globl  cardnull_syscall_stub
+cardnull_syscall_stub:
+    cmp     $0, %rax                        # service 0 — leaving?
+    je      cardnull_syscall_exit
+    PUSH_ALL                                # the guest's registers, kept
+    cld
+    mov     112(%rsp), %rdi                 # the service number (saved rax)
+    mov     80(%rsp), %rsi                  # the guest's first word (saved rsi)
+    mov     88(%rsp), %rdx                  # the guest's second (saved rdx)
+    call    cardnull_syscall_handler
+    mov     %rax, 112(%rsp)                 # the answer rides home in rax
+    POP_ALL
+    iretq
+
+# The way home, shared by the exit service above and by
+# cardnull_abandon_program below: the kernel's own page tables are
+# reloaded, the shell's stack — the one cardnull_launch_program
+# was called from — is taken back, the registers that hand saved
+# are restored, the interrupt gate is opened again (both doors
+# here are interrupt gates or fault paths, which close it), and
+# the launch hand's caller resumes as if the launch were an
+# ordinary call that returned the value in rax.
+cardnull_syscall_exit:
+    mov     %rdi, %rax                      # the exit code is the return value
+    mov     cardnull_return_cr3(%rip), %rcx
+    mov     %rcx, %cr3                      # the kernel's own tables again
+    mov     cardnull_shell_rsp(%rip), %rsp  # the shell's stack again
+    pop     %r15
+    pop     %r14
+    pop     %r13
+    pop     %r12
+    pop     %rbp
+    pop     %rbx
+    sti                                     # the shell lives with its gate open
+    ret
+
+# cardnull_launch_program(tables, entry, stack_top) -> verdict
+#
+# The going-out hand. It saves the registers the ABI calls
+# callee-saved (the shell's Swift is standing on them), remembers
+# the stack it was called on and the page tables it was called
+# under, moves the machine onto the guest's tables, and builds
+# the frame iretq needs to land in ring 3: the user data segment
+# (0x20 | 3) under the guest's stack top, RFLAGS with the
+# interrupt gate open (a guest that cannot be interrupted cannot
+# be typed at, and its door is an interrupt besides), the user
+# code segment (0x18 | 3), and the entry address. It never
+# returns in the ordinary way: it is answered by the exit path
+# above or by cardnull_abandon_program, both of which restore
+# what was saved here and ret to the caller with a verdict.
+    .globl  cardnull_launch_program
+cardnull_launch_program:
+    push    %rbx
+    push    %rbp
+    push    %r12
+    push    %r13
+    push    %r14
+    push    %r15
+    mov     %rsp, cardnull_shell_rsp(%rip)
+    mov     %cr3, %rax
+    mov     %rax, cardnull_return_cr3(%rip)
+    mov     %rdi, %cr3                      # the guest's tables
+    push    $0x23                           # SS: user data, ring 3
+    push    %rdx                            # RSP: the guest stack's top
+    push    $0x202                          # RFLAGS: gate open, reserved bit
+    push    $0x1B                           # CS: user code, ring 3
+    push    %rsi                            # RIP: the guest's first byte
+    iretq
+
+# cardnull_abandon_program(verdict) -> Never (called from Swift)
+#
+# The other way home: a guest that faulted in its own mode is not
+# resumed and not repaired — it is abandoned. The page fault's
+# Swift handler reports the fault, then calls here with the
+# verdict the launch should return; the moves are the exit path's
+# moves, because home is the same place by either road.
+    .globl  cardnull_abandon_program
+cardnull_abandon_program:
+    mov     %rdi, %rax                      # the verdict is the return value
+    mov     cardnull_return_cr3(%rip), %rcx
+    mov     %rcx, %cr3
+    mov     cardnull_shell_rsp(%rip), %rsp
+    pop     %r15
+    pop     %r14
+    pop     %r13
+    pop     %r12
+    pop     %rbp
+    pop     %rbx
+    sti
+    ret
+
 # The stub address table: support.c builds the IDT from these.
 # Entries 0..31 are the exception vectors in order; entry 32 is IRQ0
-# (IDT vector 0x20) and entry 33 is IRQ1 (IDT vector 0x21).
+# (IDT vector 0x20), entry 33 is IRQ1 (IDT vector 0x21), and entry 34
+# is the milestone-9 service door (IDT vector 0x80, the one gate a
+# guest may knock on).
     .section .rodata
     .align 8
     .globl  cardnull_stub_table
@@ -383,6 +502,7 @@ cardnull_stub_table:
     .quad   cardnull_isr31
     .quad   cardnull_irq0_stub
     .quad   cardnull_irq1_stub
+    .quad   cardnull_syscall_stub
 
 # ---------------------------------------------------------------------------
 # The 64-bit GDT. Long mode mostly ignores segmentation, but the processor
@@ -394,6 +514,18 @@ gdt64:
     .quad   0x0000000000000000                  # null descriptor
     .quad   0x00209A0000000000                  # 0x08: code — present, executable, long-mode (L) bit set
     .quad   0x0000920000000000                  # 0x10: data — present, writable
+    .quad   0x0020FA0000000000                  # 0x18: user code — present, ring 3, executable, long-mode (M9)
+    .quad   0x0000F20000000000                  # 0x20: user data — present, ring 3, writable (M9)
+    # 0x28: the TSS descriptor — the sixteen bytes a 64-bit task
+    # state segment needs. It is born empty; support.c writes the
+    # real descriptor into it (cardnull_setup_user_mode) while this
+    # table still sits in the floor's writable map, before
+    # milestone 7's page tables make read-only data read-only
+    # in truth.
+    .globl  cardnull_gdt_tss_slot
+cardnull_gdt_tss_slot:
+    .quad   0x0000000000000000
+    .quad   0x0000000000000000
 gdt64_pointer:
     .word   gdt64_pointer - gdt64 - 1           # limit
     .quad   gdt64                               # base
@@ -407,6 +539,15 @@ gdt64_pointer:
     .globl  cardnull_multiboot_info
 cardnull_multiboot_info:
     .skip   4                                   # the Multiboot2 info address (EBX, kept)
+
+# Milestone 9's two bookmarks: where home is. cardnull_launch_program
+# writes both before it leaves; the door's exit path and
+# cardnull_abandon_program read them on the way back.
+    .align 8
+cardnull_shell_rsp:
+    .skip   8
+cardnull_return_cr3:
+    .skip   8
 
     .align 4096
 page_table_pml4:

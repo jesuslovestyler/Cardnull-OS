@@ -92,6 +92,26 @@ it bends.*
    packed into the ISO at build time and nowhere in the kernel
    — as the first thing worth reading.)*
 4. Running programs.
+   *(Begun — November 9, 2026: milestone 9 loads and runs the
+   first separate programs. The guests are small assembly
+   programs kept in `programs/`, assembled to flat binaries and
+   packed onto the disc as files — never linked into the
+   kernel. `run` reads one off the disc into page tables of its
+   own — cloned from the kernel's, with the single branch
+   toward the guest's estate carrying the user bit — and
+   enters it in ring 3 on a fixed estate: its image
+   read-and-execute (never writable), a scratch page, a stack.
+   The guest speaks through one door, interrupt 0x80: write a
+   string, write a character, exit with a code the shell
+   reports truly. A guest that reaches for the kernel's ground
+   faults in user mode; the fault is reported, the guest is
+   stopped where it stands, its estate is handed back to the
+   allocator, and the shell stands — the separation is
+   enforced by the tables, not by the guest's good behaviour.
+   One guest at a time, start to finish: programs taking
+   turns is this step's second half, and the feather format
+   that will carry real programs is later business, both
+   still to come.)*
 5. A simple graphical interface.
 6. Chirpy Browser and the Catholic Bible at home on it.
 

@@ -175,7 +175,8 @@ struct idt_pointer {
 } __attribute__((packed));
 
 /* boot.S exports the stub addresses: entries 0..31 are the exception
- * stubs in vector order, entry 32 is IRQ0's stub, 33 is IRQ1's. */
+ * stubs in vector order, entry 32 is IRQ0's stub, 33 is IRQ1's, and
+ * entry 34 is the milestone-9 service-door stub. */
 extern const unsigned long cardnull_stub_table[];
 
 static void idt_set_gate(int vector, unsigned long handler) {
@@ -186,6 +187,16 @@ static void idt_set_gate(int vector, unsigned long handler) {
     cardnull_idt[vector].offset_mid = (unsigned short)((handler >> 16) & 0xFFFF);
     cardnull_idt[vector].offset_high = (unsigned int)((handler >> 32) & 0xFFFFFFFFUL);
     cardnull_idt[vector].reserved = 0;
+}
+
+/* Milestone 9's one open gate: the same interrupt gate, stamped
+ * with privilege level 3, so a guest in ring 3 may knock with
+ * int 0x80 — and only there. Every other gate in the table keeps
+ * the ring-0 stamp above: a guest that reaches for any other
+ * vector is met by a general-protection fault, not a welcome. */
+static void idt_set_user_gate(int vector, unsigned long handler) {
+    idt_set_gate(vector, handler);
+    cardnull_idt[vector].type_attr = 0xEE;   /* present, ring 3, interrupt gate */
 }
 
 /* A breath between PIC commands: write to the POST port, the ancient
@@ -205,12 +216,16 @@ void cardnull_setup_interrupts(void) {
     /* The IDT: exceptions 0..31 to their stubs, IRQ0 and IRQ1 to
      * vectors 0x20 and 0x21. Every other gate stays zeroed — absent —
      * which for a vector we never unmasked is the honest state. (The
-     * table lives in .bss and starts zeroed, as the boot leaves it.) */
+     * table lives in .bss and starts zeroed, as the boot leaves it.)
+     * Milestone 9 adds one more gate after these: vector 0x80, the
+     * guests' service door, stamped for ring 3 — the only door in
+     * the wall a program is ever allowed to knock on. */
     for (vector = 0; vector < 32; vector++) {
         idt_set_gate(vector, cardnull_stub_table[vector]);
     }
     idt_set_gate(0x20, cardnull_stub_table[32]);
     idt_set_gate(0x21, cardnull_stub_table[33]);
+    idt_set_user_gate(0x80, cardnull_stub_table[34]);
 
     pointer.limit = (unsigned short)(sizeof(cardnull_idt) - 1);
     pointer.base = (unsigned long)cardnull_idt;
@@ -371,4 +386,76 @@ unsigned long cardnull_rodata_start(void) {
 
 unsigned long cardnull_rodata_end(void) {
     return (unsigned long)&__cardnull_rodata_end;
+}
+
+/* ------------------------------------------------------------------ */
+/* Milestone 9: the ring-3 furniture.                                  */
+/*                                                                     */
+/* A guest cannot be entered until the processor has somewhere to    */
+/* stand when the guest knocks or falls: a task state segment whose  */
+/* ring-0 stack pointer names a stack of the kernel's own, and a     */
+/* TSS descriptor in the GDT pointing at it. Both live here: the    */
+/* TSS's 104 bytes and a 16 KiB entry stack, lent as raw storage    */
+/* the way the floor lends the key ring and the text grid.          */
+/*                                                                     */
+/* cardnull_setup_user_mode writes the descriptor into the empty    */
+/* slot boot.S left in the GDT, points the TSS at the entry stack,  */
+/* and loads the task register. It must be called while the floor's */
+/* own boot map still stands — that map leaves the kernel's         */
+/* read-only span writable, and the GDT sits in it. Milestone 7's   */
+/* page tables would make the descriptor write itself fault, so    */
+/* kmain calls this before it builds them.                          */
+/* ------------------------------------------------------------------ */
+
+static unsigned char cardnull_entry_stack[16384] __attribute__((aligned(16)));
+static unsigned char cardnull_tss[104] __attribute__((aligned(16)));
+
+/* boot.S: the empty sixteen bytes at GDT offset 0x28. */
+extern unsigned char cardnull_gdt_tss_slot[];
+
+void cardnull_setup_user_mode(void) {
+    const unsigned long tss = (unsigned long)cardnull_tss;
+    const unsigned long stack_top =
+        (unsigned long)(cardnull_entry_stack + sizeof(cardnull_entry_stack));
+    unsigned char *slot = cardnull_gdt_tss_slot;
+    int i;
+
+    for (i = 0; i < 104; i++) {
+        cardnull_tss[i] = 0;
+    }
+    /* RSP0, at offset 4: the stack every ring-3 knock, fault and
+     * interrupt is received on. Its top is 16-byte aligned, so the
+     * interrupt frame and the stubs' register saves land where the
+     * ABI expects them. */
+    *(unsigned long *)(cardnull_tss + 4) = stack_top;
+    /* The I/O permission bitmap's base, at offset 102: set past the
+     * segment's end, which says there is no bitmap — a guest that
+     * touches an I/O port faults, and honestly so. */
+    *(unsigned short *)(cardnull_tss + 102) = 104;
+
+    /* The descriptor: limit 103 (the TSS's one hundred and four
+     * bytes, counted the way limits are), the base in its scattered
+     * fields, and the type byte of an available 64-bit TSS —
+     * present, ring 0 (the TSS belongs to the kernel, always),
+     * type 1001. */
+    slot[0] = (unsigned char)(103 & 0xFF);
+    slot[1] = (unsigned char)((103 >> 8) & 0xFF);
+    slot[2] = (unsigned char)(tss & 0xFF);
+    slot[3] = (unsigned char)((tss >> 8) & 0xFF);
+    slot[4] = (unsigned char)((tss >> 16) & 0xFF);
+    slot[5] = 0x89;
+    slot[6] = 0;
+    slot[7] = (unsigned char)((tss >> 24) & 0xFF);
+    slot[8] = (unsigned char)((tss >> 32) & 0xFF);
+    slot[9] = (unsigned char)((tss >> 40) & 0xFF);
+    slot[10] = (unsigned char)((tss >> 48) & 0xFF);
+    slot[11] = (unsigned char)((tss >> 56) & 0xFF);
+    slot[12] = 0;
+    slot[13] = 0;
+    slot[14] = 0;
+    slot[15] = 0;
+
+    /* Load the task register with the slot's selector. From here,
+     * a privilege change knows where the kernel's ground is. */
+    __asm__ volatile("ltr %0" : : "r"((unsigned short)0x28));
 }

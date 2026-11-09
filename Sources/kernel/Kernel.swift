@@ -151,6 +151,34 @@ func cardnullRodataStart() -> UInt64
 @_silgen_name("cardnull_rodata_end")
 func cardnullRodataEnd() -> UInt64
 
+/// Provided by the boot floor (support.c): raises milestone 9's
+/// ring-3 furniture — a task state segment whose ring-0 stack
+/// pointer names a stack of the kernel's own, its descriptor
+/// written into the GDT slot boot.S left empty, and the task
+/// register loaded. Called once from kmain *before* the kernel's
+/// own page tables are built: the GDT sits in read-only data, and
+/// only the floor's borrowed map still lets it be written.
+@_silgen_name("cardnull_setup_user_mode")
+func cardnullSetupUserMode()
+
+/// Provided by the boot floor (boot.S): the going-out hand of
+/// milestone 9. Moves the machine onto the given page tables and
+/// enters the guest at its entry address in ring 3, with the
+/// given stack top. Returns only when the guest has left — by
+/// its exit service, with its exit code, or by abandonment, with
+/// the verdict the fault handler handed the floor.
+@_silgen_name("cardnull_launch_program")
+func cardnullLaunchProgram(_ tables: UInt64, _ entry: UInt64,
+                           _ stackTop: UInt64) -> UInt64
+
+/// Provided by the boot floor (boot.S): the other way home. Called
+/// from the page-fault handler when a guest has faulted in its own
+/// mode: the floor restores the kernel's tables and the shell's
+/// stack and returns the verdict to the launch hand's caller, as
+/// if the guest had exited with it. Never returns here.
+@_silgen_name("cardnull_abandon_program")
+func cardnullAbandonProgram(_ verdict: UInt64) -> Never
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -851,6 +879,8 @@ func writeDecimalAt(_ row: Int, _ startCol: Int, _ value: UInt64) -> Int {
 /// not, the kind of reaching, whose mode, and the reserved-bit and
 /// instruction-fetch flags when they stand.
 let pageFaultTitle: StaticString = "Page fault - halting."
+let pageFaultGuestTitle: StaticString =
+    "Page fault in a guest program - the guest was stopped."
 let pageFaultAddressLabel: StaticString = "  Address: 0x"
 let pageFaultErrorLabel: StaticString = "  Error code: 0x"
 let pageFaultOpenParen: StaticString = " ("
@@ -867,13 +897,38 @@ let reasonReserved: StaticString = "reserved bit set"
 
 /// Vector 14's own handler, called by the floor's hand-written
 /// stub with the two facts the processor kept: the error code it
-/// pushed and the CR2 address. Writes the report — title, faulting
-/// address, error code in hex and in words — and halts, cleanly,
-/// with the gate closed. Never returns.
+/// pushed and the CR2 address.
+///
+/// Two roads since milestone 9. The old road — a fault of the
+/// kernel's own, in supervisor mode — writes the report and halts,
+/// cleanly, with the gate closed, and never returns; faulttest
+/// still walks it. The new road is a fault in user mode while a
+/// guest program runs: the same report is written under the
+/// guest's title, and then, instead of the halt, the floor's
+/// abandon hand carries the machine home — the guest is stopped
+/// where it stands, and the shell that launched it receives the
+/// verdict and answers for it below. A user-mode fault with no
+/// guest running keeps the old road: it cannot happen by any road
+/// the kernel knows, and honesty halts on it.
 @_cdecl("cardnull_page_fault_handler")
 public func pageFaultHandler(_ errorCode: UInt64, _ faultAddress: UInt64) {
     cardnullCli()
-    _ = writeStaticAt(0, 0, pageFaultTitle)
+    if programRunning && errorCode & 0x4 != 0 {
+        programFaultAddress = faultAddress
+        programFaultError = errorCode
+        printPageFaultReport(errorCode, faultAddress, pageFaultGuestTitle)
+        cardnullAbandonProgram(programKilledVerdict)
+    }
+    printPageFaultReport(errorCode, faultAddress, pageFaultTitle)
+    cardnullHalt()
+}
+
+/// The report itself — title, faulting address, error code in hex
+/// and in words — written onto fixed rows, because a report is no
+/// place for scrolling.
+func printPageFaultReport(_ errorCode: UInt64, _ faultAddress: UInt64,
+                          _ title: StaticString) {
+    _ = writeStaticAt(0, 0, title)
     var col = writeStaticAt(1, 0, pageFaultAddressLabel)
     _ = writeHexAt(1, col, faultAddress, 16)
     col = writeStaticAt(2, 0, pageFaultErrorLabel)
@@ -899,7 +954,6 @@ public func pageFaultHandler(_ errorCode: UInt64, _ faultAddress: UInt64) {
         col = writeStaticAt(2, col, reasonReserved)
     }
     _ = writeStaticAt(2, col, pageFaultCloseParen)
-    cardnullHalt()
 }
 
 // ---------------------------------------------------------------------------
@@ -1261,15 +1315,25 @@ func runMemorySelfTest() {
 //
 // The branch entries (PML4, PDPT, PD) carry present|writable and
 // no law of their own: the leaf decides, as the processor's own
-// rule reckons the strictest word along the walk. User pages do
-// not exist yet — there are no users; every page is the kernel's,
-// supervisor-only, until milestone 9 has programs to protect.
+// rule reckons the strictest word along the walk. User pages did
+// not exist when this was written — there were no users; every
+// page was the kernel's, supervisor-only. Milestone 9's guests
+// are the first exception, and they receive their user pages in
+// cloned tables of their own, never in these.
 // ---------------------------------------------------------------------------
 
 /// The leaf flags of the kernel's three countries.
 let ptePresent: UInt64 = 0x1
 let pteWritable: UInt64 = 0x2
 let pteNoExecute: UInt64 = 0x8000_0000_0000_0000
+
+/// A fourth flag, no country's law but the guests': the user bit —
+/// the difference between ground ring 3 may touch and ground it
+/// may only be shown the wall of. It is never set in the kernel's
+/// own tables; milestone 9 sets it only inside a guest's cloned
+/// tables, on the one branch that leads to the guest's estate and
+/// on that estate's leaves (see the programs section below).
+let pteUser: UInt64 = 0x4
 
 /// Did our own tables take over? Until the CR3 switch is behind
 /// us this is false, and the fault test below will not pretend
@@ -2746,6 +2810,441 @@ func runCat() {
     writeNewline()
 }
 
+// ---------------------------------------------------------------------------
+// Programs (milestone 9): the OS runs something that is not itself.
+//
+// Until now, every byte the processor ever executed was the kernel's.
+// Now a file on the disc — a guest — can be given ground of its own
+// and run. HELLO.BIN, COUNT.BIN and BAD.BIN are assembly sources in
+// the tree's programs/ directory; the build assembles them into flat
+// binaries and packs them onto the disc as files, exactly as
+// WELCOME.TXT is packed. They are never linked into or embedded in
+// the kernel: the only road from their bytes to the processor runs
+// through `run`, the disc driver, and this section.
+//
+// A guest's estate — fixed, and published to the guests themselves
+// in their sources:
+//
+//   0x40000000  the image's own pages: read and execute, never
+//               writable. W^X holds for guests as for the kernel.
+//   0x40010000  one scratch page, read and write: the guest's desk.
+//   0x40011000  the stack, four pages, read and write; the guest
+//               is entered with its stack pointer at 0x40015000.
+//   Everything else is the kernel's whole map, present in the
+//   guest's tables by descent but stamped supervisor along every
+//   branch: the guest is shown the wall, and cannot climb it.
+//
+// The tables are the guest's own: a fresh root cloning the
+// kernel's root, beneath it a private chain — page directory
+// pointer table, page directory, page table — so exactly one
+// branch, the one toward the estate, can carry the user bit while
+// every sibling keeps the kernel's law. The guest runs in ring 3,
+// entered by the floor's launch hand through iretq, on those tables.
+//
+// Its one door back is interrupt 0x80, the only IDT gate stamped
+// for ring 3. rax names the service: 1 writes a string (rsi its
+// address in the guest's own ground, rdx its length), 2 writes one
+// character (rsi's low byte), 0 leaves (rdi the exit code).
+// Services 1 and 2 are answered by syscallHandler below; the
+// leaving is answered by the floor itself, which carries the
+// machine home — kernel tables, the shell's stack, the interrupt
+// gate open — and lets the launch return the code.
+//
+// A guest that reaches where it may not faults in user mode, and
+// the page-fault handler has a branch for exactly that: report
+// the fault, abandon the guest where it stands, and return a
+// verdict no exit code can be — all ones — which the shell answers
+// with the stopping's own words and a fresh prompt. BAD.BIN exists
+// to walk that road on purpose, reaching for the kernel's first
+// byte at 0x100000.
+//
+// Honest edges, stated rather than hidden:
+//   - The door validates a write-string's whole reach against the
+//     estate before a byte of it is read; the kernel never reads
+//     its own memory at a guest's word.
+//   - The image is capped at sixteen pages, 64 KiB. A larger file
+//     is refused plainly, never truncated.
+//   - A fault of any other kind in ring 3 still meets the shared
+//     exception handler, which reports and halts; only the page
+//     fault — the reach the wall exists to stop — has the killing
+//     branch.
+//   - When a guest leaves or is stopped, its estate is taken back
+//     leaf by leaf and table by table, every frame returned to the
+//     allocator's pool.
+// ---------------------------------------------------------------------------
+
+/// The estate's fixed address: the guests' whole world begins here.
+/// Its place in the tables is chosen to sit under the first branch
+/// of every level — root 0, pointer table 1, directory 0 — ground
+/// the kernel's own map leaves empty.
+let programBase: UInt64 = 0x4000_0000
+
+/// The scratch page's place in the estate's page table, and the
+/// stack pages': the image fills the indices below the scratch,
+/// so a guest's estate has the same shape whatever its size.
+let programScratchIndex = 16
+let programStackFirstIndex = 17
+let programStackPages = 4
+
+/// The stack's top: one past the stack's last page — the address
+/// the guest is entered with in its stack pointer.
+let programStackTop: UInt64 =
+    programBase + UInt64(programStackFirstIndex + programStackPages) * pageSize
+
+/// The estate's end: everything a guest may touch lies beneath it,
+/// and the service door checks every address against this bound.
+let programEstateTop: UInt64 = programStackTop
+
+/// The largest image a guest may be: sixteen pages, 64 KiB. The
+/// sample guests are two hundred bytes on their proudest day; the
+/// cap exists so `run` can refuse plainly, not so it will be met.
+let programMaxImageBytes: UInt64 = 16 * pageSize
+
+/// Is a guest running? The page-fault handler reads this to choose
+/// its road: while it stands, a user-mode fault is a guest's fall,
+/// to be reported and stopped; without it, every fault keeps the
+/// old road to the halt.
+var programRunning = false
+
+/// The stopped guest's testimony, kept by the fault handler before
+/// the abandon: the address it reached for and the error code's
+/// word. The shell does not speak them — the report already stands
+/// at the screen's top — but they are kept, because a stopping
+/// should leave its facts where they can be read.
+var programFaultAddress: UInt64 = 0
+var programFaultError: UInt64 = 0
+
+/// The verdict of a stopped guest: all ones — a value no honest
+/// exit code is mistaken for, since the guests' door carries the
+/// code in a register the shell reads whole. `run` answers this
+/// verdict with the stopping's words, any other with the code.
+let programKilledVerdict: UInt64 = 0xFFFF_FFFF_FFFF_FFFF
+
+/// The live guest's page table address, remembered between the
+/// building of its estate and the reading of its image off the
+/// disc: the loader copies the file's bytes into the very frames
+/// the table names.
+var programTableAddress: UInt64 = 0
+
+/// run's vocabulary: the usage, the refusals, and the two reports.
+let runUsageLine: StaticString = "run wants a program: run /HELLO.BIN"
+let runNoPagingLine: StaticString =
+    "Paging is not standing; a guest needs the kernel's own tables."
+let runEmptySuffix: StaticString = " is empty; there is nothing to run."
+let runTooBigLine: StaticString =
+    "That file is larger than the ground a guest may have (64 KiB)."
+let runNoMemoryLine: StaticString =
+    "Memory could not pay for the guest's ground."
+let runRunningPrefix: StaticString = "Running "
+let runRunningSuffix: StaticString = ":"
+let programExitedPrefix: StaticString = "Program exited: "
+let programKilledLine: StaticString =
+    "The guest was stopped. The shell stands."
+
+/// Wipes one frame clean, byte by byte — the guest's image frames
+/// and desk and stack begin zeroed, so no byte of a previous
+/// tenant, or of the pool's past, is part of a guest's world.
+func wipeFrame(_ frame: UInt64) {
+    let bytes = UnsafeMutablePointer<UInt8>(bitPattern: UInt(frame))!
+    for index in 0 ..< Int(pageSize) {
+        bytes[index] = 0
+    }
+}
+
+/// Builds a guest's estate: its own page tables, cloned from the
+/// kernel's and branched privately toward the estate, with the
+/// image's pages, the scratch page and the stack pages laid in as
+/// fresh frames under the laws the section header states. Returns
+/// the estate's root on success; on any failure of the pool to
+/// pay, takes back whatever was built and returns 0.
+func buildProgramSpace(_ size: UInt32) -> UInt64 {
+    let imagePages = Int((UInt64(size) + pageSize - 1) / pageSize)
+    let root = pagingNewTable()
+    if root == 0 { return 0 }
+    let kernelRoot = pagingRootAddress
+    for index in 0 ..< 512 {
+        setPagingEntry(root, index, pagingEntry(kernelRoot, index))
+    }
+    let kernelPointerTable =
+        pagingEntry(kernelRoot, 0) & pagingAddressMask
+    let pointerTable = pagingNewTable()
+    if pointerTable == 0 {
+        freeFrame(root)
+        return 0
+    }
+    for index in 0 ..< 512 {
+        setPagingEntry(pointerTable, index,
+                       pagingEntry(kernelPointerTable, index))
+    }
+    // The one branch opened to ring 3 above the estate: the root's
+    // first entry now names the guest's own pointer table, under
+    // the kernel entry's own flags with the user bit added. Every
+    // other entry in both cloned tables still speaks with the
+    // kernel's voice, so the ground behind them stays shut.
+    setPagingEntry(root, 0,
+                   pointerTable
+                       | (pagingEntry(kernelRoot, 0) & 0xFFF)
+                       | pteUser)
+    let directory = pagingNewTable()
+    if directory == 0 {
+        teardownProgramSpace(root)
+        return 0
+    }
+    setPagingEntry(pointerTable, 1,
+                   directory | ptePresent | pteWritable | pteUser)
+    let table = pagingNewTable()
+    if table == 0 {
+        teardownProgramSpace(root)
+        return 0
+    }
+    setPagingEntry(directory, 0,
+                   table | ptePresent | pteWritable | pteUser)
+    programTableAddress = table
+    var index = 0
+    while index < imagePages {
+        let frame = allocFrame()
+        if frame == 0 {
+            teardownProgramSpace(root)
+            return 0
+        }
+        wipeFrame(frame)
+        // The image: readable and executable, never writable —
+        // and readable because a flat guest keeps its words in
+        // its image, as the samples keep their greetings.
+        setPagingEntry(table, index, frame | ptePresent | pteUser)
+        index += 1
+    }
+    let scratch = allocFrame()
+    if scratch == 0 {
+        teardownProgramSpace(root)
+        return 0
+    }
+    wipeFrame(scratch)
+    setPagingEntry(table, programScratchIndex,
+                   scratch | ptePresent | pteWritable | pteUser
+                       | pteNoExecute)
+    var stackIndex = 0
+    while stackIndex < programStackPages {
+        let frame = allocFrame()
+        if frame == 0 {
+            teardownProgramSpace(root)
+            return 0
+        }
+        wipeFrame(frame)
+        setPagingEntry(table, programStackFirstIndex + stackIndex,
+                       frame | ptePresent | pteWritable | pteUser
+                           | pteNoExecute)
+        stackIndex += 1
+    }
+    return root
+}
+
+/// Takes a guest's estate back: every present leaf's frame, then
+/// the page table, the directory, the pointer table and the root,
+/// each returned to the pool. The shared tables the clones point
+/// *into* — the kernel's own branches beneath the copied entries —
+/// are never freed: they are recognised by their address, the one
+/// pointer table that is not the guest's own. A half-built estate
+/// takes the same road home, which is why the builder calls this
+/// on its failures.
+func teardownProgramSpace(_ root: UInt64) {
+    if root == 0 { return }
+    let kernelPointerTable =
+        pagingEntry(pagingRootAddress, 0) & pagingAddressMask
+    let pointerTable = pagingEntry(root, 0) & pagingAddressMask
+    if pointerTable != 0 && pointerTable != kernelPointerTable {
+        let directory = pagingEntry(pointerTable, 1) & pagingAddressMask
+        if directory != 0 {
+            let table = pagingEntry(directory, 0) & pagingAddressMask
+            if table != 0 {
+                for index in 0 ..< 512 {
+                    let leaf = pagingEntry(table, index)
+                    if leaf & ptePresent != 0 {
+                        freeFrame(leaf & pagingAddressMask)
+                    }
+                }
+                freeFrame(table)
+            }
+            freeFrame(directory)
+        }
+        freeFrame(pointerTable)
+    }
+    freeFrame(root)
+    programTableAddress = 0
+}
+
+/// Reads a guest's image off the disc into the frames its page
+/// table names: sector by sector through the milestone-8 driver,
+/// byte by byte into the frames — which the kernel's identity map
+/// lets it touch by their physical addresses while the guest's
+/// own tables are still only a building, not yet the machine's
+/// law. False when a sector refuses to be read.
+func loadProgramImage(_ extent: UInt32, _ size: UInt32) -> Bool {
+    let buffer = discBuffer()
+    var written: UInt32 = 0
+    var sectorIndex: UInt32 = 0
+    while written < size {
+        if !discReadSector(extent + sectorIndex) { return false }
+        var count = size - written
+        if count > UInt32(discSectorBytes) {
+            count = UInt32(discSectorBytes)
+        }
+        var index = 0
+        while index < Int(count) {
+            let at = written + UInt32(index)
+            let frame = pagingEntry(programTableAddress,
+                                    Int(at / UInt32(pageSize)))
+                & pagingAddressMask
+            let destination = UnsafeMutablePointer<UInt8>(
+                bitPattern: UInt(frame + UInt64(at % UInt32(pageSize))))!
+            destination.pointee = buffer[index]
+            index += 1
+        }
+        written += count
+        sectorIndex += 1
+    }
+    return true
+}
+
+/// The service door's answering voice, called by the floor's stub
+/// with the guest's registers translated into arguments: the
+/// service number, then the guest's rsi and rdx. The answer rides
+/// home in the guest's rax. The door's services, as the guests'
+/// sources publish them:
+///
+///   1  write a string — the first argument is the string's
+///      address in the guest's ground, the second its length.
+///      The whole reach is checked against the estate before a
+///      byte is read; refused reaches answer all-ones, the door's
+///      no. Bytes are drawn by the screen's own rules, the ones
+///      `cat` speaks by: line feeds end lines, tabs step to a
+///      space, the undrawable are passed over.
+///   2  write one character — the first argument's low byte,
+///      under the same drawing rules.
+///   Anything else: not a service; the answer is all-ones.
+///
+/// Service 0, the leaving, never arrives here: the floor answers
+/// it, because coming home is stacks and table roots, not policy.
+@_cdecl("cardnull_syscall_handler")
+public func syscallHandler(_ service: UInt64, _ first: UInt64,
+                           _ second: UInt64) -> UInt64 {
+    if service == 1 {
+        if first < programBase { return UInt64.max }
+        let offset = first - programBase
+        if second > programEstateTop - programBase { return UInt64.max }
+        if offset > (programEstateTop - programBase) - second {
+            return UInt64.max
+        }
+        var index: UInt64 = 0
+        while index < second {
+            let byte = UnsafePointer<UInt8>(
+                bitPattern: UInt(first + index))!.pointee
+            printGuestByte(byte)
+            index += 1
+        }
+        return second
+    }
+    if service == 2 {
+        printGuestByte(UInt8(truncatingIfNeeded: first))
+        return 1
+    }
+    return UInt64.max
+}
+
+/// One byte of a guest's speech, drawn by the screen's rules —
+/// the same ones `cat` prints files by.
+func printGuestByte(_ byte: UInt8) {
+    if byte == 0x0A {
+        writeNewline()
+    } else if byte == 0x09 {
+        writeChar(0x20)
+    } else if byte >= 0x20 && byte != 0x7F {
+        writeChar(byte)
+    }
+}
+
+/// `run`: the milestone's whole road in one walk — the file found
+/// on the disc by the milestone-8 reader, its size weighed against
+/// the estate's cap, a house of tables built for it, its bytes
+/// read off the disc into that house, the floor's hand dropping
+/// the machine into ring 3 at its first byte, and the report:
+/// the exit code spoken truly when the guest leaves by the door,
+/// the stopping's own words when it was stopped.
+func runProgram() {
+    if !discDriveFound {
+        writeLine(discAbsentLine)
+        return
+    }
+    if !discIsoFound {
+        writeLine(discUnknownFsLine)
+        return
+    }
+    let length = copyArgumentToScratch()
+    if length == 0 {
+        writeLine(runUsageLine)
+        return
+    }
+    if !pagingReady {
+        writeLine(runNoPagingLine)
+        return
+    }
+    discReadFailed = false
+    let outcome = isoResolvePath(length)
+    if outcome == pathMissingCode {
+        writeStatic(notOnDiscPrefix)
+        writePathArgument(length)
+        writeNewline()
+        return
+    }
+    if outcome == pathNotDirectoryCode {
+        writePathArgument(length)
+        writeLine(notDirectorySuffix)
+        return
+    }
+    if outcome == pathReadErrorCode {
+        writeLine(discReadErrorLine)
+        return
+    }
+    if resolvedIsDirectory {
+        writePathArgument(length)
+        writeLine(isDirectorySuffix)
+        return
+    }
+    if resolvedSize == 0 {
+        writePathArgument(length)
+        writeLine(runEmptySuffix)
+        return
+    }
+    if UInt64(resolvedSize) > programMaxImageBytes {
+        writeLine(runTooBigLine)
+        return
+    }
+    let root = buildProgramSpace(resolvedSize)
+    if root == 0 {
+        writeLine(runNoMemoryLine)
+        return
+    }
+    if !loadProgramImage(resolvedExtent, resolvedSize) {
+        teardownProgramSpace(root)
+        writeLine(discReadErrorLine)
+        return
+    }
+    writeStatic(runRunningPrefix)
+    writePathArgument(length)
+    writeLine(runRunningSuffix)
+    programRunning = true
+    let verdict = cardnullLaunchProgram(root, programBase, programStackTop)
+    programRunning = false
+    teardownProgramSpace(root)
+    if verdict == programKilledVerdict {
+        writeLine(programKilledLine)
+    } else {
+        writeStatic(programExitedPrefix)
+        writeNumber(verdict)
+        writeNewline()
+    }
+}
+
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -2777,6 +3276,9 @@ func runCat() {
 //           (milestone 8; the first argument-carrying command,
 //           so these two are matched by their first word and the
 //           rest of the line is theirs)
+//   run     a program from the disc, loaded into ground of its
+//           own and run in ring 3 (milestone 9; matched by its
+//           first word, like ls and cat, the path being its own)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -2796,6 +3298,7 @@ let heapCommand: StaticString = "heap"
 let faulttestCommand: StaticString = "faulttest"
 let lsCommand: StaticString = "ls"
 let catCommand: StaticString = "cat"
+let runCommand: StaticString = "run"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -2809,6 +3312,7 @@ let helpHeapLine: StaticString = "  heap    the kernel heap, counted from its bo
 let helpFaultLine: StaticString = "  faulttest  take a page fault on purpose"
 let helpLsLine: StaticString = "  ls      list the disc's files (ls /path)"
 let helpCatLine: StaticString = "  cat     print a file from the disc (cat /path)"
+let helpRunLine: StaticString = "  run     run a program from the disc (run /path)"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -3084,6 +3588,7 @@ func submitLine() {
     let isFaulttest = commandMatches(faulttestCommand)
     let isLs = firstWordMatches(lsCommand)
     let isCat = firstWordMatches(catCommand)
+    let isRun = firstWordMatches(runCommand)
 
     writeNewline()
     if !blank {
@@ -3099,6 +3604,7 @@ func submitLine() {
             writeLine(helpFaultLine)
             writeLine(helpLsLine)
             writeLine(helpCatLine)
+            writeLine(helpRunLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -3119,6 +3625,8 @@ func submitLine() {
             runList()
         } else if isCat {
             runCat()
+        } else if isRun {
+            runProgram()
         } else {
             writeLine(unknownLine)
         }
@@ -3194,6 +3702,14 @@ public func kmain(_ multibootInfo: UInt64) {
     // framebuffer's range is one of the reservations, which is why
     // this waits until the screen is chosen.
     initMemory(infoAddress: multibootInfo)
+
+    // Raise the ring-3 furniture (milestone 9) while the floor's
+    // borrowed map still stands: the task state segment and its
+    // GDT descriptor live in the kernel's read-only span, which
+    // the borrowed map leaves writable and milestone 7's tables
+    // will not. No guest exists yet — the furniture is simply
+    // ready before the house changes hands.
+    cardnullSetupUserMode()
 
     // Move into our own house (milestone 7): page tables of the
     // kernel's building, raised out of the allocator's frames —

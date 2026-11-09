@@ -43,7 +43,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Ten commands, for now:
+Press Enter and the prompt answers. Eleven commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -56,6 +56,7 @@ Press Enter and the prompt answers. Ten commands, for now:
 - `faulttest` — take a page fault on purpose, and hear it reported
 - `ls` — what is on the disc (`ls /boot` looks inside a folder)
 - `cat` — print a file from the disc: `cat /welcome.txt`
+- `run` — run a program from the disc: `run /hello.bin`
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -106,5 +107,27 @@ in the Douay-Rheims. `cat /boot/grub/grub.cfg` reads GRUB's own
 config off the same disc. Paths do not care about capitals, and
 asking for what is not there is answered plainly. Reading is
 all the disc gets — nothing is written, ever.
+
+And since milestone 9, the disc carries three small programs
+beside the welcome — HELLO.BIN, COUNT.BIN, BAD.BIN, which exist
+only as files (see them in `ls`, with their sizes). They are
+the first things this OS has ever run that are not itself.
+`run /hello.bin` loads the first into ground of its own — page
+tables cloned from the kernel's, the kernel's ground stamped
+shut to it — and runs it in ring 3, the processor's least
+privileged mode: it greets you in its own words, leaves by the
+door it was given (interrupt 0x80, the one gate a guest may
+knock on), and the shell reports "Program exited: 0".
+`run /count.bin` reckons 1 to 10 and prints them, one to a
+line — the numbers are computed in the program, not recited.
+`run /bad.bin` is the proof of the wall: the program reaches
+for the kernel's first byte, the reach faults, and the report
+appears at the top of the screen — "Page fault in a guest
+program - the guest was stopped.", the address 0x100000, and
+"protection violation, user mode" — the guest is stopped, its
+ground is handed back, and the shell answers the next command
+as if nothing had happened (try `verse`). Unlike `faulttest`
+there is nothing to restart: the halt there is the kernel's
+own road, and this road was built to be survived.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

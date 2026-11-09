@@ -3,9 +3,10 @@
 #
 # Pipeline (DESIGN.md's shape, no borrowed machinery):
 #   1. Assemble the boot floor           (clang, freestanding)
-#   2. Compile the Swift kernel          (swiftc, Embedded Swift)
-#   3. Link kernel.bin                   (ld.lld, linker.ld)
-#   4. Pack a bootable ISO               (grub-mkrescue)
+#   2. Assemble the guest programs       (clang + ld.lld, flat binaries)
+#   3. Compile the Swift kernel          (swiftc, Embedded Swift)
+#   4. Link kernel.bin                   (ld.lld, linker.ld)
+#   5. Pack a bootable ISO               (grub-mkrescue)
 #
 # Usage:  tools/build-iso.sh
 # Output: dist/cardnull.iso   (kept local; the ISO does not live in git)
@@ -55,7 +56,7 @@ TARGET="x86_64-unknown-none-elf"
 
 mkdir -p "$BUILD" "$DIST" "$ISO_DIR/boot/grub"
 
-echo "==> [1/4] Assembling the boot floor"
+echo "==> [1/5] Assembling the boot floor"
 clang --target="$TARGET" -ffreestanding -c \
     "$ROOT/Sources/boot/boot.S" -o "$BUILD/boot.o"
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
@@ -63,7 +64,21 @@ clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
     "$ROOT/Sources/boot/font8x8.c" -o "$BUILD/font8x8.o"
 
-echo "==> [2/4] Compiling the Swift kernel (Embedded Swift, $TARGET)"
+echo "==> [2/5] Assembling the guest programs (milestone 9)"
+# The guests: standalone assembly in programs/, linked at the
+# address the kernel will lay them down at (0x40000000, the base
+# of a guest's estate) and flattened to raw binaries. They are
+# packed onto the disc in step 5 as files — never linked into the
+# kernel — and the running OS reads them off the real disc, which
+# is the milestone's whole point.
+for guest in hello count bad; do
+    clang --target="$TARGET" -c \
+        "$ROOT/programs/$guest.s" -o "$BUILD/$guest.o"
+    "$LD" -Ttext=0x40000000 --oformat binary \
+        -o "$BUILD/$guest.bin" "$BUILD/$guest.o"
+done
+
+echo "==> [3/5] Compiling the Swift kernel (Embedded Swift, $TARGET)"
 "$SWIFTC" \
     -target "$TARGET" \
     -enable-experimental-feature Embedded \
@@ -74,13 +89,13 @@ echo "==> [2/4] Compiling the Swift kernel (Embedded Swift, $TARGET)"
     -c "$ROOT/Sources/kernel/Kernel.swift" \
     -o "$BUILD/Kernel.o"
 
-echo "==> [3/4] Linking kernel.bin"
+echo "==> [4/5] Linking kernel.bin"
 "$LD" -nostdlib -static \
     -T "$ROOT/Sources/boot/linker.ld" \
     -o "$BUILD/kernel.bin" \
     "$BUILD/boot.o" "$BUILD/Kernel.o" "$BUILD/support.o" "$BUILD/font8x8.o"
 
-echo "==> [4/4] Packing dist/cardnull.iso"
+echo "==> [5/5] Packing dist/cardnull.iso"
 cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
 # The welcome file (milestone 8): a plain text file at the disc's
 # root, its source kept in disc/ beside the kernel's sources. It
@@ -88,6 +103,13 @@ cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
 # off the real disc through its own ATAPI driver and ISO9660
 # reader, which is the milestone's whole point.
 cp "$ROOT/disc/WELCOME.TXT" "$ISO_DIR/WELCOME.TXT"
+# The guest programs (milestone 9): the flat binaries built in
+# step 2, at the disc's root under the names their milestone
+# wears. Files, like the welcome — the OS reads them off the
+# disc, lays them in ground of their own, and runs them.
+cp "$BUILD/hello.bin" "$ISO_DIR/HELLO.BIN"
+cp "$BUILD/count.bin" "$ISO_DIR/COUNT.BIN"
+cp "$BUILD/bad.bin" "$ISO_DIR/BAD.BIN"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
 # Behind the UEFI door, GRUB speaks through the firmware's text
 # console until it is told otherwise — and a console is not a video

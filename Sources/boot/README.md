@@ -40,6 +40,17 @@ every line says why it exists.
     code the processor pushed and the faulting address it keeps in
     CR2 — and this stub takes both and hands them to Swift's
     page-fault handler, which reports them before halting.
+    Milestone 9 grew the table by one stub and the GDT by three
+    entries: the service-door stub behind vector 0x80 — the
+    guests' door, whose ordinary services are answered in Swift
+    and whose exit path lives here — two user segments (0x18
+    code, 0x20 data) for ring 3, and an empty sixteen-byte TSS
+    slot that support.c fills in; and two new hands,
+    `cardnull_launch_program`, which moves the machine onto a
+    guest's page tables and `iretq`s into ring 3 at its entry,
+    and `cardnull_abandon_program`, which brings the machine home
+    from a guest's fault — kernel tables, the shell's stack, the
+    gate open — with the verdict the fault handler named.
 - **`support.c`** — runtime support shims: the stack-protector guard
   word and failure path, allocation entry points that honestly
   decline (there is no heap yet), and the port I/O hands
@@ -81,7 +92,16 @@ every line says why it exists.
   pages that were absent a moment ago, and the processor must be
   told to look again. The controller's own registers are
   memory-mapped and need no hand at all; everything the driver
-  decides stands in Swift, above.
+  decides stands in Swift, above. Milestone 9 added the ring-3
+  furniture: `cardnull_setup_user_mode` writes a TSS
+  descriptor into the GDT slot boot.S left empty — the task
+  state segment and its 16 KiB ring-0 entry stack being two
+  more lendings of raw storage — and loads the task register;
+  kmain calls it before the kernel's own page tables stand,
+  while the floor's borrowed map still lets read-only data be
+  written. And `cardnull_setup_interrupts` stamps one gate
+  more than it used to: vector 0x80, with privilege level 3 —
+  the only door in the wall a guest is allowed to knock on.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),
@@ -111,5 +131,6 @@ with page tables of its own building as soon as the frame
 allocator stands, and raises its heap (in Swift, above) on the
 far side of the switch. The floor grows only when the kernel
 above it honestly requires more. The IDT's gates beyond the
-exceptions and IRQ0/IRQ1 stand empty, likewise: a vector earns
-a stub when a device or a duty honestly arrives, not before.
+exceptions, IRQ0/IRQ1, and milestone 9's one guest door stand
+empty, likewise: a vector earns a stub when a device or a duty
+honestly arrives, not before.

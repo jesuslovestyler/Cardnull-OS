@@ -63,7 +63,40 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 8 stands (November 9, 2026): **the OS reads its own
+Milestone 9 stands (November 9, 2026): **the OS runs something
+that is not itself.** Three small programs live on the disc as
+files — HELLO.BIN (234 bytes), COUNT.BIN (103), BAD.BIN (27) —
+assembled from assembly sources kept in `programs/` and packed
+beside WELCOME.TXT; none of their bytes is in the kernel. A new
+command, `run`, loads one through the milestone-8 reader into
+ground built for it alone: page tables cloned from the kernel's
+with a single private branch toward the guest, so the image's
+pages stand read-and-execute and never writable (W^X holds for
+guests too), beside a scratch page and a four-page stack, all on
+a fixed estate at 0x40000000. The guest runs in **ring 3**,
+entered through `iretq`, with the kernel's whole map present in
+its tables but stamped supervisor along every branch — shown
+the wall, never able to climb it. Its one door back is
+interrupt 0x80, the only IDT gate stamped for ring 3: write a
+string, write a character, or exit with a code, which the shell
+then reports truly ("Program exited: 0"). HELLO greets in its
+own words — "the first program Cardnull OS ever ran"; COUNT
+reckons 1 to 10, digit by digit, in its scratch page. And BAD,
+the crown proof, reaches for the kernel's first byte at
+0x100000 and is stopped: "Page fault in a guest program - the
+guest was stopped.", address 0x0000000000100000, error code
+0x0005 — "read, protection violation, user mode" — after which
+the shell answered `verse` in the same session, unharmed. When
+a guest leaves or is stopped, its estate is taken back frame by
+frame: `mem` reads the same numbers before a run and after it
+(behind the BIOS door, 1,321 frames used of 32,638 — five more
+than milestone 8's count, the grown kernel and its tables
+alone). `faulttest` keeps its old road: a supervisor fault
+still reports and halts. Verified in QEMU behind both doors —
+`ls` of the three guests, both good runs, and the stopping
+under UEFI; `run`, `mem`, and `heap` as the BIOS regression.
+
+Before that, milestone 8 (November 9, 2026): **the OS reads its own
 disc.** The boot now speaks one more line beneath the banner —
 "Disc: QEMU DVD-ROM, AHCI port 2." — because the kernel carries
 a driver for the drive it booted from. The machines this kernel
@@ -85,7 +118,8 @@ ISO at build time — a greeting from Cardnull and John 1:1 in
 the Douay-Rheims — which exists nowhere in the kernel and can
 only be read off the disc itself. Two commands join the shell:
 `ls` lists a directory with sizes (`ls /boot` shows GRUB and
-KERNEL.BIN at 75,216 bytes), and `cat` prints a file from the
+KERNEL.BIN — 80,448 bytes as the kernel stands after milestone
+9), and `cat` prints a file from the
 disc — `cat /welcome.txt` prints the greeting and the verse,
 and `cat /boot/grub/grub.cfg` prints GRUB's own config, read
 back off the disc that booted it. Errors are plain and true:
@@ -213,10 +247,13 @@ typed through the emulator's keyboard, answered on the kernel's
 screen, and the two uptime readings advancing with the wall clock
 between them; the same ISO is the one tested in UTM.
 
-Not yet, honestly: running programs of its own (roadmap step 4,
-"Work") — the filesystem milestone 8 brought is read-only and
-loads nothing yet, and loading and running a first separate
-program is the next stone; USB input — under either firmware, a
+Not yet, honestly: more than one program alive at once —
+milestone 9 runs a guest alone, from its first byte to its
+leaving, and letting programs take turns (a scheduler) is the
+next stone on the road; and the feather package format that
+will one day carry real programs — Chirpy first among them —
+onto the disc as citizens rather than samples, a stone after
+that; USB input — under either firmware, a
 USB-only keyboard is beyond us still, which is why the UTM drill
 keeps the PS/2 controller forced on and USB input off; and a
 native EFI entry of our own — the UEFI door today is GRUB's EFI
