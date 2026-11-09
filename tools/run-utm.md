@@ -52,8 +52,10 @@ prompt stand the boot's two reports: the disc's news (its name, or
 the plain word that no drive answered) and — since milestone 13 —
 the mouse's: two lines telling whether the mouse answered its
 waking, and what each step of the waking heard. Read them; they are
-the machine's own testimony, and the desktop's bottom bar
-repeats the first of them.
+the machine's own testimony. The desktop's bottom bar carries
+the first of them in plain words — "Mouse ready" — and the
+`mouse` command, below, speaks the whole report again whenever
+you ask.
 
 Then — since milestone 13 — the desktop opens on its own: the OS
 wakes into its face now, and the shell's conversation continues
@@ -67,7 +69,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Fourteen commands, for now:
+Press Enter and the prompt answers. Sixteen commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -85,6 +87,8 @@ Press Enter and the prompt answers. Fourteen commands, for now:
 - `feather` — open a feather package and run its program:
   `feather /hello.feather`
 - `gui` — open the graphical desktop (Esc brings you home)
+- `mouse` — the mouse's report: its waking transcript, and what
+  the face has taken from it since
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -242,6 +246,22 @@ itself: turns are taken only out of a running guest's
 hands, and the shell's and the desktop's own work is never
 interrupted by the scheduling.
 
+And since milestone 16, the shell has one more answer —
+`mouse` — and the desktop has none of the codes left on
+it. Type `mouse` (at the text console, or in the Terminal
+on the face; the answer is the same): the shell prints
+the mouse's whole report exactly as the boot screen
+spoke it — whether it answered, and the wake line with
+what each step of the waking heard — and then what the
+face has taken from the mouse since: the bytes it has
+read from it, the packets it has made whole from those
+bytes (three bytes to a packet), and the presses of its
+button it has answered. The numbers grow as you use the
+mouse; run the command, move and click a while on the
+desktop, come home, and run it again. The desktop
+itself, meanwhile, keeps only the plain word of it, as
+the bar's walk below tells.
+
 And the OS has a face — since milestone 12 a drawn one,
 and since milestone 13 the front door itself: when the
 boot's news is spoken, the desktop opens on its own. A
@@ -270,20 +290,27 @@ beside it rises ("Clicks: 1"), the button wearing its
 pressed face while you hold it down.
 
 Across the screen's foot stands the bottom bar, drawn
-last so no window ever covers it. At its left, the
-mouse's standing, in the boot report's own words —
-"Mouse: answering (id 0x00)." when it answered, "Mouse:
-not answering." when it did not — so the truth about the
-mouse is on the face itself, not only in the boot lines
-behind it. Then a launcher for each window: press one to
-open its window or give it the room; a cardinal stripe
-under a launcher says its window stands. Then the
-session's clock, labelled "Uptime" and counting the
-machine's age off the same ticks the `uptime` command
-reads — it is an uptime, not a wall clock, and says so.
-At the right end, the Home button: the face's labelled
-road back to the text shell, working from every standing
-of the room.
+last so no window ever covers it. Since milestone 16 the
+bar lays itself out from the screen's own width, so
+every part of it stands at its full size with air around
+it — nothing is squeezed, whatever the screen's width:
+the parts are given their honest sizes first, and if a
+row ever cannot hold them, the spaces between them
+narrow before anything else gives. At its left, the
+mouse's standing in plain words — "Mouse ready" when it
+answered, "Mouse not answering" when it did not — the
+short truth on the face itself; the long truth, with
+its codes, is the `mouse` command's answer, in the
+Terminal where codes belong. Then a launcher for each
+window, at its full label: press one to open its window
+or give it the room; a cardinal stripe under a launcher
+says its window stands. Then the session's clock,
+labelled "Uptime" and counting the machine's age off
+the same ticks the `uptime` command reads — it is an
+uptime, not a wall clock, and says so. At the right
+end, the Home button: the face's labelled road back to
+the text shell, working from every standing of the
+room.
 
 The pointer opens at the screen's centre; move the mouse
 and it follows, and the painting beneath it is left
@@ -295,15 +322,29 @@ Which window the keyboard speaks to is told by the title
 bars: the window holding the room wears the bright
 cardinal, the other rests dimmed — and stands on top.
 Click a window to give it the room. Windows can be
-carried: press in a title bar and move, and an outline
-travels with the pointer; release, and the window stands
-where the outline promised, painted whole — clamped so
-its title bar always keeps a hold on the screen, and it
-can never sink under the bar. The Terminal's title bar
-carries a second box beside its close box: maximize,
-which gives the window the whole work area (its grid
-grows with it), and restore, which returns it to its own
-place and size — the conversation stands through both.
+carried: press in a title bar and move, and the title
+bar wears its held, lit look for the whole carry while
+an outline travels with the pointer; release, and the
+window stands where the outline promised, painted
+whole. The carry is clamped by a plain rule: the title
+bar always keeps a reachable strip on the screen — a
+good hand's width of it sideways, the close box never
+past the screen's edge — and the whole title bar stays
+inside the work area up and down, never sinking under
+the bar; carry a window hard into a corner and it stops
+where you can still take it back (its close box stays
+clickable there, too). The two title bars keep the same
+geometry for their boxes — same size, same padding from
+the right edge, same gap between them — and a box's
+reach is exactly the square you see painted. The
+Terminal's title bar carries a second box beside its
+close box: maximize, which gives the window the whole
+work area (its grid grows with it), and restore, which
+returns it to its own place and size — the conversation
+stands through both. A double-click on the Terminal's
+title bar does the same trade, the way people already
+expect: double-click to maximize, double-click again to
+restore.
 Each window's close box closes only that window — the
 desktop stands, and the bar's launcher calls the window
 back with its conversation intact. `gui` typed at the
@@ -352,11 +393,10 @@ was not already spending — the face paints the
 framebuffer the boot already owned and its grids are
 the floor's lendings, not the allocator's: `mem` reads
 the same numbers before a visit and after it. (The
-kernel's own image is a few frames larger than
-milestone 13's — this milestone's code, and the grid
-keeping's growth from 1,240 to 7,680 bytes of it — so
-the standing "used" count at 4096 MB behind the UEFI
-door reads 1,270 where milestone 13 read 1,265; the
-visit itself spends nothing.)
+kernel's own image grows a little with each milestone's
+code, so the standing "used" count at 4096 MB behind
+the UEFI door reads 1,271 where milestone 15 read
+1,270 — the one frame is this milestone's grown image;
+the visit itself spends nothing.)
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

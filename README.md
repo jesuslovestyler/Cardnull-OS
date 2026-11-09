@@ -55,7 +55,14 @@ kernel, written line by line, so that what we give away is truly ours to give.
    rearranged the desktop around the Terminal — it opens
    large, the Welcome window is a compact card, a bottom bar
    carries the launchers, the uptime, and the Home button,
-   and windows can be dragged and the Terminal maximized.)*
+   and windows can be dragged and the Terminal maximized.
+   Milestone 16 polished the face at Tyler's word: the bar
+   lays itself out from the screen's width so nothing is
+   ever squeezed, the desktop speaks plain words only (the
+   mouse's codes moved into a `mouse` command in the
+   shell), and the carrying was made sure — a held title
+   bar through a drag, an honest clamp, and a double-click
+   on the Terminal's title bar to maximize or restore.)*
 6. **Carry** — Chirpy Browser and the Catholic Bible, at home.
 
 ## Building
@@ -72,7 +79,149 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 15 stands (November 9, 2026): **the timer takes
+Milestone 16 stands (November 9, 2026): **desktop polish —
+the bar never crunches, the desktop speaks plain words,
+and the windows carry surely.** This stone is Tyler's own
+witness of milestone 14, taken as a specification: "do you
+see how the screen buttons get crunched, it moves windows
+like an OS but its still a little wonky, i want it to be
+intuitive, no codes at the bottom, only in the terminal."
+The face itself is unchanged — same deep cardinal, same
+gold name, same parchment card; what changed is its fit
+and its manners. **The bar has a layout now, reckoned
+from the framebuffer's own width** instead of offsets
+fixed for one screen: a sixteen-pixel margin at each end;
+the mouse's standing word at its full width; then the
+Terminal and Welcome launchers, each sized from its own
+label (160 and 144 pixels) with the standing stripe that
+says its window stands; open ground; the uptime, its
+patch right-anchored to end one gap before the Home
+button (96 pixels, one margin from the right edge),
+painted only when the whole patch stands clear of the
+Welcome launcher with a gap to spare. At 1280 x 800 the
+row stands thus: standing 16..192, Terminal 216..376,
+Welcome 392..536, the clock ending at 1152, Home
+1168..1264 — every element whole, with air around it.
+If a narrower screen ever asks more than the row holds,
+the gaps give first (the standing's 24 becomes 12, the
+launchers' 16 becomes 8); the furniture never shrinks,
+nothing overlaps, and a word that cannot stand whole is
+shortened in plain language or left off — never
+squeezed into a sliver, which is how milestone 14's bar
+wore the Welcome launcher on Tyler's screen and crowded
+the uptime off entirely. One honest limit: the proof
+stands at 1280 x 800. Four attempts to make this bench
+offer a second width — a GRUB gfxmode line, gfxpayload
+behind the BIOS door's VBE, the virtio-vga's own
+resolution properties, and the adapter's EDID switched
+off — were all answered with the same 1280 x 800; every
+chooser on this bench takes the adapter's preferred
+mode and no hint we are willing to ship moved it. The
+reckoning itself is width-parametric in the code and
+stated here, so a screen of another width — UTM's own
+resizable window among them — meets a bar composed for
+it, and Tyler's witness there is the test, as ever.
+**The desktop speaks plain words only.** The bar's mouse
+line, which wore the boot report's diagnostic sentence
+("Mouse: answering (id 0x00).") through milestone 15,
+now reads "Mouse ready" when the mouse answers and
+"Mouse not answering" when it does not. Every string
+the desktop paints was swept — title bars, launchers,
+the card, the bar, the clock ("Uptime 0:00:11") — and
+nothing technical remains on the face. The codes were
+not deleted; they were given their proper home. A new
+shell command, `mouse` (the help list grows to sixteen
+command words, counting `memory`, `mem`'s other name),
+prints the mouse's full report exactly as the boot
+screen speaks it — "Mouse: answering (id 0x00)." and
+the wake line with its config, reset, self-test,
+defaults, and reporting values and its tries — followed
+by the answers the face has honestly taken from it
+since: bytes, packets made whole, and presses of its
+button. In the witnessed run, after a full desktop
+visit, the text shell's `mouse` read 204 bytes, 68
+packets, 12 presses — the bytes exactly three to a
+packet, as the protocol promises. The command answers
+identically in the Terminal window and at the text
+console, and the boot screen's own transcript is
+untouched: it is the machine's console face, spoken
+before any desktop exists. **The windows carry
+surely.** The title-bar controls now keep one geometry
+on both windows, reckoned once and shared: boxes 40 by
+28, four pixels below the strip's top, eight from the
+window's right edge, eight apart — the Terminal's
+maximize box widened from 36 to 40 to stand equal with
+the close box, its glyph recentred — and a press is
+judged by the very rectangle that is painted, so a
+control's reach is exactly what its face promises. A
+dragged window's title bar wears its held look — a lit
+cardinal — for the whole carry, so the hand knows what
+it holds; the outline travels as ever, and on release
+the window is painted whole, once. The clamp is a
+stated rule, not a hope: sideways, the title bar always
+keeps a reachable strip on the screen — at least 120
+pixels of it, with the close box inside the screen's
+edge — and up and down, the whole title bar stays
+inside the work area, its foot four pixels above the
+bar's head, so no window can be carried where it cannot
+be taken back. The proof carried the Welcome card by
+its title toward the bottom-left corner, past the edge:
+it landed at (-224, 724) with its close box standing
+at (196, 742), and was closed from there. And the
+convention people already know arrived: a second plain
+press in the Terminal's title bar within half a second
+of the first — fifty ticks of the heartbeat — trades
+the window between its own place and the whole work
+area, down the maximize box's own road, the
+conversation standing through both; any other press
+puts the pairing down, so two honest drags never marry
+into a resize. Focus stays unmistakable — the window
+holding the room wears the bright title, the other
+dimmed, and a press on any visible part raises it —
+re-proven across the card and the Terminal. Nothing
+else moved, and the regressions were run to prove it:
+the card's counter still counts; a spin pair in the
+Terminal stops on Esc with its accounts whole —
+"/spin.bin was stopped.", "/a.bin exited: 5",
+"Switches: 5 by the door, 5 by the timer." — and
+`verse` answers after; behind the BIOS door the whole
+road stands (desktop, verse in the Terminal, Home, the
+shell answering verse; the wake transcript reading
+config 41 to port 43, as that door has always honestly
+differed). The accounting stays truthful: `mem` behind
+the UEFI door at 4096 MB reads 521,420 frames free of
+522,691 (1,271 used) — one frame more than milestone
+15's 1,270, and the reason is the kernel's own growth
+(140,744 bytes of image against 135,704); the visit
+itself, as ever, spends nothing, the face painting
+ground the boot already owned. Two bench notes ride
+with the record, stated plainly. At the bench's 512 MB
+shape — the size at which this bench's firmware keeps
+the disc reachable — a pair session's first visible
+output lags the typed command by some seconds while
+its disc reads land; the session runs throughout, and
+its tokens, endings, and accounts arrive whole, as
+milestone 15's own mid-session shot caught the same
+frame before the same session. And this build's first
+draft taught the old Embedded Swift lesson again: a
+nested helper inside the bar's layout faulted the
+kernel before the desktop opened ("Exception -
+halting." over the boot lines), and the reckoning was
+inlined to plain statements, after which the tree
+rebuilt clean. (The build recipe itself stands proven
+against the unmodified milestone-15 sources, whose
+kernel it reproduced byte for byte before this
+milestone's edits began.) Verified in QEMU under UTM's
+own conditions (q35, TCG, virtio-vga, QEMU 10.0,
+front-end input delivery): the composed bar, the
+`mouse` command in both its homes, the word sweep over
+the open card, drags witnessed mid-carry and at rest,
+the corner clamp and its retrieval, the double-click
+in both directions, and the regressions above.
+Tyler's own UTM witness from the home-folder copy
+stands as the final word, as with every milestone.
+
+Before that, milestone 15 (November 9, 2026): **the timer takes
 turns by force — preemptive scheduling.** Milestone 10's
 guests held the machine by courtesy, each keeping it until
 it yielded at the door, and a guest that never yielded was

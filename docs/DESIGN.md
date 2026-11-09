@@ -227,7 +227,40 @@ it bends.*
    window painted whole at rest — with a maximize control
    on the Terminal besides. The limits shrink honestly:
    the outline is not a live repaint, and no program but
-   the kernel draws, still.)*
+   the kernel draws, still. Milestone 16 — the same day,
+   at Tyler's word on witnessing milestone 14 ("do you
+   see how the screen buttons get crunched... i want it
+   to be intuitive, no codes at the bottom, only in the
+   terminal") — polished the face without changing it,
+   and set down the desktop's law, which is Tyler's and
+   stands for every later stone: **the desktop speaks
+   plain words only; codes live in the shell.** The
+   bottom bar's layout became a budget reckoned from the
+   framebuffer's width: margins, the standing word, and
+   each launcher at the size its label honestly needs,
+   the clock right-anchored before Home, and — the rule
+   that keeps the promise — the gaps give first and the
+   furniture never shrinks; a word that cannot stand
+   whole is shortened in plain language or left off,
+   never squeezed. The mouse's standing on the face is
+   two plain words ("Mouse ready" / "Mouse not
+   answering"); its full report — the wake transcript
+   and the tallies of what the face has taken from it —
+   moved into a `mouse` shell command, answered
+   identically at the text console and in the Terminal.
+   The boot screen keeps its transcript: it is the
+   console's face, not the desktop's. The windows'
+   carrying was made sure rather than different: one
+   shared keeping for both title bars' boxes, a press
+   judged by the rectangle that is painted, the dragged
+   window's title wearing its held look for the whole
+   carry, a clamp stated as a rule (the title bar keeps
+   a reachable strip — 120 pixels sideways, the whole
+   strip inside the work area up and down), and the
+   double-click on the Terminal's title bar trading
+   maximize for restore, the convention people already
+   know. Fit and feel, not a new face: the look is
+   milestone 14's, kept.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles
