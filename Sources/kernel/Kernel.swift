@@ -3342,6 +3342,22 @@ func runProgram() {
         writeLine(isDirectorySuffix)
         return
     }
+    // A feather is not a bare program (milestone 11): its card
+    // stands in front of its bytes, and a raw loader executing
+    // the card as code is exactly what the format exists to
+    // prevent. The first sector is peeked at, and a package is
+    // named, refused, and sent to its own command.
+    if resolvedSize >= UInt32(featherMagicLength + 1)
+        && discReadSector(resolvedExtent)
+        && featherMagicAt(discBuffer(), 0,
+                          resolvedSize < UInt32(discSectorBytes)
+                              ? Int(resolvedSize) : discSectorBytes) {
+        writePathArgument(length)
+        writeStatic(runFeatherMiddle)
+        writePathArgument(length)
+        writeNewline()
+        return
+    }
     if resolvedSize == 0 {
         writePathArgument(length)
         writeLine(runEmptySuffix)
@@ -3547,6 +3563,519 @@ func runBoth() {
     reportBothGuest(bothSecondStart, bothSecondEnd, statusB, verdictB)
 }
 
+// ---------------------------------------------------------------------------
+// Feathers (milestone 11): the OS learns its own package format.
+//
+// A feather is one file on the disc: a plain-text card and,
+// behind a line of three dashes, a program — a flat guest image
+// of exactly the kind `run` loads. The format is written down
+// in docs/FEATHER.md; what stands here is its handler. The card
+// names the program before it runs — title, maker, version,
+// and the maker's support line — and the packer's reckoning
+// travels with it: the program's size and its FNV-1a 64
+// checksum, which the handler reckons again over the bytes the
+// disc actually delivered before a single one of them runs. A
+// feather whose program does not match its card is refused,
+// plainly, and not run.
+//
+// The checksum is an integrity check against corruption —
+// nothing more. It is not a signature: anyone can recompute
+// it, so it proves only that the program matches this card,
+// never that Cardnull reviewed or vouches for either. The day
+// feathers are reviewed and cryptographically signed by
+// Cardnull — the store's day — a true signature will stand in
+// the format; until then nothing here claims or imitates one,
+// and the modesty is part of the format's document.
+//
+// `feather` walks `run`'s road with a reading first: the file
+// resolved by the milestone-8 reader, weighed (the whole file
+// may hold the card's utmost plus a program of the guest cap's
+// utmost), read whole into a heap block, its card parsed and
+// proven, its card printed, and only then the program laid
+// into an estate and run — same tables, same door, same
+// reports as a bare guest. The heap block is handed back on
+// every road out and the estate by the teardown, so `mem` and
+// `heap` read the same after a feather as before it.
+//
+// `run` knows the feather's first line too: pointed at a
+// package it refuses, and names this command. A raw loader
+// executing a card as code is exactly what the format exists
+// to prevent.
+// ---------------------------------------------------------------------------
+
+/// The feather's shape, as docs/FEATHER.md lays it down: the
+/// magic line that opens every feather, and the card's utmost
+/// reach — a card that has not ended within the first 4 KiB is
+/// not read further — so the whole file may hold at most the
+/// card's utmost and a program of the guest cap's utmost.
+let featherMagicLine: StaticString = "CARDNULL FEATHER 1"
+let featherMagicLength = 18
+let featherCardMaxBytes = 4096
+let featherFileMaxBytes = featherCardMaxBytes + 65536
+
+/// The card's keys, in the folded lowercase the parser folds
+/// what it reads down to: the maker's four spoken words, and
+/// the packer's two reckoned ones.
+let featherTitleKey: StaticString = "title"
+let featherMakerKey: StaticString = "maker"
+let featherVersionKey: StaticString = "version"
+let featherSupportKey: StaticString = "support"
+let featherSizeKey: StaticString = "program-size"
+let featherChecksumKey: StaticString = "program-fnva"
+
+/// The parse's answers: the card stands, or the honest reason
+/// it does not — no magic line to open it, a card that cannot
+/// stand (a word missing, a measure disagreeing), or a program
+/// that betrays its card's checksum.
+let featherOKCode = 0
+let featherNotCode = 1
+let featherBrokenCode = 2
+let featherTamperedCode = 3
+
+/// The card the last parse read: the program's place in the
+/// reading, and each spoken value's place — a start and a
+/// length in the reading, the length -1 while the card has not
+/// named it. The reckoned pair stand beside them.
+var featherProgramStart = 0
+var featherProgramLength = 0
+var featherTitleStart = 0
+var featherTitleLength = -1
+var featherMakerStart = 0
+var featherMakerLength = -1
+var featherVersionStart = 0
+var featherVersionLength = -1
+var featherSupportStart = 0
+var featherSupportLength = -1
+var featherCardSize: UInt64 = 0
+var featherCardChecksum: UInt64 = 0
+var featherCardSizeFound = false
+var featherCardChecksumFound = false
+
+/// feather's vocabulary: the usage, the refusals, and the
+/// card's printed labels — the honest label, read before the
+/// run, with the checksum's modesty spoken in its own line.
+let featherUsageLine: StaticString =
+    "feather wants a package: feather /HELLO.FEATHER"
+let featherTooBigLine: StaticString =
+    "That file is larger than a feather may be (4 KiB of card, 64 KiB of program)."
+let featherNoMemoryLine: StaticString =
+    "Memory could not pay for the feather's reading."
+let featherNotSuffix: StaticString = " is not a feather."
+let featherBrokenLine: StaticString =
+    "That feather's card cannot be read - it names too little, or its measures disagree. It was not run."
+let featherTamperedLine: StaticString =
+    "That feather's program does not match its card's checksum - it may be damaged or altered. It was not run."
+let featherOpeningPrefix: StaticString = "Opening "
+let featherOpeningSuffix: StaticString = ":"
+let featherTitleLabel: StaticString = "  Title:   "
+let featherMakerLabel: StaticString = "  Maker:   "
+let featherVersionLabel: StaticString = "  Version: "
+let featherSupportLabel: StaticString = "  Support: "
+let featherIntegrityLine: StaticString =
+    "  Integrity: checksum verified - an integrity check, not a signature."
+
+/// run's word for a package, spoken between the path named
+/// twice: the refusal, and the road to the right command.
+let runFeatherMiddle: StaticString =
+    " is a feather - a package with a card. Open it with: feather "
+
+/// Folds one byte the way the card's keys are folded: a capital
+/// becomes its small brother; every other byte stands as it is.
+func featherFold(_ byte: UInt8) -> UInt8 {
+    if byte >= 0x41 && byte <= 0x5A { return byte + 0x20 }
+    return byte
+}
+
+/// True when the bytes at `start` open with the feather's magic
+/// line — the format's name and version, whole, with a line
+/// feed after them. A prefix is not enough: the line is the
+/// signature of the shape, and it is matched entire.
+func featherMagicAt(_ base: UnsafeMutablePointer<UInt8>,
+                    _ start: Int, _ available: Int) -> Bool {
+    if available < featherMagicLength + 1 { return false }
+    var index = 0
+    while index < featherMagicLength {
+        if base[start + index] != featherMagicLine.utf8Start[index] {
+            return false
+        }
+        index += 1
+    }
+    return base[start + featherMagicLength] == 0x0A
+}
+
+/// True when the reach at `start` in the reading spells the
+/// key — the reading's side folded down, the key already small.
+func featherKeyMatches(_ base: UnsafeMutablePointer<UInt8>,
+                       _ start: Int, _ length: Int,
+                       _ key: StaticString) -> Bool {
+    var index = 0
+    while key.utf8Start[index] != 0 {
+        if index >= length { return false }
+        if featherFold(base[start + index]) != key.utf8Start[index] {
+            return false
+        }
+        index += 1
+    }
+    return index == length
+}
+
+/// Reads a plain decimal out of the reading: digits only, at
+/// least one, and at most ten — room for any size this kernel
+/// will hold, and no road to an overflowing reckoning.
+func featherReadDecimal(_ base: UnsafeMutablePointer<UInt8>,
+                        _ start: Int, _ length: Int) -> UInt64? {
+    if length == 0 || length > 10 { return nil }
+    var value: UInt64 = 0
+    var index = 0
+    while index < length {
+        let byte = base[start + index]
+        if byte < 0x30 || byte > 0x39 { return nil }
+        value = value * 10 + UInt64(byte - 0x30)
+        index += 1
+    }
+    return value
+}
+
+/// Reads the checksum's sixteen hex digits out of the reading,
+/// either case honoured. Anything else is not a checksum.
+func featherReadHex(_ base: UnsafeMutablePointer<UInt8>,
+                    _ start: Int, _ length: Int) -> UInt64? {
+    if length != 16 { return nil }
+    var value: UInt64 = 0
+    var index = 0
+    while index < length {
+        let byte = featherFold(base[start + index])
+        let digit: UInt64
+        if byte >= 0x30 && byte <= 0x39 {
+            digit = UInt64(byte - 0x30)
+        } else if byte >= 0x61 && byte <= 0x66 {
+            digit = UInt64(byte - 0x61) + 10
+        } else {
+            return nil
+        }
+        value = value * 16 + digit
+        index += 1
+    }
+    return value
+}
+
+/// Parses the card of the feather held in a reading — the
+/// file's whole bytes at `base`, `size` of them — and leaves
+/// what it finds in the globals above. The walk: the magic
+/// line, then card lines until the separator, each a key, a
+/// colon, a value; then the standing's proofs — every word
+/// the card owes present and spoken, the packer's measures
+/// present, the program's size within the guest cap, the
+/// program standing exactly where the card ends and the file
+/// ending exactly where the program does — and at last the
+/// checksum, reckoned over the program's own bytes and
+/// compared against the card's word.
+func parseFeatherCard(_ base: UnsafeMutablePointer<UInt8>,
+                      _ size: Int) -> Int {
+    featherTitleLength = -1
+    featherMakerLength = -1
+    featherVersionLength = -1
+    featherSupportLength = -1
+    featherCardSizeFound = false
+    featherCardChecksumFound = false
+    featherProgramStart = 0
+    featherProgramLength = 0
+    if !featherMagicAt(base, 0, size) { return featherNotCode }
+    var pos = featherMagicLength + 1
+    let limit = size < featherCardMaxBytes ? size : featherCardMaxBytes
+    var sawSeparator = false
+    while pos < limit {
+        var lineEnd = pos
+        while lineEnd < size && base[lineEnd] != 0x0A {
+            lineEnd += 1
+        }
+        var lineLength = lineEnd - pos
+        if lineLength > 0 && base[pos + lineLength - 1] == 0x0D {
+            lineLength -= 1   // a carriage return is forgiven
+        }
+        if lineLength == 3 && base[pos] == 0x2D
+            && base[pos + 1] == 0x2D && base[pos + 2] == 0x2D {
+            featherProgramStart = lineEnd < size ? lineEnd + 1 : size
+            sawSeparator = true
+            break
+        }
+        var colon = -1
+        var scan = 0
+        while scan < lineLength {
+            if base[pos + scan] == 0x3A {   // ':'
+                colon = scan
+                break
+            }
+            scan += 1
+        }
+        if colon >= 0 {
+            var keyLength = colon
+            while keyLength > 0
+                && base[pos + keyLength - 1] == 0x20 {
+                keyLength -= 1
+            }
+            var valueStart = pos + colon + 1
+            var valueLength = lineLength - (colon + 1)
+            while valueLength > 0 && base[valueStart] == 0x20 {
+                valueStart += 1
+                valueLength -= 1
+            }
+            while valueLength > 0
+                && base[valueStart + valueLength - 1] == 0x20 {
+                valueLength -= 1
+            }
+            if featherKeyMatches(base, pos, keyLength, featherTitleKey) {
+                featherTitleStart = valueStart
+                featherTitleLength = valueLength
+            } else if featherKeyMatches(base, pos, keyLength,
+                                        featherMakerKey) {
+                featherMakerStart = valueStart
+                featherMakerLength = valueLength
+            } else if featherKeyMatches(base, pos, keyLength,
+                                        featherVersionKey) {
+                featherVersionStart = valueStart
+                featherVersionLength = valueLength
+            } else if featherKeyMatches(base, pos, keyLength,
+                                        featherSupportKey) {
+                featherSupportStart = valueStart
+                featherSupportLength = valueLength
+            } else if featherKeyMatches(base, pos, keyLength,
+                                        featherSizeKey) {
+                if let reckoned = featherReadDecimal(
+                    base, valueStart, valueLength) {
+                    featherCardSize = reckoned
+                    featherCardSizeFound = true
+                }
+            } else if featherKeyMatches(base, pos, keyLength,
+                                        featherChecksumKey) {
+                if let reckoned = featherReadHex(
+                    base, valueStart, valueLength) {
+                    featherCardChecksum = reckoned
+                    featherCardChecksumFound = true
+                }
+            }
+        }
+        if lineEnd >= size { break }
+        pos = lineEnd + 1
+    }
+    if !sawSeparator { return featherBrokenCode }
+    if featherProgramStart > featherCardMaxBytes {
+        return featherBrokenCode
+    }
+    if featherTitleLength < 1 || featherMakerLength < 1
+        || featherVersionLength < 1 || featherSupportLength < 1 {
+        return featherBrokenCode
+    }
+    if !featherCardSizeFound || !featherCardChecksumFound {
+        return featherBrokenCode
+    }
+    if featherCardSize == 0
+        || featherCardSize > programMaxImageBytes {
+        return featherBrokenCode
+    }
+    if featherProgramStart + Int(featherCardSize) != size {
+        return featherBrokenCode
+    }
+    featherProgramLength = Int(featherCardSize)
+    // The checksum, reckoned over the program's own bytes:
+    // FNV-1a, 64-bit, as docs/FEATHER.md lays it down and the
+    // packer in tools/ reckons it — the same numbers, in the
+    // same order, on both sides of the disc.
+    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+    var index = 0
+    while index < featherProgramLength {
+        hash ^= UInt64(base[featherProgramStart + index])
+        hash = hash &* 0x0000_0100_0000_01B3
+        index += 1
+    }
+    if hash != featherCardChecksum { return featherTamperedCode }
+    return featherOKCode
+}
+
+/// Reads a whole file off the disc into a block the caller
+/// already holds: sector by sector through the milestone-8
+/// driver, byte by byte into the block. False when a sector
+/// refuses to be read.
+func readWholeFileInto(_ base: UnsafeMutablePointer<UInt8>,
+                       _ extent: UInt32, _ size: UInt32) -> Bool {
+    let buffer = discBuffer()
+    var written: UInt32 = 0
+    var sectorIndex: UInt32 = 0
+    while written < size {
+        if !discReadSector(extent + sectorIndex) { return false }
+        var count = size - written
+        if count > UInt32(discSectorBytes) {
+            count = UInt32(discSectorBytes)
+        }
+        var index = 0
+        while index < Int(count) {
+            base[Int(written) + index] = buffer[index]
+            index += 1
+        }
+        written += count
+        sectorIndex += 1
+    }
+    return true
+}
+
+/// Lays a program out of a reading into the frames its page
+/// table names — loadProgramImage's twin, for bytes already
+/// standing in the kernel's own memory: the feather's program,
+/// lifted out of its package. The estate's frames were wiped
+/// when they were built, so what lies past the program's end
+/// in its last page is zeros, as it was for a guest read
+/// straight off the disc.
+func loadProgramImageFromReading(
+    _ base: UnsafeMutablePointer<UInt8>,
+    _ start: Int, _ size: UInt32
+) {
+    var at: UInt32 = 0
+    while at < size {
+        let frame = pagingEntry(programTableAddress,
+                                Int(at / UInt32(pageSize)))
+            & pagingAddressMask
+        let destination = UnsafeMutablePointer<UInt8>(
+            bitPattern: UInt(frame + UInt64(at % UInt32(pageSize))))!
+        destination.pointee = base[start + Int(at)]
+        at += 1
+    }
+}
+
+/// Speaks one of the card's values, byte for byte as its maker
+/// wrote it, and ends the line.
+func writeFeatherValue(_ base: UnsafeMutablePointer<UInt8>,
+                       _ start: Int, _ length: Int) {
+    var index = 0
+    while index < length {
+        writeChar(base[start + index])
+        index += 1
+    }
+    writeNewline()
+}
+
+/// `feather`: the package's whole road — the file found on the
+/// disc, read whole, its card parsed and proven, its card
+/// printed, and its program run down milestone 9's road, with
+/// the report spoken truly. Every refusal on the road is
+/// plain, and every one of them means the program did not run.
+func runFeather() {
+    if !discDriveFound {
+        writeLine(discAbsentLine)
+        return
+    }
+    if !discIsoFound {
+        writeLine(discUnknownFsLine)
+        return
+    }
+    let length = copyArgumentToScratch()
+    if length == 0 {
+        writeLine(featherUsageLine)
+        return
+    }
+    if !pagingReady {
+        writeLine(runNoPagingLine)
+        return
+    }
+    discReadFailed = false
+    let outcome = isoResolvePath(length)
+    if outcome == pathMissingCode {
+        writeStatic(notOnDiscPrefix)
+        writePathArgument(length)
+        writeNewline()
+        return
+    }
+    if outcome == pathNotDirectoryCode {
+        writePathArgument(length)
+        writeLine(notDirectorySuffix)
+        return
+    }
+    if outcome == pathReadErrorCode {
+        writeLine(discReadErrorLine)
+        return
+    }
+    if resolvedIsDirectory {
+        writePathArgument(length)
+        writeLine(isDirectorySuffix)
+        return
+    }
+    if resolvedSize == 0 {
+        writePathArgument(length)
+        writeLine(runEmptySuffix)
+        return
+    }
+    if Int(resolvedSize) > featherFileMaxBytes {
+        writeLine(featherTooBigLine)
+        return
+    }
+    let address = heapAlloc(Int(resolvedSize))
+    if address == 0 {
+        writeLine(featherNoMemoryLine)
+        return
+    }
+    let base = UnsafeMutablePointer<UInt8>(bitPattern: UInt(address))!
+    if !readWholeFileInto(base, resolvedExtent, resolvedSize) {
+        heapFree(address)
+        writeLine(discReadErrorLine)
+        return
+    }
+    let parsed = parseFeatherCard(base, Int(resolvedSize))
+    if parsed == featherNotCode {
+        heapFree(address)
+        writePathArgument(length)
+        writeLine(featherNotSuffix)
+        return
+    }
+    if parsed == featherBrokenCode {
+        heapFree(address)
+        writeLine(featherBrokenLine)
+        return
+    }
+    if parsed == featherTamperedCode {
+        heapFree(address)
+        writeLine(featherTamperedLine)
+        return
+    }
+    // The card, printed before the program runs: the honest
+    // label, read first — and the checksum's modesty spoken in
+    // its own line, so no reader mistakes it for a signature.
+    writeStatic(featherOpeningPrefix)
+    writePathArgument(length)
+    writeLine(featherOpeningSuffix)
+    writeStatic(featherTitleLabel)
+    writeFeatherValue(base, featherTitleStart, featherTitleLength)
+    writeStatic(featherMakerLabel)
+    writeFeatherValue(base, featherMakerStart, featherMakerLength)
+    writeStatic(featherVersionLabel)
+    writeFeatherValue(base, featherVersionStart, featherVersionLength)
+    writeStatic(featherSupportLabel)
+    writeFeatherValue(base, featherSupportStart, featherSupportLength)
+    writeLine(featherIntegrityLine)
+    let root = buildProgramSpace(UInt32(featherProgramLength))
+    if root == 0 {
+        heapFree(address)
+        writeLine(runNoMemoryLine)
+        return
+    }
+    loadProgramImageFromReading(base, featherProgramStart,
+                                UInt32(featherProgramLength))
+    heapFree(address)
+    writeStatic(runRunningPrefix)
+    writePathArgument(length)
+    writeLine(runRunningSuffix)
+    programRunning = true
+    let verdict = cardnullLaunchProgram(root, programBase,
+                                        programStackTop)
+    programRunning = false
+    teardownProgramSpace(root)
+    if verdict == programKilledVerdict {
+        writeLine(programKilledLine)
+    } else {
+        writeStatic(programExitedPrefix)
+        writeNumber(verdict)
+        writeNewline()
+    }
+}
+
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -3586,6 +4115,11 @@ func runBoth() {
 //           door's yield service until both have finished
 //           (milestone 10; matched by its first word, the two
 //           paths being its own)
+//   feather a package from the disc — a card that names its
+//           program, proven against its checksum, printed, and
+//           only then run in ring 3 down run's own road
+//           (milestone 11; matched by its first word, the path
+//           being its own)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -3607,6 +4141,7 @@ let lsCommand: StaticString = "ls"
 let catCommand: StaticString = "cat"
 let runCommand: StaticString = "run"
 let bothCommand: StaticString = "both"
+let featherCommand: StaticString = "feather"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -3623,6 +4158,8 @@ let helpCatLine: StaticString = "  cat     print a file from the disc (cat /path
 let helpRunLine: StaticString = "  run     run a program from the disc (run /path)"
 let helpBothLine: StaticString =
     "  both    run two programs, taking turns (both /A.BIN /B.BIN)"
+let helpFeatherLine: StaticString =
+    "  feather open a feather package and run it (feather /path)"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -3900,6 +4437,7 @@ func submitLine() {
     let isCat = firstWordMatches(catCommand)
     let isRun = firstWordMatches(runCommand)
     let isBoth = firstWordMatches(bothCommand)
+    let isFeather = firstWordMatches(featherCommand)
 
     writeNewline()
     if !blank {
@@ -3917,6 +4455,7 @@ func submitLine() {
             writeLine(helpCatLine)
             writeLine(helpRunLine)
             writeLine(helpBothLine)
+            writeLine(helpFeatherLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -3941,6 +4480,8 @@ func submitLine() {
             runProgram()
         } else if isBoth {
             runBoth()
+        } else if isFeather {
+            runFeather()
         } else {
             writeLine(unknownLine)
         }

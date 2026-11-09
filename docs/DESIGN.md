@@ -121,8 +121,24 @@ it bends.*
    cooperative by decision: a guest that never yields keeps
    the machine, and preemption — the timer taking the machine
    by force — is a named later step, as is any wider company
-   than two. The feather format that will carry real programs
-   is later business, still to come.)*
+   than two. Milestone 11 — the same day again — gave
+   programs their travelling clothes: the feather format,
+   defined in docs/FEATHER.md. A feather is one file: a
+   plain-text card (title, maker, version, and the maker's
+   support line — voluntary income for the maker, never a
+   tax-deductible donation) and the packer's reckoning (the
+   program's size and its FNV-1a checksum), a line of three
+   dashes, and the program itself. The `feather` command
+   reads the card, proves it — a program that does not match
+   its card's checksum is refused and not run, as
+   TAMPERED.FEATHER witnesses on every disc — prints it, and
+   only then runs the program down milestone 9's road; `run`
+   refuses a feather and sends the reader to `feather`,
+   because a raw loader must never execute a card as code.
+   The checksum is an integrity check against corruption,
+   and the format says so in as many words: it is not a
+   signature, and the reviewed, signed feather belongs to
+   the store era, still to come.)*
 5. A simple graphical interface.
 6. Chirpy Browser and the Catholic Bible at home on it.
 

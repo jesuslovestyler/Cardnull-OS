@@ -43,7 +43,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Twelve commands, for now:
+Press Enter and the prompt answers. Thirteen commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -58,6 +58,8 @@ Press Enter and the prompt answers. Twelve commands, for now:
 - `cat` — print a file from the disc: `cat /welcome.txt`
 - `run` — run a program from the disc: `run /hello.bin`
 - `both` — run two programs, taking turns: `both /a.bin /b.bin`
+- `feather` — open a feather package and run its program:
+  `feather /hello.feather`
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -151,5 +153,33 @@ in the same session, undisturbed, after which the shell
 answers the next command as ever. When the session ends, both
 guests' ground is handed back frame by frame; `mem` reads the
 same numbers before a session and after it.
+
+And since milestone 11, the disc carries two packages in the
+OS's own format: HELLO.FEATHER and TAMPERED.FEATHER (see
+them in `ls`, 493 bytes each). A feather is a program that
+travels behind a card — plain text naming its title, its
+maker, its version, and how its maker may be supported,
+with the program's size and checksum reckoned by the packer
+(the format is written down in `docs/FEATHER.md` in the
+tree). Try `feather /hello.feather`: the shell reads the
+whole file, proves the program against the card's checksum,
+and prints the card first — the honest label, read before
+the run — then the program greets you ("Hello! I am the
+first feather Cardnull OS ever opened.") and leaves by the
+same door as any guest, and the shell reports its exit. The
+line beneath the card — "Integrity: checksum verified - an
+integrity check, not a signature." — is the truth about the
+checksum: it catches damage and alteration, and it is not
+the signing the store era will bring; nothing claims
+otherwise. Then try `feather /tampered.feather`: the same
+package with one byte of its program flipped after packing —
+the shell refuses it in plain words ("...does not match its
+card's checksum - it may be damaged or altered. It was not
+run.") and nothing runs. `feather /hello.bin` answers "is
+not a feather", and `run /hello.feather` refuses in its
+turn and sends you to `feather` — a package's card is never
+executed as code. As ever, the ground a feather's program
+stood on is handed back: `mem` reads the same numbers
+before an opening and after it.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

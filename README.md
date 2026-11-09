@@ -63,7 +63,54 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 10 stands (November 9, 2026): **two programs at
+Milestone 11 stands (November 9, 2026): **the OS learns its
+own package format — the feather.** The format is written
+down in `docs/FEATHER.md`: one file holding a plain-text card
+and, behind a line of three dashes, the program itself — a
+flat guest image of exactly the kind `run` loads. The card
+names the program before it runs — title, maker, version,
+and the maker's support line (support being voluntary income
+for the maker, never a tax-deductible donation) — and
+carries the packer's reckoning: the program's size and its
+FNV-1a 64-bit checksum. A thirteenth command, `feather`,
+reads the file whole into a heap block, parses and proves
+the card, prints it — the honest label, read first — and
+only then lays the program into an estate and runs it down
+milestone 9's road: same tables, same door, same reports.
+The first feather stands on the disc: HELLO.FEATHER
+(493 bytes), maker Cardnull, its program the greeting guest
+in `feathers/greet.s`, packed by `tools/pack-feather.py`
+from the card source in `feathers/` — "Hello! I am the first
+feather Cardnull OS ever opened." The refusals are proven
+beside it. TAMPERED.FEATHER — the same package with one
+program byte flipped after packing, its checksum left stale
+on purpose — is refused and not run: "That feather's
+program does not match its card's checksum - it may be
+damaged or altered. It was not run." `feather /hello.bin`
+answers "/hello.bin is not a feather.", and foreign shapes
+meet the same word — the OS does not interpret what is not
+a feather. And `run /hello.feather` refuses in its turn —
+"/hello.feather is a feather - a package with a card. Open
+it with: feather /hello.feather" — because a raw loader
+executing a card as code is exactly what the format exists
+to prevent. The checksum's modesty is spoken on screen
+beneath every card — "Integrity: checksum verified - an
+integrity check, not a signature." — and in the format's
+document: the reviewed, cryptographically signed feather
+belongs to the store era, and nothing here claims or
+imitates it. The teardown is the old honesty: `mem` reads
+the same numbers before a feather run and after it (behind
+the UEFI door, 29,835 frames free of 31,176 both times),
+and `heap` stands at its resting books. One building note,
+because the disc changed shape to make room: the ISO is
+now written at ISO 9660 level 3, so names longer than the
+old 8.3 stand whole in the disc's tree — HELLO.FEATHER, not
+HELLO.FEA; every older name on the disc keeps its exact
+shape. Verified in QEMU behind both doors — the opening,
+the three refusals, and the identical `mem` under UEFI;
+`feather`, `mem`, and `heap` as the BIOS regression.
+
+Before that, milestone 10 (November 9, 2026): **two programs at
 once, taking turns.** The disc carries two more guests beside
 milestone 9's three — A.BIN and B.BIN, 90 bytes each, from
 assembly sources in `programs/` — and a twelfth command,
@@ -291,11 +338,12 @@ force — milestone 10's programs take turns by courtesy, each
 yielding at the door, and a guest that never yields is never
 interrupted; preemptive switching on the timer's word is a
 stone still ahead; more than two programs alive at once — the
-floor keeps two guest books, no wider table; and the feather
-package format that
-will one day carry real programs — Chirpy first among them —
-onto the disc as citizens rather than samples, a stone after
-that; USB input — under either firmware, a
+floor keeps two guest books, no wider table; the signed
+feather — milestone 11's checksum proves a program matches
+its card, and no more; the reviewed, cryptographically
+signed feather of the store era, the only kind that will
+one day be allowed to carry real programs as citizens, is a
+stone still ahead; USB input — under either firmware, a
 USB-only keyboard is beyond us still, which is why the UTM drill
 keeps the PS/2 controller forced on and USB input off; and a
 native EFI entry of our own — the UEFI door today is GRUB's EFI

@@ -6,7 +6,8 @@
 #   2. Assemble the guest programs       (clang + ld.lld, flat binaries)
 #   3. Compile the Swift kernel          (swiftc, Embedded Swift)
 #   4. Link kernel.bin                   (ld.lld, linker.ld)
-#   5. Pack a bootable ISO               (grub-mkrescue)
+#   5. Pack the first feather            (tools/pack-feather.py)
+#   6. Pack a bootable ISO               (grub-mkrescue)
 #
 # Usage:  tools/build-iso.sh
 # Output: dist/cardnull.iso   (kept local; the ISO does not live in git)
@@ -47,7 +48,7 @@ else
     exit 1
 fi
 
-for tool in clang grub-mkrescue; do
+for tool in clang grub-mkrescue python3; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "error: missing tool: $tool" >&2; exit 1; }
 done
@@ -56,7 +57,7 @@ TARGET="x86_64-unknown-none-elf"
 
 mkdir -p "$BUILD" "$DIST" "$ISO_DIR/boot/grub"
 
-echo "==> [1/5] Assembling the boot floor"
+echo "==> [1/6] Assembling the boot floor"
 clang --target="$TARGET" -ffreestanding -c \
     "$ROOT/Sources/boot/boot.S" -o "$BUILD/boot.o"
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
@@ -64,11 +65,11 @@ clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
     "$ROOT/Sources/boot/font8x8.c" -o "$BUILD/font8x8.o"
 
-echo "==> [2/5] Assembling the guest programs (milestones 9 and 10)"
+echo "==> [2/6] Assembling the guest programs (milestones 9 and 10)"
 # The guests: standalone assembly in programs/, linked at the
 # address the kernel will lay them down at (0x40000000, the base
 # of a guest's estate) and flattened to raw binaries. They are
-# packed onto the disc in step 5 as files — never linked into the
+# packed onto the disc in step 6 as files — never linked into the
 # kernel — and the running OS reads them off the real disc, which
 # is the milestone's whole point. Milestone 10 adds the pair —
 # a and b, the two guests that take turns under `both`.
@@ -78,8 +79,16 @@ for guest in hello count bad a b; do
     "$LD" -Ttext=0x40000000 --oformat binary \
         -o "$BUILD/$guest.bin" "$BUILD/$guest.o"
 done
+# The first feather's program (milestone 11): the greeting guest
+# in feathers/, assembled the same way — it differs from the
+# five above only in how it travels, packed behind a card in
+# step 5 rather than carried bare.
+clang --target="$TARGET" -c \
+    "$ROOT/feathers/greet.s" -o "$BUILD/greet.o"
+"$LD" -Ttext=0x40000000 --oformat binary \
+    -o "$BUILD/greet.bin" "$BUILD/greet.o"
 
-echo "==> [3/5] Compiling the Swift kernel (Embedded Swift, $TARGET)"
+echo "==> [3/6] Compiling the Swift kernel (Embedded Swift, $TARGET)"
 "$SWIFTC" \
     -target "$TARGET" \
     -enable-experimental-feature Embedded \
@@ -90,13 +99,27 @@ echo "==> [3/5] Compiling the Swift kernel (Embedded Swift, $TARGET)"
     -c "$ROOT/Sources/kernel/Kernel.swift" \
     -o "$BUILD/Kernel.o"
 
-echo "==> [4/5] Linking kernel.bin"
+echo "==> [4/6] Linking kernel.bin"
 "$LD" -nostdlib -static \
     -T "$ROOT/Sources/boot/linker.ld" \
     -o "$BUILD/kernel.bin" \
     "$BUILD/boot.o" "$BUILD/Kernel.o" "$BUILD/support.o" "$BUILD/font8x8.o"
 
-echo "==> [5/5] Packing dist/cardnull.iso"
+echo "==> [5/6] Packing the first feather (milestone 11)"
+# The feather (docs/FEATHER.md): the card source in feathers/
+# and the greeting guest built in step 2, joined by the
+# packer, which reckons the program's size and FNV-1a checksum
+# from its real bytes and writes them into the card. Beside
+# the true feather, a wounded one: the same package with one
+# program byte flipped and its checksum left stale, so the
+# handler's refusal can be witnessed, not merely believed.
+python3 "$ROOT/tools/pack-feather.py" pack \
+    "$ROOT/feathers/hello.card" "$BUILD/greet.bin" \
+    "$BUILD/HELLO.FEATHER"
+python3 "$ROOT/tools/pack-feather.py" tamper \
+    "$BUILD/HELLO.FEATHER" "$BUILD/TAMPERED.FEATHER"
+
+echo "==> [6/6] Packing dist/cardnull.iso"
 cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
 # The welcome file (milestone 8): a plain text file at the disc's
 # root, its source kept in disc/ beside the kernel's sources. It
@@ -114,6 +137,12 @@ cp "$BUILD/count.bin" "$ISO_DIR/COUNT.BIN"
 cp "$BUILD/bad.bin" "$ISO_DIR/BAD.BIN"
 cp "$BUILD/a.bin" "$ISO_DIR/A.BIN"
 cp "$BUILD/b.bin" "$ISO_DIR/B.BIN"
+# The feathers (milestone 11): the packages the new `feather`
+# command opens — the card read first, the checksum proven,
+# and only then the program run. Files on the disc, like
+# everything the OS reads; nothing of them is in the kernel.
+cp "$BUILD/HELLO.FEATHER" "$ISO_DIR/HELLO.FEATHER"
+cp "$BUILD/TAMPERED.FEATHER" "$ISO_DIR/TAMPERED.FEATHER"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
 # Behind the UEFI door, GRUB speaks through the firmware's text
 # console until it is told otherwise — and a console is not a video
@@ -140,6 +169,18 @@ EOF
 # image carrying the UEFI GRUB (BOOTX64.EFI) — which loads the
 # same /boot/grub/grub.cfg and the same kernel. Both modules sets
 # must be present, or a door silently goes missing.
-grub-mkrescue -o "$DIST/cardnull.iso" "$ISO_DIR" >/dev/null
+#
+# -iso-level 3 (milestone 11, passed through to xorriso): the
+# plain ISO9660 tree is written with names of up to thirty
+# characters standing whole, instead of cut down to 8.3 — a
+# feather's name is longer than 8.3 allows (HELLO.FEATHER,
+# TAMPERED.FEATHER), and cut to HELLO.FEA it would be a lie
+# about what the package is. Every older name on the disc is
+# within 8.3 already and keeps its exact shape, version suffix
+# and all; the kernel's reader, which forgives the suffix and
+# matches names of any length the records carry, reads both
+# kinds the same way.
+grub-mkrescue -o "$DIST/cardnull.iso" "$ISO_DIR" -iso-level 3 \
+    >/dev/null
 
 echo "Done: $DIST/cardnull.iso"
