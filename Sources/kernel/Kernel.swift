@@ -75,6 +75,26 @@ func cardnullTextGrid() -> UnsafeMutablePointer<UInt8>
 @_silgen_name("cardnull_font8x8")
 func cardnullFont8x8() -> UnsafePointer<UInt8>
 
+/// Provided by the boot floor (support.c): the raw storage of the
+/// frame allocator's bitmap — 128 KiB of bits, one per 4 KiB frame,
+/// covering the first 4 GiB of the machine. The floor lends the
+/// memory for the same reason it lends the key ring and the text
+/// grid; which frames exist and which are free is the kernel's
+/// business, in the memory section below.
+@_silgen_name("cardnull_frame_bitmap")
+func cardnullFrameBitmap() -> UnsafeMutablePointer<UInt8>
+
+/// Provided by the boot floor (support.c): the kernel image's own
+/// first address, as the linker script named it. The allocator
+/// reserves the whole image — code, data, page tables, stack — so
+/// it never hands out the ground the kernel is standing on.
+@_silgen_name("cardnull_kernel_start")
+func cardnullKernelStart() -> UInt64
+
+/// The companion bound: one past the kernel image's last byte.
+@_silgen_name("cardnull_kernel_end")
+func cardnullKernelEnd() -> UInt64
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -698,6 +718,330 @@ public func exceptionHandler(_ vector: UInt64) {
 }
 
 // ---------------------------------------------------------------------------
+// Memory (milestone 6).
+//
+// The kernel stops merely standing in the machine's RAM and learns
+// its shape. GRUB's word about the machine — the same Multiboot2
+// information the screen was chosen from — carries a memory map
+// (tag type 6): a row of regions, each a base, a length, and a
+// kind, and only kind 1 is RAM a kernel may use. The kernel reads
+// that map once, at boot, and builds a page-frame allocator over
+// it: one bit per 4 KiB frame in storage the floor lends, a set bit
+// meaning "spoken for" and a clear bit "free to hand out".
+//
+// The allocator's honesty rules:
+//
+//   - Every frame begins life spoken for. Only frames lying wholly
+//     inside a region the map calls available RAM are ever cleared
+//     into the free pool — so holes, firmware reservations, and
+//     anything the map does not name stay untouchable.
+//   - Reservations are then laid back over the pool: the first
+//     mebibyte (the BIOS's own country), the kernel image itself
+//     (the linker's bounds, lent by the floor), the framebuffer
+//     when one is live, the Multiboot2 information itself, and
+//     every frame any non-available region so much as touches.
+//   - The counts the `mem` command speaks — usable RAM, total
+//     frames, free frames, used frames — are reckoned from the map
+//     and the bitmap at runtime. Nothing is remembered from the
+//     build machine; nothing is invented.
+//
+// Frames beyond the bitmap's reach — past the first 4 GiB, which is
+// also as far as the boot floor's identity map reaches — are not
+// managed yet; the usable-bytes figure still counts them honestly
+// from the map, and the frame pool covers what the kernel can
+// actually touch. Nothing is paged and there is no heap: handing
+// frames out, one by one, is this milestone's whole work.
+// ---------------------------------------------------------------------------
+
+/// The frame's size: 4 KiB, the processor's small page.
+let pageSize: UInt64 = 4096
+
+/// The bitmap's size in bytes, agreed with the floor's storage in
+/// support.c. Eight bits to the byte, so this many bytes of bitmap
+/// speak for frameBitmapCapacityBytes * 8 frames — 1,048,576 of
+/// them, the whole first 4 GiB.
+let frameBitmapCapacityBytes = 131072
+let maxManagedFrames = 1048576
+
+/// Did the bootloader hand over a memory map at all? Until it is
+/// read, every count below is zero and `mem` says so plainly.
+var memMapFound = false
+
+/// The map's own testimony: the total length of every region it
+/// calls available RAM, in bytes, counted exactly as written.
+var memTotalUsableBytes: UInt64 = 0
+
+/// How many 4 KiB frames lie wholly inside those available regions
+/// (and within the bitmap's reach). This is the allocator's whole
+/// estate: free frames plus used frames always equals it.
+var memTotalFrames: UInt64 = 0
+
+/// How many of those frames are free to hand out right now. Kept by
+/// hand alongside the bitmap — every reserve, allocation, and free
+/// moves it by exactly the frames it moves — so the `mem` answer
+/// never has to recount a million bits.
+var memFreeFrames: UInt64 = 0
+
+/// The highest frame number the bitmap must cover: one past the
+/// last frame of the last available region, within reach.
+var memSpanFrames = 0
+
+/// Where the allocator's search for a free frame resumes. Freed
+/// frames lower it again, so a freed frame is the next one handed
+/// out — which is also what makes the self-test below able to watch
+/// a frame come back.
+var memAllocHint = 0
+
+/// The self-test's verdict, spoken by `mem`: at boot, once the
+/// reservations are laid, the allocator takes two frames, gives one
+/// back, takes another, gives all back — and passes only if every
+/// taking succeeded, no two holdings were the same frame, and the
+/// free count came home exactly to where it began.
+var memSelfTestOK = false
+
+/// Finds one tag in the Multiboot2 information, by type, and
+/// returns its offset — or -1 when the bootloader left no such tag.
+/// The tag walk the screen-choosing used, shared now with memory.
+func findTagOffset(_ wanted: UInt32, infoAddress: UInt64) -> Int {
+    if infoAddress == 0 { return -1 }
+    let base = UnsafeMutablePointer<UInt8>(bitPattern: UInt(infoAddress))!
+    let totalSize = Int(bootInfoU32(base, 0))
+    var offset = 8
+    while offset + 8 <= totalSize {
+        let type = bootInfoU32(base, offset)
+        let size = Int(bootInfoU32(base, offset + 4))
+        if type == 0 || size < 8 { break }
+        if type == wanted { return offset }
+        offset += (size + 7) & ~7
+    }
+    return -1
+}
+
+/// The first frame lying wholly inside a region that starts at the
+/// given address: the region's base rounded up to a frame boundary,
+/// capped at the bitmap's reach.
+@inline(__always)
+func availStartFrame(_ regionBase: UInt64) -> Int {
+    let frame = Int((regionBase + pageSize - 1) / pageSize)
+    return frame > maxManagedFrames ? maxManagedFrames : frame
+}
+
+/// One past the last frame lying wholly inside the region: its end
+/// rounded down, capped the same way.
+@inline(__always)
+func availEndFrame(_ regionBase: UInt64, _ regionLength: UInt64) -> Int {
+    let frame = Int((regionBase + regionLength) / pageSize)
+    return frame > maxManagedFrames ? maxManagedFrames : frame
+}
+
+/// One frame's bit: true when the frame is spoken for.
+@inline(__always)
+func frameIsUsed(_ frame: Int) -> Bool {
+    cardnullFrameBitmap()[frame >> 3]
+        & (UInt8(1) << UInt8(frame & 7)) != 0
+}
+
+/// Sets one frame's bit. The counts are the callers' affair; this
+/// only speaks to the bitmap.
+@inline(__always)
+func setFrameUsed(_ frame: Int, _ used: Bool) {
+    let bitmap = cardnullFrameBitmap()
+    let mask = UInt8(1) << UInt8(frame & 7)
+    if used {
+        bitmap[frame >> 3] |= mask
+    } else {
+        bitmap[frame >> 3] &= ~mask
+    }
+}
+
+/// Lays a reservation over every frame the given range so much as
+/// touches — a range's frames are reckoned outward, first frame at
+/// the range's floor, end at its ceiling, because a frame half
+/// covered by the kernel is wholly unusable. Only frames currently
+/// free move the count; reserving a hole reserves nothing twice.
+func reserveRange(base: UInt64, length: UInt64) {
+    if length == 0 { return }
+    var frame = Int(base / pageSize)
+    var end = Int((base + length + pageSize - 1) / pageSize)
+    if end > memSpanFrames { end = memSpanFrames }
+    while frame < end {
+        if !frameIsUsed(frame) {
+            setFrameUsed(frame, true)
+            memFreeFrames -= 1
+        }
+        frame += 1
+    }
+}
+
+/// Reads the bootloader's memory map and raises the allocator over
+/// it. Called once from kmain, after the screen is chosen (the
+/// framebuffer's range is one of the reservations) and before the
+/// shell opens. If no map came, nothing is raised and `mem` will
+/// say so — the shell runs on exactly as before, standing in RAM it
+/// simply cannot describe.
+func initMemory(infoAddress: UInt64) {
+    if infoAddress == 0 { return }
+    let base = UnsafeMutablePointer<UInt8>(bitPattern: UInt(infoAddress))!
+    let tagOffset = findTagOffset(6, infoAddress: infoAddress)
+    if tagOffset < 0 { return }
+    let tagSize = Int(bootInfoU32(base, tagOffset + 4))
+    let entrySize = Int(bootInfoU32(base, tagOffset + 8))
+    if entrySize < 24 || tagSize < 16 { return }
+    let entryCount = (tagSize - 16) / entrySize
+    let entriesStart = tagOffset + 16
+    let bitmap = cardnullFrameBitmap()
+
+    // First pass: the estate's measure. Count the available
+    // regions' bytes exactly as the map writes them, and the whole
+    // frames lying inside them, and learn how wide a bitmap the
+    // machine's RAM needs.
+    var index = 0
+    while index < entryCount {
+        let entry = entriesStart + index * entrySize
+        let regionBase = bootInfoU64(base, entry)
+        let regionLength = bootInfoU64(base, entry + 8)
+        if bootInfoU32(base, entry + 16) == 1 {
+            memTotalUsableBytes += regionLength
+            let start = availStartFrame(regionBase)
+            let end = availEndFrame(regionBase, regionLength)
+            if end > start {
+                memTotalFrames += UInt64(end - start)
+                if end > memSpanFrames { memSpanFrames = end }
+            }
+        }
+        index += 1
+    }
+    if memSpanFrames == 0 { return }
+
+    // Every frame begins life spoken for: the bitmap is filled with
+    // ones, so any frame the map does not expressly free — holes,
+    // reservations, the unmapped dark — can never be handed out.
+    for byteIndex in 0 ..< frameBitmapCapacityBytes {
+        bitmap[byteIndex] = 0xFF
+    }
+
+    // Second pass: the available regions' frames are cleared into
+    // the free pool.
+    index = 0
+    while index < entryCount {
+        let entry = entriesStart + index * entrySize
+        let regionBase = bootInfoU64(base, entry)
+        let regionLength = bootInfoU64(base, entry + 8)
+        if bootInfoU32(base, entry + 16) == 1 {
+            var frame = availStartFrame(regionBase)
+            let end = availEndFrame(regionBase, regionLength)
+            while frame < end {
+                setFrameUsed(frame, false)
+                frame += 1
+            }
+        }
+        index += 1
+    }
+    memFreeFrames = memTotalFrames
+
+    // The reservations, laid back over the pool.
+    reserveRange(base: 0, length: 0x100000)          // the first mebibyte
+    let kernelStart = cardnullKernelStart()
+    let kernelEnd = cardnullKernelEnd()
+    if kernelEnd > kernelStart {
+        reserveRange(base: kernelStart, length: kernelEnd - kernelStart)
+    }
+    if useFramebuffer {
+        reserveRange(base: framebufferAddress,
+                     length: UInt64(framebufferPitch * framebufferHeight))
+    }
+    reserveRange(base: infoAddress,
+                 length: UInt64(bootInfoU32(base, 0)))   // the map itself
+
+    // Third pass: anything the map does not call available RAM —
+    // ACPI tables, firmware reservations, the PCI dark — keeps any
+    // available frame it touches out of the pool for good.
+    index = 0
+    while index < entryCount {
+        let entry = entriesStart + index * entrySize
+        if bootInfoU32(base, entry + 16) != 1 {
+            reserveRange(base: bootInfoU64(base, entry),
+                         length: bootInfoU64(base, entry + 8))
+        }
+        index += 1
+    }
+
+    memMapFound = true
+    runMemorySelfTest()
+}
+
+/// Hands out one free frame and returns its physical address, or 0
+/// when the pool is empty — 0 is never a true answer, since frame
+/// zero is reserved from the beginning and can never be handed out.
+/// The search resumes where the last one ended, so frames are dealt
+/// in order and a just-freed frame is found again at once.
+func allocFrame() -> UInt64 {
+    if !memMapFound || memSpanFrames == 0 { return 0 }
+    var looked = 0
+    while looked < memSpanFrames {
+        let frame = memAllocHint + looked < memSpanFrames
+            ? memAllocHint + looked
+            : memAllocHint + looked - memSpanFrames
+        if !frameIsUsed(frame) {
+            setFrameUsed(frame, true)
+            memFreeFrames -= 1
+            memAllocHint = frame + 1
+            if memAllocHint >= memSpanFrames { memAllocHint = 0 }
+            return UInt64(frame) * pageSize
+        }
+        looked += 1
+    }
+    return 0
+}
+
+/// Gives one frame back to the pool. The caller's word is the only
+/// guard: a frame may be freed only by whoever took it from
+/// allocFrame — freeing a reservation would hand the kernel's own
+/// ground to the next taker, and nothing in this young allocator
+/// can tell the difference yet. Milestone 7's heap will keep books;
+/// today, the kernel frees only what it took, in the self-test.
+func freeFrame(_ address: UInt64) {
+    if address % pageSize != 0 { return }
+    let frame = Int(address / pageSize)
+    if frame <= 0 || frame >= memSpanFrames { return }
+    if frameIsUsed(frame) {
+        setFrameUsed(frame, false)
+        memFreeFrames += 1
+        if frame < memAllocHint { memAllocHint = frame }
+    }
+}
+
+/// The allocator's proof of life, run once at boot: take two
+/// frames, give one back, take another, give everything back —
+/// passing only if every taking succeeded, no two holdings were
+/// ever the same frame, and the free count comes home exactly to
+/// where it began. Its verdict rides in memSelfTestOK, and `mem`
+/// speaks it; if it ever failed, the counts would still be true,
+/// and the failure would be on the screen for anyone to see.
+func runMemorySelfTest() {
+    let before = memFreeFrames
+    let first = allocFrame()
+    let second = allocFrame()
+    if first == 0 || second == 0 || first == second {
+        if first != 0 { freeFrame(first) }
+        if second != 0 { freeFrame(second) }
+        memSelfTestOK = false
+        return
+    }
+    freeFrame(first)
+    let third = allocFrame()
+    if third == 0 {
+        freeFrame(second)
+        memSelfTestOK = false
+        return
+    }
+    freeFrame(second)
+    freeFrame(third)
+    memSelfTestOK = memFreeFrames == before
+}
+
+
+// ---------------------------------------------------------------------------
 // The shell.
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
@@ -713,6 +1057,9 @@ public func exceptionHandler(_ vector: UInt64) {
 //   clear   a clean screen and a fresh prompt
 //   uptime  how long the kernel has been awake (milestone 4: the
 //           answer is read off the timer interrupt's tick count)
+//   mem     the machine's memory, counted from the bootloader's
+//           own map (milestone 6: the frame allocator's books;
+//           `memory` is taken as the same command)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -726,6 +1073,8 @@ let aboutCommand: StaticString = "about"
 let verseCommand: StaticString = "verse"
 let clearCommand: StaticString = "clear"
 let uptimeCommand: StaticString = "uptime"
+let memCommand: StaticString = "mem"
+let memoryCommand: StaticString = "memory"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -734,6 +1083,7 @@ let helpAboutLine: StaticString = "  about   what Cardnull OS is"
 let helpVerseLine: StaticString = "  verse   a verse of Scripture"
 let helpClearLine: StaticString = "  clear   clear the screen"
 let helpUptimeLine: StaticString = "  uptime  how long the kernel has been awake"
+let helpMemLine: StaticString = "  mem     the machine's memory, counted from its map"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -805,6 +1155,50 @@ func printUptime() {
     writeNumber(seconds)
     writeStatic(seconds == 1 ? secondWord : secondsWord)
     writeNewline()
+}
+
+/// mem's vocabulary: labels and closings, with the numbers spoken
+/// between them by writeNumber.
+let memTitle: StaticString = "Memory:"
+let memRamLabel: StaticString = "  Usable RAM: "
+let memMiBWord: StaticString = " MiB ("
+let memBytesWord: StaticString = " bytes)"
+let memFramesLabel: StaticString = "  Frames of 4 KiB: "
+let memTotalWord: StaticString = " total, "
+let memFreeWord: StaticString = " free, "
+let memUsedWord: StaticString = " used"
+let memSelfTestPassedLine: StaticString =
+    "  Allocator self-test: passed"
+let memSelfTestFailedLine: StaticString =
+    "  Allocator self-test: FAILED"
+let memNoMapLine: StaticString =
+    "No memory map came from the bootloader."
+
+/// mem's answer: the machine's memory as the bootloader's map and
+/// the allocator's books agree it stands — the usable RAM in full
+/// bytes (and whole mebibytes beside it), the frame estate and its
+/// division, and the self-test's verdict. Every number was reckoned
+/// at boot from the real map; nothing here is remembered from the
+/// machine that built the kernel.
+func printMemory() {
+    if !memMapFound {
+        writeLine(memNoMapLine)
+        return
+    }
+    writeLine(memTitle)
+    writeStatic(memRamLabel)
+    writeNumber(memTotalUsableBytes / 1048576)
+    writeStatic(memMiBWord)
+    writeNumber(memTotalUsableBytes)
+    writeLine(memBytesWord)
+    writeStatic(memFramesLabel)
+    writeNumber(memTotalFrames)
+    writeStatic(memTotalWord)
+    writeNumber(memFreeFrames)
+    writeStatic(memFreeWord)
+    writeNumber(memTotalFrames - memFreeFrames)
+    writeLine(memUsedWord)
+    writeLine(memSelfTestOK ? memSelfTestPassedLine : memSelfTestFailedLine)
 }
 
 /// True when the typed line is nothing but spaces — the typist
@@ -880,6 +1274,7 @@ func submitLine() {
     let isAbout = commandMatches(aboutCommand)
     let isVerse = commandMatches(verseCommand)
     let isUptime = commandMatches(uptimeCommand)
+    let isMem = commandMatches(memCommand) || commandMatches(memoryCommand)
 
     writeNewline()
     if !blank {
@@ -890,6 +1285,7 @@ func submitLine() {
             writeLine(helpVerseLine)
             writeLine(helpClearLine)
             writeLine(helpUptimeLine)
+            writeLine(helpMemLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -900,6 +1296,8 @@ func submitLine() {
             writeLine(verseAttribution)
         } else if isUptime {
             printUptime()
+        } else if isMem {
+            printMemory()
         } else {
             writeLine(unknownLine)
         }
@@ -967,6 +1365,14 @@ public func kmain(_ multibootInfo: UInt64) {
     // Choose the screen before anything is drawn: read the
     // bootloader's information for a usable framebuffer.
     chooseScreen(infoAddress: multibootInfo)
+
+    // Read the bootloader's other word (milestone 6): the memory
+    // map. The frame allocator is raised over it now — reservations
+    // laid, self-test run — so the `mem` command can speak the
+    // machine's true numbers from the shell's first breath. The
+    // framebuffer's range is one of the reservations, which is why
+    // this waits until the screen is chosen.
+    initMemory(infoAddress: multibootInfo)
 
     // Wipe the screen the bootloader left behind: the grid emptied
     // and repainted — and on the framebuffer, the whole pixel field

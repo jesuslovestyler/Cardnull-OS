@@ -58,6 +58,13 @@ it bends.*
    entry of our own, speaking to the firmware directly, remains
    a later door.)*
 3. Memory management; a filesystem that remembers.
+   *(Begun — November 9, 2026: milestone 6 taught the kernel to
+   read the Multiboot2 memory map and keep a page-frame allocator
+   over the RAM it names — reservations for the first megabyte,
+   the kernel image, the framebuffer, and every non-RAM region,
+   a boot self-test that takes and returns frames, and a `mem`
+   command that speaks the reckoned numbers. Paging and a kernel
+   heap are milestone 7; the filesystem follows.)*
 4. Running programs.
 5. A simple graphical interface.
 6. Chirpy Browser and the Catholic Bible at home on it.

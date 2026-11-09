@@ -257,3 +257,37 @@ static unsigned char text_grid[80 * 25];
 unsigned char *cardnull_text_grid(void) {
     return text_grid;
 }
+
+/* ------------------------------------------------------------------ */
+/* Milestone 6: the frame allocator's two lendings.                    */
+/*                                                                     */
+/* The allocator itself — which frames exist, which are free, what   */
+/* the Multiboot2 memory map means — is decided in Swift, above.     */
+/* The floor lends only what Swift cannot name for itself:           */
+/*                                                                     */
+/*   - The bitmap's raw storage: one bit per 4 KiB frame. 128 KiB    */
+/*     of bits covers 1,048,576 frames — the whole first 4 GiB,      */
+/*     which is also as far as the boot floor's identity map can     */
+/*     reach today. The number is agreed with the kernel's           */
+/*     frameBitmapCapacityBytes.                                     */
+/*   - The kernel image's own bounds, as the linker script named     */
+/*     them, so the allocator can reserve the ground the kernel      */
+/*     itself is standing on.                                        */
+/* ------------------------------------------------------------------ */
+
+static unsigned char frame_bitmap[131072];
+
+unsigned char *cardnull_frame_bitmap(void) {
+    return frame_bitmap;
+}
+
+extern char __cardnull_kernel_start;
+extern char __cardnull_kernel_end;
+
+unsigned long cardnull_kernel_start(void) {
+    return (unsigned long)&__cardnull_kernel_start;
+}
+
+unsigned long cardnull_kernel_end(void) {
+    return (unsigned long)&__cardnull_kernel_end;
+}

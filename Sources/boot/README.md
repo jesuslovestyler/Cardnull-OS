@@ -53,7 +53,13 @@ every line says why it exists.
   the screen's truth now, painted through whichever backend the
   boot provided — and the plain `memset` / `memcpy` / `memmove`
   every C floor owes, which Swift's grip on that grid reaches for
-  by name.
+  by name. Milestone 6 added two more lendings, both for the frame
+  allocator the kernel raises in Swift: 128 KiB of raw bitmap
+  storage (`cardnull_frame_bitmap` — one bit per 4 KiB frame,
+  covering the first 4 GiB) and the kernel image's own bounds
+  (`cardnull_kernel_start` / `cardnull_kernel_end`), so the
+  allocator can reserve the ground the kernel stands on. What the
+  bits mean stays the kernel's business, as always.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),
@@ -62,12 +68,16 @@ every line says why it exists.
   draws with it wherever the boot provided pixels instead of a
   text grid — behind UEFI, always.
 - **`linker.ld`** — lays the kernel at 1 MiB (0x100000) with the
-  Multiboot2 header first in the image, each section on its own page.
+  Multiboot2 header first in the image, each section on its own
+  page. Since milestone 6 it also names the image's bounds —
+  `__cardnull_kernel_start` / `__cardnull_kernel_end` — the
+  reservation the allocator lays over itself.
 
 ## What is not here yet
 
-No memory beyond the identity map — memory management is milestone
-3 on the roadmap, and the floor grows only when the kernel above it
-honestly requires more. The IDT's gates beyond the exceptions and
+No memory beyond the identity map — the kernel's frame allocator
+(milestone 6) works within the floor's 4 GiB identity map, and
+paging of our own, with a heap above it, is milestone 7. The floor
+grows only when the kernel above it honestly requires more. The IDT's gates beyond the exceptions and
 IRQ0/IRQ1 stand empty, likewise: a vector earns a stub when a device
 or a duty honestly arrives, not before.

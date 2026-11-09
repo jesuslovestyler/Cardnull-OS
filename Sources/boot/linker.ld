@@ -18,6 +18,12 @@ SECTIONS
 {
     . = 0x100000;
 
+    /* The kernel image's own bounds, named for milestone 6: the
+     * memory allocator must never hand out the frames the kernel
+     * itself is standing on, so the floor lends these two addresses
+     * to the kernel (through support.c) as its reservation. */
+    __cardnull_kernel_start = .;
+
     /* The Multiboot2 header leads the file. */
     .text : ALIGN(4K)
     {
@@ -40,6 +46,10 @@ SECTIONS
         *(COMMON)
         *(.bss .bss.*)
     }
+
+    /* One past the kernel image's last byte (page tables and stack
+     * live in .bss, so they are inside the reservation too). */
+    __cardnull_kernel_end = .;
 
     /* Anything the compilers emit that we did not name has no home here. */
     /DISCARD/ :

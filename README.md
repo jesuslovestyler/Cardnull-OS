@@ -58,7 +58,29 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 5 stands (November 6, 2026): **one ISO, two doors.** The
+Milestone 6 stands (November 9, 2026): **the kernel knows its
+memory.** The Multiboot2 information GRUB hands over carries a
+memory map, and the kernel now reads it — every region's base,
+length, and kind — and raises a page-frame allocator over the RAM
+the map calls available: one bit per 4 KiB frame in storage the
+boot floor lends, every frame spoken for until the map expressly
+frees it, and reservations laid back over the pool for the first
+megabyte, the kernel image itself, the framebuffer, the
+bootloader's own information, and anything the map does not call
+RAM. A boot-time self-test takes and returns frames and passes
+only if the free count comes home exactly. A sixth command joins
+the shell: `mem` (or `memory`) speaks the machine's true numbers —
+usable RAM in bytes, total frames, free frames, used frames —
+reckoned at runtime from the real map, so the same kernel answers
+differently behind the two doors, because the two firmwares' maps
+honestly differ: in QEMU with 128 MiB, the BIOS door reported
+133,688,320 usable bytes and 32,638 frames (32,426 free), the
+UEFI door 127,696,896 bytes and 31,176 frames (30,963 free), the
+self-test passing behind both. Nothing is paged and there is no
+heap yet — handing frames out, one by one, is this milestone's
+whole work; paging and the heap are milestone 7.
+
+Before that, milestone 5 (November 6, 2026): **one ISO, two doors.** The
 same disc image now boots behind UEFI firmware as well as BIOS.
 The Multiboot2 header asks the bootloader for a linear framebuffer
 — no particular mode, after UEFI GRUB answered an exact request
@@ -73,7 +95,7 @@ whichever screen is live: the VGA text grid, or drawn pixels —
 white glyphs on black from a public-domain 8x8 font, doubled when
 the mode is roomy — with the cursor drawn as an underline where
 there is no hardware cursor to move. The shell does not know which
-door it came through: the same five commands answer behind both,
+door it came through: the same commands answer behind both,
 and behind the BIOS door GRUB now sets a graphics mode too, so the
 letters there are drawn pixels as well, the text grid remaining
 the fallback for a boot with no usable framebuffer. Verified in
@@ -111,8 +133,8 @@ typed through the emulator's keyboard, answered on the kernel's
 screen, and the two uptime readings advancing with the wall clock
 between them; the same ISO is the one tested in UTM.
 
-Not yet, honestly: memory management and a filesystem (roadmap
-step 3, "Remember"); USB input — under either firmware, a
+Not yet, honestly: paging and a kernel heap (milestone 7), and a
+filesystem (the rest of roadmap step 3, "Remember"); USB input — under either firmware, a
 USB-only keyboard is beyond us still, which is why the UTM drill
 keeps the PS/2 controller forced on and USB input off; and a
 native EFI entry of our own — the UEFI door today is GRUB's EFI

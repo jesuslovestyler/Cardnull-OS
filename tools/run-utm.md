@@ -43,25 +43,34 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Five commands, for now:
+Press Enter and the prompt answers. Six commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
 - `verse` — John 1:1, in the Douay-Rheims wording
 - `clear` — a clean screen and a fresh prompt
 - `uptime` — how long the kernel has been awake
+- `mem` — the machine's memory, counted from the bootloader's map
+  (`memory` answers too)
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
 Try `uptime` twice, a little while apart: the second reading is
 larger by the wait — the kernel counts a 100 Hz heartbeat by
-interrupt now, and rests in between instead of polling. (The UTM
+interrupt now, and rests in between instead of polling. And try
+`mem`: since milestone 6 the kernel reads the memory map the
+bootloader hands over and keeps a page-frame allocator over the
+RAM it finds, so the answer is the machine's own numbers — usable
+RAM, frames total, free, and used, with the allocator's boot
+self-test verdict. The numbers differ a little between the BIOS
+and UEFI doors, because the two firmwares' maps honestly differ;
+both are the truth as that door's bootloader reported it. (The UTM
 settings, settled milestone 2: Force PS/2 Controller on, USB input
 disabled — the keyboard is still a PS/2 device; what changed in
 milestone 4 is that it speaks by IRQ1, not by being asked. And
 since milestone 5 the disc boots behind either firmware: **UEFI
 Boot** off is the BIOS door, on is the UEFI door — same shell,
-same five commands. Behind the UEFI door there is no text grid,
+same commands. Behind the UEFI door there is no text grid,
 so the kernel draws its letters as pixels, and GRUB now sets a
 graphics mode behind the BIOS door too, so the letters are drawn
 there as well — possibly larger than before, depending on the
