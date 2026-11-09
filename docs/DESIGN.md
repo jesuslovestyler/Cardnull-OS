@@ -76,8 +76,21 @@ it bends.*
    4 MiB kernel heap stands over the allocator's frames —
    first-fit blocks with splitting and coalescing, a boot
    self-test of patterns written and read back byte for byte,
-   and a `heap` command that speaks its books. The filesystem
-   follows.)*
+   and a `heap` command that speaks its books. Milestone 8 —
+   the same day again — finished the step: the kernel reads its
+   own disc. The CD-ROM hangs off an AHCI controller in every
+   machine this kernel boots on (there is no legacy IDE port
+   hardware in them), so the driver finds the controller in PCI
+   configuration space by its class, maps its registers into
+   the kernel's own tables, and speaks ATAPI to the port that
+   signs itself a packet device — READ (10) packets, the
+   controller's engine walking each sector into memory. Above
+   it, a read-only ISO9660 reader walks directories and
+   resolves the shell's paths without caring about case; the
+   shell gained `ls` and `cat`, and the disc gained a
+   WELCOME.TXT — a greeting and John 1:1 in the Douay-Rheims,
+   packed into the ISO at build time and nowhere in the kernel
+   — as the first thing worth reading.)*
 4. Running programs.
 5. A simple graphical interface.
 6. Chirpy Browser and the Catholic Bible at home on it.

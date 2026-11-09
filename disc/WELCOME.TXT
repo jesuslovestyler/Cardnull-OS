@@ -1,0 +1,8 @@
+Welcome to Cardnull OS.
+
+This file is not inside the kernel. It lives on the disc itself,
+and the kernel read it from there - sector by sector, through its
+own ATAPI driver and ISO9660 reader.
+
+In the beginning was the Word, and the Word was with God, and the Word was God.
+- John 1:1 (Douay-Rheims)

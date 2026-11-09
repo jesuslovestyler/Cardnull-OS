@@ -43,7 +43,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Eight commands, for now:
+Press Enter and the prompt answers. Ten commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -54,6 +54,8 @@ Press Enter and the prompt answers. Eight commands, for now:
   (`memory` answers too)
 - `heap` — the kernel heap, counted from its books
 - `faulttest` — take a page fault on purpose, and hear it reported
+- `ls` — what is on the disc (`ls /boot` looks inside a folder)
+- `cat` — print a file from the disc: `cat /welcome.txt`
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -91,5 +93,18 @@ so the kernel draws its letters as pixels, and GRUB now sets a
 graphics mode behind the BIOS door too, so the letters are drawn
 there as well — possibly larger than before, depending on the
 mode offered. The words are the same.)
+
+One more thing to try since milestone 8: watch the line under
+the banner as the machine boots — "Disc: QEMU DVD-ROM, AHCI
+port 2." (the drive's name and port will read as UTM's drive
+reports them). That is the kernel finding the very disc it
+booted from and reading its table of contents. `ls` shows the
+disc's root — BOOT, the EFI machinery, and WELCOME.TXT, a
+greeting that lives only on the disc. `cat /welcome.txt` reads
+it back, sector by sector: a welcome from Cardnull and John 1:1
+in the Douay-Rheims. `cat /boot/grub/grub.cfg` reads GRUB's own
+config off the same disc. Paths do not care about capitals, and
+asking for what is not there is answered plainly. Reading is
+all the disc gets — nothing is written, ever.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

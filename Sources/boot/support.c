@@ -111,6 +111,24 @@ void cardnull_outb(unsigned short port, unsigned char value) {
     __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
 }
 
+/* Milestone 8 widens the port hands to the double-word, for
+ * PCI configuration space: a device's identity and its register
+ * addresses are read and written a full 32 bits at a time
+ * through ports 0xCF8 (the address) and 0xCFC (the data). The
+ * disc controller is found there; its own registers are
+ * memory-mapped and need no hand at all. What the configuration
+ * means is decided in Swift, above; the floor only moves the
+ * words. */
+unsigned int cardnull_inl(unsigned short port) {
+    unsigned int value;
+    __asm__ volatile("inl %1, %0" : "=a"(value) : "Nd"(port));
+    return value;
+}
+
+void cardnull_outl(unsigned short port, unsigned int value) {
+    __asm__ volatile("outl %0, %1" : : "a"(value), "Nd"(port));
+}
+
 /* Sleep one wait: stop the processor until the next interrupt, then
  * return to the caller. Milestone 4's shell loop rests here instead of
  * spinning on the keyboard ports. Interrupts must already be enabled
@@ -323,6 +341,15 @@ void cardnull_enable_nxe(void) {
 
 void cardnull_load_cr3(unsigned long root) {
     __asm__ volatile("mov %0, %%cr3" : : "r"(root) : "memory");
+}
+
+/* Forget one page's cached translation. Milestone 8's disc
+ * driver maps its controller's registers into the standing
+ * tables — pages that were absent a moment ago — and this hand
+ * makes the processor look again rather than trust the absence
+ * it may have remembered. */
+void cardnull_invlpg(unsigned long address) {
+    __asm__ volatile("invlpg (%0)" : : "r"(address) : "memory");
 }
 
 extern char __cardnull_text_start;

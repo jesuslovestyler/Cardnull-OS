@@ -82,6 +82,12 @@ echo "==> [3/4] Linking kernel.bin"
 
 echo "==> [4/4] Packing dist/cardnull.iso"
 cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
+# The welcome file (milestone 8): a plain text file at the disc's
+# root, its source kept in disc/ beside the kernel's sources. It
+# is not linked into the kernel — the running OS reads it back
+# off the real disc through its own ATAPI driver and ISO9660
+# reader, which is the milestone's whole point.
+cp "$ROOT/disc/WELCOME.TXT" "$ISO_DIR/WELCOME.TXT"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
 # Behind the UEFI door, GRUB speaks through the firmware's text
 # console until it is told otherwise — and a console is not a video

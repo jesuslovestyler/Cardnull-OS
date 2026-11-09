@@ -40,6 +40,11 @@ kernel, written line by line, so that what we give away is truly ours to give.
    interrupts, a 100 Hz heartbeat, and an `uptime` command that
    reads it.)*
 3. **Remember** — memory management and a filesystem.
+   *(Done — November 9, 2026: milestone 6 brought the frame
+   allocator and the `mem` command, milestone 7 the kernel's own
+   page tables and heap, and milestone 8 the disc itself — a
+   CD-ROM driver, an ISO9660 reader, and the `ls` and `cat`
+   commands to prove them.)*
 4. **Work** — run programs; one thing at a time, then many.
 5. **Dress** — a simple graphical face.
 6. **Carry** — Chirpy Browser and the Catholic Bible, at home.
@@ -58,7 +63,44 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 7 stands (November 9, 2026): **the kernel keeps its
+Milestone 8 stands (November 9, 2026): **the OS reads its own
+disc.** The boot now speaks one more line beneath the banner —
+"Disc: QEMU DVD-ROM, AHCI port 2." — because the kernel carries
+a driver for the drive it booted from. The machines this kernel
+boots on hang their CD-ROM off an AHCI controller — an IDE
+device on one of the controller's buses, with no legacy IDE
+port hardware anywhere in the machine — so the driver finds the
+controller in PCI configuration space by its class (asking
+every function of every device: the controller is the second
+function of its slot), maps the controller's registers into
+the kernel's own page tables, and takes the first port whose
+device signs itself ATAPI and answers IDENTIFY PACKET DEVICE.
+Above the driver stands a read-only ISO9660 reader: the Primary
+Volume Descriptor at sector 16 must carry its CD001 signature,
+directory records are walked as the format lays them, and paths
+are matched letter for letter without caring about case, the
+disc's ";1" version suffixes forgiven. The disc carries a file
+the kernel was never told about: WELCOME.TXT, packed into the
+ISO at build time — a greeting from Cardnull and John 1:1 in
+the Douay-Rheims — which exists nowhere in the kernel and can
+only be read off the disc itself. Two commands join the shell:
+`ls` lists a directory with sizes (`ls /boot` shows GRUB and
+KERNEL.BIN at 75,216 bytes), and `cat` prints a file from the
+disc — `cat /welcome.txt` prints the greeting and the verse,
+and `cat /boot/grub/grub.cfg` prints GRUB's own config, read
+back off the disc that booted it. Errors are plain and true:
+"Not on the disc: /nope.txt"; "/boot is a directory, not a
+file." Sectors are asked for one at a time with the READ (10)
+packet over the ATA PACKET command, the controller's engine
+walking each into memory — nothing is written, nothing is
+cached past the sector in hand. `mem`'s books grew honestly
+again: behind the BIOS door, 1,316 frames used of 32,638
+(milestone 7's 1,308, plus the driver's two DMA frames, the
+controller's mapping tables, and the grown kernel). Verified
+in QEMU behind both doors — `ls`, both `cat`s, and the errors
+under UEFI; `ls`, `cat`, and `mem` as the BIOS regression.
+
+Before that, milestone 7 (November 9, 2026): **the kernel keeps its
 own house.** The kernel no longer runs on the boot floor's
 borrowed page tables — one wide identity map where every page
 stood writable and executable. It builds tables of its own, out
@@ -171,9 +213,10 @@ typed through the emulator's keyboard, answered on the kernel's
 screen, and the two uptime readings advancing with the wall clock
 between them; the same ISO is the one tested in UTM.
 
-Not yet, honestly: a filesystem (the rest of roadmap step 3,
-"Remember") — paging and the kernel heap stood up in milestone
-7, and the filesystem is the next stone; USB input — under either firmware, a
+Not yet, honestly: running programs of its own (roadmap step 4,
+"Work") — the filesystem milestone 8 brought is read-only and
+loads nothing yet, and loading and running a first separate
+program is the next stone; USB input — under either firmware, a
 USB-only keyboard is beyond us still, which is why the UTM drill
 keeps the PS/2 controller forced on and USB input off; and a
 native EFI entry of our own — the UEFI door today is GRUB's EFI

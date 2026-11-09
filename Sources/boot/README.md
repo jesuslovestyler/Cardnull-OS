@@ -72,7 +72,16 @@ every line says why it exists.
   `cardnull_rodata_start` / `cardnull_rodata_end`), so the kernel
   can lay W^X over its own body. The tables themselves — what is
   mapped, under what law — are built in Swift, above; the floor
-  only lends the hands and the measurements.
+  only lends the hands and the measurements. Milestone 8 widened
+  the port hands to the double-word — `cardnull_inl` /
+  `cardnull_outl`, for PCI configuration space, where the disc
+  controller is found — and added `cardnull_invlpg`, the
+  forget-one-translation hand: the disc driver maps its
+  controller's registers into the kernel's standing tables,
+  pages that were absent a moment ago, and the processor must be
+  told to look again. The controller's own registers are
+  memory-mapped and need no hand at all; everything the driver
+  decides stands in Swift, above.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),
