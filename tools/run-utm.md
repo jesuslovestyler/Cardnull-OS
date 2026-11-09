@@ -169,9 +169,11 @@ B, with seven, prints its last two alone. The shell reports
 each ending beside its name — "/a.bin exited: 5",
 "/b.bin exited: 7" (the guests leave with their counts, so
 you can check the report against the tokens). The taking of
-turns is cooperative: a program holds the machine until it
-yields, leaves, or falls — nothing snatches it away — and two
-programs is the measure, no more. The wall stands with
+turns was cooperative when this milestone landed: a program
+held the machine until it yielded, left, or fell — nothing
+snatched it away. Milestone 15 changed the keeping, and its
+own walk stands below; two programs is still the measure,
+no more. The wall stands with
 company in the room: try `both /bad.bin /a.bin`, and BAD is
 stopped at the wall while A counts out all five of its tokens
 in the same session, undisturbed, after which the shell
@@ -206,6 +208,39 @@ turn and sends you to `feather` — a package's card is never
 executed as code. As ever, the ground a feather's program
 stood on is handed back: `mem` reads the same numbers
 before an opening and after it.
+
+And since milestone 15, the disc carries one more guest —
+SPIN.BIN — and turns are no longer a courtesy. SPIN never
+yields and never leaves: it prints a token (S1, S2, S3,
+and upward), burns a long stretch of the processor in a
+tight loop, and prints again, forever. Try
+`both /spin.bin /a.bin`. Every session now opens with a
+guidance line — "Press Esc to stop the session." — and
+then, where milestone 10's keeping would have let SPIN
+hold the machine and starve A outright, A counts out all
+five of its tokens among SPIN's (S1 A1 S2 A2 S3 A3 S4 A4
+S5 A5) and leaves, on slices of a tenth of a second —
+ten ticks of the 100 Hz heartbeat — that the timer cuts
+out of SPIN's spinning whether SPIN knocks at the door
+or not. SPIN runs on alone after A leaves; press Esc and
+the session ends at your word: "/spin.bin was stopped.",
+"/a.bin exited: 5", and a closing account of the turns
+the machine took — "Switches: 5 by the door, 5 by the
+timer." — the door's turns (yields, and the hand-over
+when one guest ends and its partner runs on) beside the
+timer's (slices spent while both guests lived; a guest
+running alone takes fresh slices and no switch is
+counted, there being no one to switch to), so the forcing
+is a number and not an impression. The classic pair reads
+as ever, and its account is all door and no timer (9 by
+the door, 0 by the timer): courteous guests finish before
+any slice runs out. A lone never-ending guest is bounded
+by the same word — `run /spin.bin`, watch it count, and
+Esc brings the shell home: "The guest was stopped. The
+shell stands." What the timer never touches is the kernel
+itself: turns are taken only out of a running guest's
+hands, and the shell's and the desktop's own work is never
+interrupted by the scheduling.
 
 And the OS has a face — since milestone 12 a drawn one,
 and since milestone 13 the front door itself: when the
@@ -285,7 +320,11 @@ clicked, the Terminal closed, bare desktop), Esc brings
 the whole face home. If Esc does not answer, the room is
 the Terminal's: click the card, the desktop, the
 Terminal's close box, or the Home button, and you are
-out.
+out. One Esc rule stands above those while a guest
+session runs, in the Terminal or at the text console
+alike: Esc is the session's key and stops it, as the
+session's own opening line says — the room rulings
+resume when the session ends.
 
 Milestone 13 also re-made the mouse's waking, after
 milestone 12's first UTM witness came back partial: the

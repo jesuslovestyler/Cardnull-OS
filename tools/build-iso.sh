@@ -60,9 +60,18 @@ mkdir -p "$BUILD" "$DIST" "$ISO_DIR/boot/grub"
 echo "==> [1/6] Assembling the boot floor"
 clang --target="$TARGET" -ffreestanding -c \
     "$ROOT/Sources/boot/boot.S" -o "$BUILD/boot.o"
-clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
+# -mno-red-zone, on both C files, is load-bearing (milestone 15):
+# the red zone is a userspace luxury — an interrupt taken on this
+# processor pushes its frame onto the current stack, below the
+# stack pointer, exactly where red-zone locals live. Milestone
+# 15's proof caught the timer's frame overwriting memset's own
+# count with the interrupted address, mid-launch, and memset
+# marching into the kernel's text; the hazard is as old as the
+# first interrupt stub, and the longer sessions merely dealt it
+# enough chances. Kernel C keeps nothing below its stack pointer.
+clang --target="$TARGET" -ffreestanding -fno-stack-protector -mno-red-zone -c \
     "$ROOT/Sources/boot/support.c" -o "$BUILD/support.o"
-clang --target="$TARGET" -ffreestanding -fno-stack-protector -c \
+clang --target="$TARGET" -ffreestanding -fno-stack-protector -mno-red-zone -c \
     "$ROOT/Sources/boot/font8x8.c" -o "$BUILD/font8x8.o"
 
 echo "==> [2/6] Assembling the guest programs (milestones 9 and 10)"
@@ -72,8 +81,10 @@ echo "==> [2/6] Assembling the guest programs (milestones 9 and 10)"
 # packed onto the disc in step 6 as files — never linked into the
 # kernel — and the running OS reads them off the real disc, which
 # is the milestone's whole point. Milestone 10 adds the pair —
-# a and b, the two guests that take turns under `both`.
-for guest in hello count bad a b; do
+# a and b, the two guests that take turns under `both`. Milestone
+# 15 adds spin, the guest that never yields and never leaves: the
+# witness that the timer's preemptive turns are real.
+for guest in hello count bad a b spin; do
     clang --target="$TARGET" -c \
         "$ROOT/programs/$guest.s" -o "$BUILD/$guest.o"
     "$LD" -Ttext=0x40000000 --oformat binary \
@@ -137,6 +148,7 @@ cp "$BUILD/count.bin" "$ISO_DIR/COUNT.BIN"
 cp "$BUILD/bad.bin" "$ISO_DIR/BAD.BIN"
 cp "$BUILD/a.bin" "$ISO_DIR/A.BIN"
 cp "$BUILD/b.bin" "$ISO_DIR/B.BIN"
+cp "$BUILD/spin.bin" "$ISO_DIR/SPIN.BIN"
 # The feathers (milestone 11): the packages the new `feather`
 # command opens — the card read first, the checksum proven,
 # and only then the program run. Files on the disc, like

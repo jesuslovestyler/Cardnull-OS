@@ -65,7 +65,32 @@ every line says why it exists.
     three small hands that read a finished session's results out
     of their bookmarks for Swift. Milestone 12 grew the table by
     one more stub — IRQ12's, the mouse's door at IDT vector
-    0x2C — of exactly the IRQ stubs' shape above.
+    0x2C — of exactly the IRQ stubs' shape above. Milestone 15
+    grew the timer's stub rather than the table: after the
+    counting call, a tick that finds a guest in ring 3 while a
+    session stands first answers a stop word (set from Swift's
+    keyboard side when Esc is pressed during a session — the
+    stop blocks end a pair by writing both books down stopped
+    and taking the pair's way home, and a single guest by the
+    old abandon road with the stopped verdict), and otherwise
+    counts down the running guest's slice — ten ticks — a
+    spent slice taking the machine to the partner through a
+    switch block that writes the whole interrupted state out
+    of the stub's own pushes and the processor's frame
+    (fifteen registers, place, flags, stack top) into the
+    running guest's book before the shared entering hand
+    resumes the partner. A partner that is finished — or,
+    since a hand-over leaves both bookmarks on the survivor,
+    the runner itself — earns a fresh slice instead, and no
+    switch is counted, there being no one to switch to; the
+    door's yield keeps the same rule, so the session's two
+    counts, which three small hands here read out for Swift
+    (the stop word's setter and the two counts), speak only
+    of turns the machine truly took. The new keepings stand
+    in .bss beside the books: the quantum and the slice's
+    remainder, the two counts, the stop word, and a flag for
+    a single session standing, set by the single launch and
+    cleared by every road home.
 - **`support.c`** — runtime support shims: the stack-protector guard
   word and failure path, allocation entry points that honestly
   decline (there is no heap yet), and the port I/O hands

@@ -23,10 +23,17 @@ here.
      packs its wounded twin, TAMPERED.FEATHER, beside it;
   6. packs **`dist/cardnull.iso`** with grub-mkrescue — a GRUB that
      loads `/boot/kernel.bin` by Multiboot2, the disc also carrying
-     WELCOME.TXT, the five guest binaries, and the two feathers at
+     WELCOME.TXT, the six guest binaries, and the two feathers at
      its root. The ISO is written at ISO 9660 level 3 so a
      feather's name stands whole in the tree (HELLO.FEATHER, not
      HELLO.FEA).
+
+  The floor's C is compiled with the red zone off
+  (`-mno-red-zone`, milestone 15): an interrupt's frame lands
+  below the stack pointer, exactly where red-zone locals would
+  live, and kernel code keeps nothing there — a timer frame once
+  overwrote memset's own count, mid-launch, and the count
+  became the interrupted address itself.
 
   Run it from anywhere: `tools/build-iso.sh`. Needs: swiftc (Swift 6+),
   clang, ld.lld, python3, grub-mkrescue (xorriso and mtools under it).

@@ -72,7 +72,84 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
-Milestone 14 stands (November 9, 2026): **room to breathe —
+Milestone 15 stands (November 9, 2026): **the timer takes
+turns by force — preemptive scheduling.** Milestone 10's
+guests held the machine by courtesy, each keeping it until
+it yielded at the door, and a guest that never yielded was
+never interrupted; that limit is retired. While a pair
+session stands, the PIT's heartbeat now counts against the
+running guest's slice — ten ticks, a tenth of a second at
+its 100 Hz — and a spent slice ends the turn whether the
+guest knocks or not: the floor's timer stub writes the
+guest's whole state out of the interrupt's own frame (all
+fifteen registers, its place, its flags, its stack's top)
+into its book, and the shared entering hand resumes the
+partner from the partner's book, the paused guest unable
+to tell it was ever stopped. The kernel's own work is
+never preempted — a tick that finds the kernel running
+only counts, as it always has. The witness is a new guest
+on the disc, SPIN.BIN, which never yields and never
+leaves: it prints a token, burns a long stretch of the
+processor in a tight loop, and prints again, forever.
+Paired with A (`both /spin.bin /a.bin`), A counts out all
+five of its tokens among SPIN's — in the witnessed run,
+S1 A1 S2 A2 S3 A3 S4 A4 S5 A5 down the screen — and
+leaves, on slices the timer cut out of SPIN's spinning;
+SPIN runs on alone (to S71 in the Terminal's witnessed
+run) until Esc, which every session's opening line now
+names — "Press Esc to stop the session." — stops it, the
+report reading "/spin.bin was stopped." beside
+"/a.bin exited: 5". The same word ends a lone
+`run /spin.bin`. The pair's report closes with the
+session's own accounting, so the forcing is a number and
+not an impression: "Switches: 5 by the door, 5 by the
+timer." — the door's turns (yields, and the hand-over
+when one guest ends and its partner runs on) beside the
+timer's (slices spent while both guests lived; a guest
+running alone takes fresh slices and no switch is counted,
+because there is no one to switch to). The courteous pair
+reads exactly as it did in milestone 10 — A1 B1 A2 B2 A3
+B3 A4 B4 A5 B5 B6 B7, exits 5 and 7 — and its account is
+all door and no timer (9 by the door, 0 by the timer),
+because courteous guests finish before any slice runs
+out; the wall stands as ever (`both /bad.bin /a.bin`: BAD
+stopped, A counting out undisturbed, one door switch —
+the fault road's hand-over). The milestone's proof also
+caught a hazard older than itself, and the record keeps
+it plainly: the floor's C was keeping its locals in the
+red zone below the stack pointer, where an interrupt's
+frame lands when it arrives, and a timer frame overwriting
+memset's own count — caught in the act by an emulator
+trace, mid-launch, the count replaced by the interrupted
+address itself — sent memset marching into the kernel's
+own text before the fault stopped it. The hazard is as
+old as milestone 4's first interrupt stub; the longer
+sessions merely dealt it enough chances, and its usual
+price before today was silent — a table page zeroed short
+or long, in ground teardown later freed. The floor's C is
+now compiled with the red zone off (-mno-red-zone), as
+kernel code must be, and the traced soak that caught the
+fault runs clean. The accounting stays truthful:
+`mem` behind the UEFI door at 4096 MB reads 521,421
+frames free of 522,691 (1,270 used) — milestone 14's
+figure unchanged, scheduling keeping its books in the
+floor's own storage and taking no frames and no heap —
+and at the bench's 512 MB a spin session leaves `mem`
+byte-identical before and after (127,947 free of
+129,475), its estates handed back whole. The supervisor
+road is untouched: `faulttest` still reports 0xDEAD0000
+with error 0x0000 and halts. Verified in QEMU under UTM's
+own conditions (q35, TCG, virtio-vga, QEMU 10.0, front-end
+input delivery): the spin pair in the Terminal and at the
+text console, mid-session and stopped; the lone spin and
+its stopping; the classic and the bad pairs in both
+consoles; faulttest in its own boot; and the whole road
+again behind the BIOS door — desktop, spin pair in the
+Terminal, Esc, Home, and the text shell answering verse.
+Tyler's own UTM witness from the home-folder copy stands
+as the final word, as with every milestone.
+
+Before that, milestone 14 (November 9, 2026): **room to breathe —
 the desktop is rearranged around the Terminal.** Tyler's
 word on the milestone-13 face was that the GUI "looks a
 little off like not enough space for a terminal," and he
@@ -532,12 +609,9 @@ Not yet, honestly — the later doors, now that the ladder
 stands climbed: a writable disc and an installer — the OS
 still lives on a read-only CD, read by its own driver;
 a hard drive it can write to, and an installer that lays
-it there, are the road to a machine of its own; a scheduler
-that takes the machine by force — milestone 10's programs
-take turns by courtesy, each yielding at the door, and a
-guest that never yields is never interrupted; preemptive
-switching on the timer's word is a stone still ahead; more
-than two programs alive at once — the floor keeps two
+it there, are the road to a machine of its own; more
+than two programs alive at once — milestone 15's timer
+enforces the turns between them, but the floor keeps two
 guest books, no wider table; the signed feather and its
 store — milestone 11's checksum proves a program matches
 its card, and no more; the reviewed, cryptographically

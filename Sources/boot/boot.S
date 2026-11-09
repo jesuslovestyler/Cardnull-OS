@@ -26,7 +26,11 @@
 #      two guests whose whole states are kept in two books in .bss
 #      and entered in turn through one shared entering hand, and
 #      cardnull_abandon_guest_in_pair, the fault road homeward
-#      when a partner still lives.
+#      when a partner still lives. Milestone 15 gives those
+#      turns a second keeper: the timer stub above now ends a
+#      running guest's slice itself and takes the machine to
+#      its partner by force, and answers the stop word that
+#      ends a session at the user's Esc.
 #   6. Keep the bootloader's word (milestone 5): the Multiboot2 header
 #      asks for a linear framebuffer — the UEFI door has no text grid
 #      to write in, only pixels — and the entry stub preserves EBX,
@@ -257,6 +261,21 @@ cardnull_halt:
 # the tick and thanks the PIC. The one pad: the interrupt frame (40
 # bytes) plus fifteen pushes leave rsp eight bytes off the ABI's call
 # alignment on the idle path, so one slot is padded before the call.
+#
+# Milestone 15 gives the timer a second work, done here in the floor
+# after the counting, because it is work of frames and books, not of
+# policy: while a pair session stands, the ticks that find a guest
+# running in ring 3 are counted against that guest's slice — ten
+# ticks, a tenth of a second at the PIT's 100 Hz — and a spent slice
+# takes the machine to the partner by force, through the switch
+# block below. And a stop the keyboard handler has asked for (Esc,
+# pressed while a session stands; the asking is Swift's, the flag
+# is the floor's) ends the session by the stop block below, pair
+# and single alike. A tick that finds the kernel itself running —
+# the interrupted frame's code segment is ring 0 — does neither:
+# the kernel's own work is never preempted and never stopped, and
+# since the door and the fault roads run with the gate closed, a
+# session's ticks in practice always land on a guest.
     .globl  cardnull_irq0_stub
 cardnull_irq0_stub:
     PUSH_ALL
@@ -264,8 +283,121 @@ cardnull_irq0_stub:
     sub     $8, %rsp
     call    cardnull_timer_interrupt
     add     $8, %rsp
+    testb   $3, 128(%rsp)               # the interrupted frame's ring:
+    je      cardnull_irq0_plain         # ring 0 — the kernel; count only
+    cmpq    $0, cardnull_stop_requested(%rip)
+    jne     cardnull_irq0_stop          # the user's word ends the session
+    cmpq    $0, cardnull_pair_active(%rip)
+    je      cardnull_irq0_plain         # no pair stands; nothing to take
+    subq    $1, cardnull_slice_left(%rip)
+    jne     cardnull_irq0_plain         # the slice still has ticks in it
+    mov     cardnull_guest_other(%rip), %rax
+    cmp     cardnull_guest_current(%rip), %rax
+    je      cardnull_irq0_fresh         # the "partner" is the runner itself:
+                                        # since milestone 10, a hand-over
+                                        # leaves both bookmarks on the
+                                        # survivor — a switch to oneself is
+                                        # no switch, and none is counted
+    cmpq    $0, 160(%rax)               # the partner still alive?
+    jne     cardnull_irq0_fresh         # no: a fresh slice, and resume
+    jmp     cardnull_timer_switch       # yes: the machine changes hands
+cardnull_irq0_fresh:
+    mov     cardnull_sched_quantum(%rip), %rax
+    mov     %rax, cardnull_slice_left(%rip)
+cardnull_irq0_plain:
     POP_ALL
     iretq
+
+# The timer's switch (milestone 15): the running guest's whole
+# state is written into its book out of the frame this stub's
+# PUSH_ALL laid down — the fifteen registers off the stack where
+# they were saved, the place, the flags and the stack's top out
+# of the frame the processor built — the books are swapped, the
+# switch is counted with the timer's own switches, and the
+# shared entering hand takes the machine to the partner, which
+# resumes exactly where it was taken from, unable to tell it
+# was ever paused. The interrupted frame is left where it lies
+# on the ring-0 entry stack, like a fallen guest's: the
+# hardware reloads that stack's top at the next knock. The book
+# offsets are milestone 10's layout, written out above the pair
+# machinery: registers at 32 (rax) through 144 (r15), the place
+# at 16, the flags at 24, the stack's top at 8.
+cardnull_timer_switch:
+    mov     cardnull_guest_current(%rip), %rbx
+    mov     112(%rsp), %rax
+    mov     %rax, 32(%rbx)              # rax
+    mov     104(%rsp), %rax
+    mov     %rax, 40(%rbx)              # rbx
+    mov     96(%rsp), %rax
+    mov     %rax, 48(%rbx)              # rcx
+    mov     88(%rsp), %rax
+    mov     %rax, 56(%rbx)              # rdx
+    mov     80(%rsp), %rax
+    mov     %rax, 64(%rbx)              # rsi
+    mov     72(%rsp), %rax
+    mov     %rax, 72(%rbx)              # rdi
+    mov     64(%rsp), %rax
+    mov     %rax, 80(%rbx)              # rbp
+    mov     56(%rsp), %rax
+    mov     %rax, 88(%rbx)              # r8
+    mov     48(%rsp), %rax
+    mov     %rax, 96(%rbx)              # r9
+    mov     40(%rsp), %rax
+    mov     %rax, 104(%rbx)             # r10
+    mov     32(%rsp), %rax
+    mov     %rax, 112(%rbx)             # r11
+    mov     24(%rsp), %rax
+    mov     %rax, 120(%rbx)             # r12
+    mov     16(%rsp), %rax
+    mov     %rax, 128(%rbx)             # r13
+    mov     8(%rsp), %rax
+    mov     %rax, 136(%rbx)             # r14
+    mov     (%rsp), %rax
+    mov     %rax, 144(%rbx)             # r15
+    mov     120(%rsp), %rax
+    mov     %rax, 16(%rbx)              # the place the tick found it at
+    mov     136(%rsp), %rax
+    mov     %rax, 24(%rbx)              # its flags
+    mov     144(%rsp), %rax
+    mov     %rax, 8(%rbx)               # its stack's top
+    addq    $1, cardnull_count_timer(%rip)
+    mov     cardnull_guest_other(%rip), %rax
+    mov     %rbx, cardnull_guest_other(%rip)
+    mov     %rax, cardnull_guest_current(%rip)
+    jmp     cardnull_guest_enter
+
+# The timer's stop (milestone 15): Esc was pressed while a
+# session stood, and the session ends at the user's word. A
+# pair is written down stopped — the runner, and the waiter too
+# should it still live; a guest that already left keeps its own
+# standing and verdict — and the pair's way home carries the
+# results out, as it does for any other ending. A single guest
+# is abandoned with the stopped verdict — all ones, the word
+# milestone 9's shell answers with "The guest was stopped." A
+# flag standing with no session beneath it cannot happen (the
+# asking keys on a session standing, and every launch clears
+# the flag as it opens), but if it ever did, it is cleared and
+# the interrupted guest simply resumes.
+cardnull_irq0_stop:
+    cmpq    $0, cardnull_pair_active(%rip)
+    jne     cardnull_irq0_stop_pair
+    cmpq    $0, cardnull_single_active(%rip)
+    je      cardnull_irq0_stop_none
+    movq    $0, cardnull_stop_requested(%rip)
+    movq    $0, cardnull_single_active(%rip)
+    mov     $-1, %rdi                   # the stopped verdict, all ones
+    jmp     cardnull_abandon_program
+cardnull_irq0_stop_pair:
+    mov     cardnull_guest_current(%rip), %rax
+    movq    $2, 160(%rax)               # the runner: stopped
+    mov     cardnull_guest_other(%rip), %rax
+    cmpq    $0, 160(%rax)               # the waiter still alive?
+    jne     cardnull_pair_home          # no: its ending stands as it was
+    movq    $2, 160(%rax)               # yes: stopped too, unrun
+    jmp     cardnull_pair_home
+cardnull_irq0_stop_none:
+    movq    $0, cardnull_stop_requested(%rip)
+    jmp     cardnull_irq0_plain
 
 # IRQ1 — the keyboard. The Swift handler takes the scancode out of
 # the controller and into the kernel's ring buffer; the shell reads
@@ -419,6 +551,8 @@ cardnull_syscall_stub:
 cardnull_syscall_exit:
     cmpq    $0, cardnull_pair_active(%rip)  # a pair session stands? (milestone 10)
     jne     cardnull_syscall_exit_pair
+    movq    $0, cardnull_single_active(%rip)  # the single session closes (milestone 15)
+    movq    $0, cardnull_stop_requested(%rip)
     mov     %rdi, %rax                      # the exit code is the return value
     mov     cardnull_return_cr3(%rip), %rcx
     mov     %rcx, %cr3                      # the kernel's own tables again
@@ -454,6 +588,8 @@ cardnull_launch_program:
     push    %r13
     push    %r14
     push    %r15
+    movq    $1, cardnull_single_active(%rip)  # a single session opens (milestone 15)
+    movq    $0, cardnull_stop_requested(%rip) # no stale word ends it early
     mov     %rsp, cardnull_shell_rsp(%rip)
     mov     %cr3, %rax
     mov     %rax, cardnull_return_cr3(%rip)
@@ -474,6 +610,8 @@ cardnull_launch_program:
 # moves, because home is the same place by either road.
     .globl  cardnull_abandon_program
 cardnull_abandon_program:
+    movq    $0, cardnull_single_active(%rip)  # the single session closes (milestone 15)
+    movq    $0, cardnull_stop_requested(%rip)
     mov     %rdi, %rax                      # the verdict is the return value
     mov     cardnull_return_cr3(%rip), %rcx
     mov     %rcx, %cr3
@@ -512,12 +650,18 @@ cardnull_abandon_program:
 # all — while it does not, every road in this section sleeps and
 # milestone 9's roads run exactly as they did.
 #
-# The keeping is cooperative, and the word is load-bearing: a
-# guest holds the machine until it yields, leaves, or falls.
-# Nothing in this milestone takes the machine from a guest that
-# will not give it — the timer still ticks, but no hand here
-# answers it with a switch. Preemption is a later stone, named
-# as such in the design notes.
+# The keeping was cooperative in this milestone, and the word
+# was load-bearing: a guest held the machine until it yielded,
+# left, or fell, and nothing here took the machine from a guest
+# that would not give it. Milestone 15 supersedes that keeping —
+# the timer now answers with a switch, up in the IRQ0 stub,
+# cutting slices out of a running guest whether it knocks or
+# not — but the books and the door in this section are unchanged
+# by it: every road a guest takes home or hands over still runs
+# through here, and the milestone-15 counting below counts the
+# turns this door still takes (yields, and the hand-overs when
+# one guest ends and its partner runs on) beside the timer's
+# own, so a session's report can speak both numbers truly.
 # ---------------------------------------------------------------------------
 
 # Service 3 — yield. With no pair standing, or with the partner
@@ -534,6 +678,11 @@ cardnull_syscall_yield:
     je      cardnull_yield_resume
     push    %rax                            # a borrowed hand, returned at once
     mov     cardnull_guest_other(%rip), %rax
+    cmp     cardnull_guest_current(%rip), %rax
+    je      cardnull_yield_alone            # the runner is its own partner
+                                            # (a hand-over left both bookmarks
+                                            # on it): a yield to oneself is
+                                            # no switch, and none is counted
     cmpq    $0, 160(%rax)                   # the partner still alive?
     pop     %rax
     jne     cardnull_yield_resume
@@ -564,8 +713,11 @@ cardnull_syscall_yield:
     mov     cardnull_guest_other(%rip), %rax
     mov     %rbx, cardnull_guest_other(%rip)
     mov     %rax, cardnull_guest_current(%rip)
+    addq    $1, cardnull_count_door(%rip)   # a turn taken at the door (milestone 15)
     jmp     cardnull_guest_enter
 
+cardnull_yield_alone:
+    pop     %rax                            # the borrowed hand, returned
 cardnull_yield_resume:
     iretq                                   # the frame stands as the guest left it
 
@@ -582,6 +734,7 @@ cardnull_syscall_exit_pair:
     cmpq    $0, 160(%rcx)                   # the partner still alive?
     jne     cardnull_pair_home
     mov     %rcx, cardnull_guest_current(%rip)
+    addq    $1, cardnull_count_door(%rip)   # a hand-over at the door (milestone 15)
     jmp     cardnull_guest_enter
 
 # cardnull_abandon_guest_in_pair(verdict) -> Never (called from Swift)
@@ -603,6 +756,7 @@ cardnull_abandon_guest_in_pair:
     cmpq    $0, 160(%rcx)                   # the partner still alive?
     jne     cardnull_pair_home
     mov     %rcx, cardnull_guest_current(%rip)
+    addq    $1, cardnull_count_door(%rip)   # a hand-over at the door (milestone 15)
     jmp     cardnull_guest_enter
 
 # The pair's way home: both books are read into the result
@@ -611,6 +765,7 @@ cardnull_abandon_guest_in_pair:
 # tables, the shell's stack, the gate open — with guest A's
 # verdict riding home in rax, as a single launch's code did.
 cardnull_pair_home:
+    movq    $0, cardnull_stop_requested(%rip)  # the session closes (milestone 15)
     lea     cardnull_guest_state_a(%rip), %rcx
     mov     160(%rcx), %rax
     mov     %rax, cardnull_result_status_a(%rip)
@@ -642,6 +797,8 @@ cardnull_pair_home:
 # rides in rbx and is restored last, from its own page of the
 # book, when nothing else needs it.
 cardnull_guest_enter:
+    mov     cardnull_sched_quantum(%rip), %rax
+    mov     %rax, cardnull_slice_left(%rip)  # a fresh slice for the guest being entered (milestone 15)
     mov     cardnull_guest_current(%rip), %rbx
     mov     (%rbx), %rax
     mov     %rax, %cr3                      # the guest's tables
@@ -709,6 +866,13 @@ cardnull_launch_pair:
     lea     cardnull_guest_state_b(%rip), %rax
     mov     %rax, cardnull_guest_other(%rip)
     movq    $1, cardnull_pair_active(%rip)
+    # Milestone 15's session books, opened fresh: the quantum —
+    # ten ticks, a tenth of a second at the PIT's 100 Hz — the
+    # two switch counts wiped, and no stale stop word standing.
+    movq    $10, cardnull_sched_quantum(%rip)
+    movq    $0, cardnull_count_door(%rip)
+    movq    $0, cardnull_count_timer(%rip)
+    movq    $0, cardnull_stop_requested(%rip)
     jmp     cardnull_guest_enter
 
 # Wipes one guest book from its registers onward (offset 32 to
@@ -740,6 +904,29 @@ cardnull_pair_status_a:
     .globl  cardnull_pair_status_b
 cardnull_pair_status_b:
     mov     cardnull_result_status_b(%rip), %rax
+    ret
+
+# Milestone 15's small hands: the stop word, which Swift's
+# keyboard handler sets when Esc is pressed while a session
+# stands (the IRQ0 stub reads it on the next tick and ends the
+# session), and the two switch counts, which Swift reads once
+# the pair launch has returned so the session's report can
+# speak them. The counts are the floor's own keepings: turns
+# taken at the door (yields and hand-overs) and turns taken by
+# the timer (slices spent), wiped fresh at every pair launch.
+    .globl  cardnull_set_stop_request
+cardnull_set_stop_request:
+    mov     %rdi, cardnull_stop_requested(%rip)
+    ret
+
+    .globl  cardnull_door_switches
+cardnull_door_switches:
+    mov     cardnull_count_door(%rip), %rax
+    ret
+
+    .globl  cardnull_timer_switches
+cardnull_timer_switches:
+    mov     cardnull_count_timer(%rip), %rax
     ret
 
 # The stub address table: support.c builds the IDT from these.
@@ -854,6 +1041,25 @@ cardnull_result_verdict_b:
 cardnull_result_status_a:
     .skip   8
 cardnull_result_status_b:
+    .skip   8
+
+# Milestone 15's keepings: whether a single-guest session
+# stands (set by the single launch, cleared by every road
+# home), the stop word the keyboard handler asks with and the
+# timer answers, the pair's quantum and the ticks left in the
+# running guest's slice, and the two switch counts the
+# session's report speaks.
+cardnull_single_active:
+    .skip   8
+cardnull_stop_requested:
+    .skip   8
+cardnull_sched_quantum:
+    .skip   8
+cardnull_slice_left:
+    .skip   8
+cardnull_count_door:
+    .skip   8
+cardnull_count_timer:
     .skip   8
 
     .align 4096

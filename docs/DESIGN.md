@@ -138,7 +138,42 @@ it bends.*
    The checksum is an integrity check against corruption,
    and the format says so in as many words: it is not a
    signature, and the reviewed, signed feather belongs to
-   the store era, still to come.)*
+   the store era, still to come. Milestone 15 — the same
+   day again — took the keeping by force: the timer now
+   ends a running guest's turn itself. While a pair
+   stands, the heartbeat's ticks count against the running
+   guest's slice — ten ticks, a tenth of a second at
+   100 Hz — and a spent slice saves the guest's whole
+   state into its book out of the interrupt's own frame
+   (a different frame from the door's: the processor
+   builds it where the guest was standing, and the floor's
+   stub reads the registers off its own pushes and the
+   place, flags, and stack top out of the frame) and
+   resumes the partner from the partner's book, the paused
+   guest unable to tell it was paused. A new guest, SPIN,
+   witnesses it: it never yields and never leaves, and
+   paired with A it no longer starves A — A counts out and
+   leaves on slices cut from SPIN's spinning, and SPIN
+   runs on alone until Esc, which every session's opening
+   line names ("Press Esc to stop the session."), ends the
+   session and brings the shell home; the same word bounds
+   a lone `run` of a guest that never ends. Yield remains
+   a service and acts as an early slice end, and the
+   pair's report closes with the session's accounting —
+   the turns taken at the door beside the turns taken by
+   the timer, a switch counted only when the machine
+   truly changed hands. The milestone's proof also caught
+   a hazard as old as the first interrupt stub: the
+   floor's C kept its locals in the red zone below the
+   stack pointer, where an interrupt's frame lands, and a
+   timer frame overwriting memset's own count sent it
+   marching into the kernel's text; the floor's C is
+   built with the red zone off now, as kernel code must
+   be. The edges that remain are plain: the company is
+   still two guests exactly; preemption governs the pair
+   (a single guest is bounded by the Esc road, not by
+   turns); and the kernel's own work is never preempted —
+   a tick that finds the kernel running only counts.)*
 5. A simple graphical interface.
    *(Done — November 9, 2026: milestone 12 gave the OS its
    face. A `gui` command leaves the text console and draws a
@@ -163,8 +198,7 @@ it bends.*
    language stands climbed: boot, speak, remember, work,
    dress. What remains is the sixth step, and the later
    doors it opens onto: a writable disc and an installer,
-   so the OS can live on a machine's own drive; preemption
-   — the timer taking the machine by force; the signed
+   so the OS can live on a machine's own drive; the signed
    feather and its store; networking; and Little
    Cardnull. Milestone 13 — the same day, at Tyler's word
    after the partial witness — finished the face's first

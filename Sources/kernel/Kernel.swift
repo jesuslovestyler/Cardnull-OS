@@ -262,6 +262,19 @@ func cardnullPairStatusA() -> UInt64
 @_silgen_name("cardnull_pair_status_b")
 func cardnullPairStatusB() -> UInt64
 
+// Milestone 15's hands: the stop word (set here when Esc is
+// pressed while a session stands; the floor's timer stub ends
+// the session on its next tick) and the pair session's two
+// switch counts, read once the launch has returned.
+@_silgen_name("cardnull_set_stop_request")
+func cardnullSetStopRequest(_ value: UInt64)
+
+@_silgen_name("cardnull_door_switches")
+func cardnullDoorSwitches() -> UInt64
+
+@_silgen_name("cardnull_timer_switches")
+func cardnullTimerSwitches() -> UInt64
+
 /// The kernel's first word, spoken by milestone 1 and kept on screen
 /// by every milestone after it.
 ///
@@ -995,13 +1008,27 @@ var keyRingTail = 0
 /// in the ring if there is room (if the ring is full, the byte is
 /// let go; fingers are slower than this kernel, and a dropped
 /// keystroke beats a wedged one), and thank the PIC.
+///
+/// One exception, milestone 15's: while a guest session stands,
+/// the Esc make code is the session's key, not the shell's. It
+/// is not rung; the stop word is set instead, and the floor's
+/// timer ends the session inside a tick (a tenth of a second at
+/// the outside) — the road home for a guest that never yields
+/// and so never opens the door where it could be stopped. The
+/// shell's own Esc rulings are untouched: no session stands
+/// when they apply, and every other byte rings exactly as
+/// before, session or none.
 @_cdecl("cardnull_keyboard_interrupt")
 public func keyboardInterrupt() {
     let code = cardnullInb(keyboardDataPort)
-    let next = (keyRingHead + 1) & (keyRingSize - 1)
-    if next != keyRingTail {
-        cardnullKeyRing()[keyRingHead] = code
-        keyRingHead = next
+    if programRunning && code == 0x01 {
+        cardnullSetStopRequest(1)
+    } else {
+        let next = (keyRingHead + 1) & (keyRingSize - 1)
+        if next != keyRingTail {
+            cardnullKeyRing()[keyRingHead] = code
+            keyRingHead = next
+        }
     }
     cardnullOutb(picCommandPort, picEOI)
 }
@@ -3193,17 +3220,24 @@ func runCat() {
 // witnesses: five tokens against seven, yielding between, so the
 // interleave can be read off the screen.
 //
-// The keeping is cooperative, honestly: a guest that never
-// yields keeps the machine — the timer ticks, but no hand in
-// this milestone answers it with a switch, and taking the
-// machine by force (preemption) is a named later stone. Two
-// guests exactly, likewise: the books are two, and no process
-// table is pretended. And the wall stands under company as it
-// stood alone — the page fault's pair road stops the guest that
-// fell and carries the machine to its partner, which finishes
-// its work in its own ground, undisturbed; `both /BAD.BIN
-// /A.BIN` is the proof, BAD stopped at the wall and A counting
-// out its five tokens in the same session.
+// The keeping was cooperative, honestly — in this milestone. A
+// guest that never yielded kept the machine: the timer ticked,
+// but no hand answered it with a switch. Milestone 15 is the
+// stone that superseded the keeping, and it stands in the
+// floor, not here: the timer now cuts ten-tick slices out of a
+// running guest and hands the machine to its partner whether
+// the guest knocks or not, SPIN.BIN is the witness that a guest
+// can no longer keep the machine, and Esc ends a session whose
+// guests will not. What this section's code gained from it is
+// only the session's speech: the guidance line every launch
+// prints and the switch counts the pair's report closes with.
+// Two guests exactly, likewise, still: the books are two, and
+// no process table is pretended. And the wall stands under
+// company as it stood alone — the page fault's pair road stops
+// the guest that fell and carries the machine to its partner,
+// which finishes its work in its own ground, undisturbed;
+// `both /BAD.BIN /A.BIN` is the proof, BAD stopped at the wall
+// and A counting out its five tokens in the same session.
 // ---------------------------------------------------------------------------
 
 /// The estate's fixed address: the guests' whole world begins here.
@@ -3272,6 +3306,19 @@ let bothAndWord: StaticString = " and "
 let bothTogetherSuffix: StaticString = " together:"
 let bothExitedWord: StaticString = " exited: "
 let bothStoppedSuffix: StaticString = " was stopped."
+
+/// Milestone 15's vocabulary: the guidance every session opens
+/// with — run, both, and feather alike, since any of them can
+/// hold a guest that never ends — and the pair report's closing
+/// line, which speaks the session's two switch counts beside
+/// each other: the turns taken at the door (yields and
+/// hand-overs) and the turns taken by the timer (slices spent).
+/// Both numbers are the floor's own keepings, read once the
+/// launch has returned.
+let sessionStopLine: StaticString = "Press Esc to stop the session."
+let bothSwitchesPrefix: StaticString = "Switches: "
+let bothSwitchesDoorWord: StaticString = " by the door, "
+let bothSwitchesTimerWord: StaticString = " by the timer."
 
 /// The stopped guest's testimony, kept by the fault handler before
 /// the abandon: the address it reached for and the error code's
@@ -3619,6 +3666,7 @@ func runProgram() {
     writeStatic(runRunningPrefix)
     writePathArgument(length)
     writeLine(runRunningSuffix)
+    writeLine(sessionStopLine)
     programRunning = true
     let verdict = cardnullLaunchProgram(root, programBase, programStackTop)
     programRunning = false
@@ -3787,6 +3835,7 @@ func runBoth() {
     writeStatic(bothAndWord)
     writePathSlice(bothSecondStart, bothSecondEnd)
     writeLine(bothTogetherSuffix)
+    writeLine(sessionStopLine)
     programRunning = true
     pairRunning = true
     let verdictA = cardnullLaunchPair(rootA, programBase, programStackTop,
@@ -3800,6 +3849,18 @@ func runBoth() {
     teardownProgramSpace(rootB)
     reportBothGuest(0, bothFirstEnd, statusA, verdictA)
     reportBothGuest(bothSecondStart, bothSecondEnd, statusB, verdictB)
+    // The session's closing account (milestone 15): the turns
+    // the machine took, spoken in the floor's own two numbers —
+    // at the door, where a guest's yield or leaving handed the
+    // machine over, and by the timer, where a spent slice took
+    // it. A courteous pair speaks mostly door; a spinning one
+    // speaks mostly timer; either way the numbers are what
+    // happened, not what the milestone hoped.
+    writeStatic(bothSwitchesPrefix)
+    writeNumber(cardnullDoorSwitches())
+    writeStatic(bothSwitchesDoorWord)
+    writeNumber(cardnullTimerSwitches())
+    writeLine(bothSwitchesTimerWord)
 }
 
 // ---------------------------------------------------------------------------
@@ -4301,6 +4362,7 @@ func runFeather() {
     writeStatic(runRunningPrefix)
     writePathArgument(length)
     writeLine(runRunningSuffix)
+    writeLine(sessionStopLine)
     programRunning = true
     let verdict = cardnullLaunchProgram(root, programBase,
                                         programStackTop)
