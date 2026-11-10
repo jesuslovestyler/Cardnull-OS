@@ -137,7 +137,7 @@ window standing, the guest's news of its window.
 | 5 | fill rectangle | x, y, width, height, colour (0x00RRGGBB) | 0 when drawn (clipped to the screen — windowed, to the canvas), 1 when refused whole — degenerate, or off the ground entirely — with nothing drawn |
 | 6 | draw text | x, y, address, length, colour | the count drawn, at most 256 |
 | 7 | read key | — | the key as a character (Enter = 0x0A, Backspace = 0x08), or 0 when no key waits — windowed, also 0 while another window holds the room |
-| 8 | poll mouse | x, y, buttons | the pointer's place in the low words and its buttons above them (bit 0 left, 1 right, 2 middle); all-ones when it is not the guest's to ask. Windowed, the place is the desktop pointer's, relative to the canvas and signed, and the buttons answer only while the pointer stands over the canvas |
+| 8 | poll mouse | — | the pointer's place in the low words and its buttons above them (bit 0 left, 1 right, 2 middle), and — since milestone 26 — the wheel's turning in the byte above them (bits 40–47): the signed sum since the guest last asked, positive turned up toward older lines, spent by the asking; all-ones when it is not the guest's to ask. Windowed, the place is the desktop pointer's, relative to the canvas and signed, and the buttons answer only while the pointer stands over the canvas |
 | 9 | window standing | — | bits of one word: bit 0 a repaint is owed, bit 1 your face holds the room, bit 2 the pointer stands over your ground; all-ones in a pair |
 
 The laws that bind the suite:
@@ -185,7 +185,9 @@ The laws that bind the suite:
   to the canvas — signed sixteen-bit words, so a pointer
   outside answers honestly negative — with the buttons
   the guest's only while the pointer stands over the
-  canvas; service 7 delivers keys only while the
+  canvas, and (milestone 26) the wheel's turning in its
+  fourth word, gathered from turnings over the canvas
+  alone; service 7 delivers keys only while the
   feather's window holds the room (while another window
   holds it, gathered keys are let go, the way the
   desktop's own faces let go of keys that are not
@@ -215,6 +217,27 @@ The laws that bind the suite:
   wear the kernel's ground where its face was painted
   over; the owing is the contract, and keeping it is
   the feather's part.
+- **The wheel's word (service 8).** Since milestone 26
+  the mouse poll's answer carries a fourth word, at
+  bits 40–47: the signed sum of the wheel's turnings
+  since the guest last asked — positive turned up,
+  away from the hand, toward older lines; negative
+  turned down, toward the present — and the asking
+  spends it, so the next answer hears only what has
+  turned since. (The mouse's own byte counts the
+  other way; the kernel reckons turnings, not bytes.)
+  A plain mouse with no wheel simply never turns it:
+  the word stands 0, as it did before the word
+  existed. Windowed, the turnings are gathered by the
+  face's own packet assembly, and only turnings while
+  the pointer stands over the guest's canvas are the
+  guest's — over its frame or another window they are
+  the desktop's, as a click there would be.
+  Full-screen, the guest's own packets feed the sum.
+  TERM.FEATHER is the demonstrating guest: it asks on
+  every turn of its loop and lifts its view through
+  its scrollback by the answer, three lines to a
+  notch, clamped at its eldest line.
 - **One guest only.** Graphical services belong to a
   session of one guest (`run` or `feather`) — windowed or
   full-screen alike. In a pair session (`both`) a

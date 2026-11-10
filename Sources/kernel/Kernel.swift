@@ -113,6 +113,15 @@ func cardnullGuiCushion() -> UnsafeMutablePointer<UInt32>
 @_silgen_name("cardnull_term_grid")
 func cardnullTermGrid() -> UnsafeMutablePointer<UInt8>
 
+/// Provided by the boot floor (support.c): the Terminal
+/// conversation's memory — 120 x 128 bytes the floor lends
+/// milestone 26's scrollback: the lines that lift off the
+/// Terminal grid's top, kept a whole stride-row each, in the
+/// order they left. How many stand there and which of them
+/// the window shows is the kernel's business, below.
+@_silgen_name("cardnull_term_history")
+func cardnullTermHistory() -> UnsafeMutablePointer<UInt8>
+
 /// Provided by the boot floor (support.c): the mouse report's
 /// keeping — 160 bytes the floor lends for the two lines the
 /// kernel composes at boot: whether the mouse answered its
@@ -402,6 +411,102 @@ var termStarted = false
 /// the whole window.
 var termDirtyTop = -1
 var termDirtyBottom = -1
+
+// ---------------------------------------------------------------------------
+// Milestone 26: the Terminal's memory. Until now a line that
+// lifted off the grid's top was gone — the conversation could
+// not be read back, and Tyler's wheel, turned over the
+// Terminal on his own desk, asked for a view the window did
+// not keep. The keeping (the floor's cardnullTermHistory) now
+// holds the lifted lines, and the window's view can stand
+// lifted into them: the wheel turns it, the page keys walk
+// it, and a keypress brings it home to the live end before
+// the key is answered, so typing always lands in the present.
+// ---------------------------------------------------------------------------
+
+/// How many lifted lines the floor's keeping holds.
+let termHistoryLines = 128
+
+/// The lines that have lifted off the Terminal grid's top and
+/// stand in the keeping, oldest first.
+var termHistoryCount = 0
+
+/// The view's lift: how many of the conversation's newest
+/// lines stand hidden below the window while it reads older
+/// ones. 0 is the live view — the conversation as it stands.
+/// The lift is a distance from the conversation's end, and it
+/// keeps that distance as new lines arrive: an arriving line
+/// moves the read lines down a line, the way the page itself
+/// moves — the view never pretends the conversation stood
+/// still beneath it.
+var termViewOffset = 0
+
+/// Keeps one line that is lifting off the Terminal grid's
+/// top: the whole stride-row moves into the keeping, and a
+/// keeping already full lets its eldest go. Called by
+/// scrollUp's Terminal road before the grid itself lifts.
+func termHistoryKeepTopLine() {
+    let grid = cardnullTermGrid()
+    let history = cardnullTermHistory()
+    if termHistoryCount == termHistoryLines {
+        for line in 1 ..< termHistoryLines {
+            for col in 0 ..< termStrideColumns {
+                history[(line - 1) * termStrideColumns + col] =
+                    history[line * termStrideColumns + col]
+            }
+        }
+    } else {
+        termHistoryCount += 1
+    }
+    let slot = (termHistoryCount - 1) * termStrideColumns
+    for col in 0 ..< termStrideColumns {
+        history[slot + col] = grid[col]
+    }
+}
+
+/// The character one of the window's displayed rows shows at
+/// a column, under the view's present lift: the lift's own
+/// rows read the keeping's tail; the rows beneath read the
+/// grid, shifted by the lift. The lift is clamped to the
+/// keeping first — a view can never stand taller than the
+/// memory that feeds it.
+func termDisplayChar(_ displayRow: Int, _ col: Int) -> UInt8 {
+    if termViewOffset > 0 {
+        let lift = min(termViewOffset, termHistoryCount)
+        if displayRow < lift {
+            let line = termHistoryCount - lift + displayRow
+            if line < 0 { return 0x20 }
+            return cardnullTermHistory()[
+                line * termStrideColumns + col]
+        }
+        return cardnullTermGrid()[
+            (displayRow - lift) * termStrideColumns + col]
+    }
+    return cardnullTermGrid()[displayRow * termStrideColumns + col]
+}
+
+/// Scrolls the Terminal's view by whole lines — positive
+/// toward the older lines, negative back toward the live
+/// end — clamped at both ends of the conversation and
+/// repainted whole where it stands, down filesScrollBy's
+/// road: a scroll that cannot move paints nothing. While the
+/// view stands lifted, the writing hands' dirty marks gather
+/// unanswered (the face's loop leaves them standing); the
+/// return to the live end answers them by wiping the slate —
+/// the whole window has just been repainted from the grid.
+func termScrollBy(_ lines: Int) {
+    let target = min(max(termViewOffset + lines, 0),
+                     termHistoryCount)
+    if target == termViewOffset { return }
+    termViewOffset = target
+    pointerHide()
+    guiPaintTerminal()
+    pointerShow()
+    if termViewOffset == 0 {
+        termDirtyTop = -1
+        termDirtyBottom = -1
+    }
+}
 
 /// The active home's width and height — the one reckoning every
 /// console hand below shares, so the shell's arithmetic is the
@@ -724,6 +829,10 @@ func moveHardwareCursor() {
 /// one screen — a real terminal keeps no favorites.
 func scrollUp() {
     if consoleInTerminal {
+        // The Terminal's road (milestone 26): the line that
+        // lifts off the top is kept before it goes — the
+        // conversation can be read back now.
+        termHistoryKeepTopLine()
         let grid = cardnullTermGrid()
         for row in 1 ..< termRows {
             for col in 0 ..< termColumns {
@@ -4242,7 +4351,10 @@ func loadProgramImage(_ fromBundle: Bool, _ extent: UInt32,
 ///      25) the reckoning is the desktop's own pointer, the
 ///      words signed and relative to the window's canvas,
 ///      and the buttons the guest's only while the pointer
-///      stands over that canvas.
+///      stands over that canvas. Since milestone 26 the
+///      answer's fourth word (bits 40–47) carries the
+///      wheel's turning since the guest last asked, signed,
+///      spent by the asking.
 ///   9  window standing (milestone 25) — the guest's news
 ///      of its window: bit 0, a repaint is owed (the kernel
 ///      has painted over the guest's canvas — the window
@@ -5188,6 +5300,12 @@ func runFeather() {
 //      kernel draws no pointer for a guest — the reckoning is
 //      data, and a guest that wants a visible pointer paints
 //      its own from it, as the terminal feather could one day.
+//      Milestone 26: a wheel mouse's packets carry a fourth
+//      byte; its turnings gather between polls and ride home
+//      in the answer's wheel word (bits 40–47, signed, spent
+//      by the asking) — windowed, the face's assembly is the
+//      gatherer, and only turnings over the guest's canvas
+//      are the guest's.
 //
 // The face rules, stated as law and kept by the hands below:
 //
@@ -5308,6 +5426,21 @@ var guestMouseButtons: UInt64 = 0
 var guestMouseStage = 0
 var guestMouseFirst: UInt8 = 0
 var guestMouseSecond: UInt8 = 0
+var guestMouseThird: UInt8 = 0
+
+/// The wheel's turning as it gathers for the guest
+/// (milestone 26): the signed sum of every wheel byte's
+/// turning since the guest last polled the mouse — positive
+/// turned up, toward older lines; negative down. Both roads
+/// fill the one keeping: a full-screen guest's own assembly
+/// (below) adds its packets' fourth bytes directly; a
+/// windowed guest's turnings are gathered by the face's
+/// assembly while the pointer stands over its canvas
+/// (guiWheelTurn). A poll of the mouse (service 8) answers
+/// the sum in its wheel word and spends it — the next poll
+/// hears only what has turned since. The sum is clamped to
+/// a signed byte's reach, the field it rides home in.
+var guestWheelAccum = 0
 
 // MARK: - Milestone 25: the guest's face in a window
 //
@@ -5415,6 +5548,7 @@ func guestTakeDoor() {
     guestKeyExtended = false
     guestMouseStage = 0
     guestMouseButtons = 0
+    guestWheelAccum = 0
     // The repaint owing stands at every claim (milestone
     // 25): the guest's first service-9 ask hears that its
     // ground has been laid and its face is owed — the same
@@ -5957,14 +6091,20 @@ func guestReadKey() -> UInt64 {
 
 /// Service 8, the mouse's word: the ring is drained and its
 /// bytes made packets of, with the face's own discipline —
-/// three bytes to a packet, the first carrying bit 3, a byte
-/// without it let go — the travels signed by the first byte's
-/// flags, the screen's down reckoned against the mouse's up,
+/// three bytes to a packet (four from a wheel mouse,
+/// milestone 26), the first carrying bit 3, a byte without
+/// it let go — the travels signed by the first byte's flags,
+/// the screen's down reckoned against the mouse's up,
 /// the place clamped to the screen, and the last whole
 /// packet's buttons kept. The answer packs the reckoning:
 /// the x place in the low word, the y above it, the buttons
 /// above that (bit 0 the left, bit 1 the right, bit 2 the
-/// middle). Between polls the bytes wait in the ring; a guest
+/// middle), and — since milestone 26 — the wheel's turning
+/// in the byte above them (bits 40–47): the signed sum of
+/// every turning since the guest last asked, positive
+/// turned up toward older lines, negative down; the asking
+/// spends it, so the next answer hears only what has turned
+/// since. Between polls the bytes wait in the ring; a guest
 /// that never polls simply never hears them, and the ring's
 /// own fullness lets old news go, as it does for the face.
 func guestMousePoll() -> UInt64 {
@@ -5982,7 +6122,11 @@ func guestMousePoll() -> UInt64 {
         // there belongs to the desktop, never to the
         // guest. The session's own second reckoning (the
         // keeping below) is the full-screen road's and is
-        // not touched here.
+        // not touched here. The wheel word (milestone 26)
+        // is the turning the face's assembly gathered
+        // while the pointer stood over the canvas; the
+        // tending above may have added to it, and the
+        // asking spends it, as on the full-screen road.
         guestWindowTend()
         let relX = pointerX - guestCanvasOriginX()
         let relY = pointerY - guestCanvasOriginY()
@@ -5990,9 +6134,13 @@ func guestMousePoll() -> UInt64 {
         if pointerOverGuestCanvas() {
             buttons = UInt64(mouseFirstByte & 0x07)
         }
+        let wheel = UInt64(UInt8(bitPattern:
+            Int8(clamping: guestWheelAccum)))
+        guestWheelAccum = 0
         return UInt64(UInt16(bitPattern: Int16(relX)))
             | UInt64(UInt16(bitPattern: Int16(relY))) << 16
             | buttons << 32
+            | wheel << 40
     }
     while let byte = nextMouseByte() {
         if guestMouseStage == 0 {
@@ -6002,21 +6150,50 @@ func guestMousePoll() -> UInt64 {
         } else if guestMouseStage == 1 {
             guestMouseSecond = byte
             guestMouseStage = 2
+        } else if guestMouseStage == 2 {
+            guestMouseThird = byte
+            if mousePacketLength == 4 {
+                guestMouseStage = 3
+                continue
+            }
+            guestMouseStage = 0
+            guestFinishMousePacket(0)
         } else {
             guestMouseStage = 0
-            var travelX = Int(guestMouseSecond)
-            if guestMouseFirst & 0x10 != 0 { travelX -= 256 }
-            var travelY = Int(byte)
-            if guestMouseFirst & 0x20 != 0 { travelY -= 256 }
-            guestMouseX = min(max(guestMouseX + travelX, 0),
-                              framebufferWidth - 1)
-            guestMouseY = min(max(guestMouseY - travelY, 0),
-                              framebufferHeight - 1)
-            guestMouseButtons = UInt64(guestMouseFirst & 0x07)
+            // The turning reckoned the reader's way, as
+            // on the face's road: the byte counts a turn
+            // away from the hand as a negative step, and
+            // the guest is told of turnings, not bytes.
+            guestFinishMousePacket(
+                -Int(Int8(bitPattern: byte)))
         }
     }
+    let wheel = UInt64(UInt8(bitPattern:
+        Int8(clamping: guestWheelAccum)))
+    guestWheelAccum = 0
     return UInt64(guestMouseX) | UInt64(guestMouseY) << 16
         | guestMouseButtons << 32
+        | wheel << 40
+}
+
+/// A whole packet is answered on the full-screen road: the
+/// travels reckoned and clamped, the buttons kept, and a
+/// wheel byte's turning added to the gathering the next
+/// poll will answer (milestone 26).
+func guestFinishMousePacket(_ wheelDelta: Int) {
+    var travelX = Int(guestMouseSecond)
+    if guestMouseFirst & 0x10 != 0 { travelX -= 256 }
+    var travelY = Int(guestMouseThird)
+    if guestMouseFirst & 0x20 != 0 { travelY -= 256 }
+    guestMouseX = min(max(guestMouseX + travelX, 0),
+                      framebufferWidth - 1)
+    guestMouseY = min(max(guestMouseY - travelY, 0),
+                      framebufferHeight - 1)
+    guestMouseButtons = UInt64(guestMouseFirst & 0x07)
+    if wheelDelta != 0 {
+        guestWheelAccum = min(max(guestWheelAccum + wheelDelta,
+                                  -128), 127)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -6690,16 +6867,22 @@ func guiPaintTermMaxBox() {
 /// Paints one cell of the Terminal's grid: its ground laid
 /// fresh, its letter drawn over, and — when the cell is the
 /// shell's own place and the window holds the room — the
-/// underline that marks where the next letter lands.
+/// underline that marks where the next letter lands. The row
+/// is a displayed row: under milestone 26's lift it may read
+/// a kept line instead of the grid's, and the shell's place
+/// rides the same lift downward — off the window entirely
+/// once the lift passes it, as an honest scroll leaves it.
 func guiPaintTermCell(_ row: Int, _ col: Int) {
     let x = guiTermCellX(col)
     let y = guiTermCellY(row)
     guiFillRect(x, y, 16, 16, guiTermBgColor)
-    let character = cardnullTermGrid()[row * termStrideColumns + col]
+    let character = termDisplayChar(row, col)
     if character != 0x20 {
         guiDrawGlyph(x, y, 2, character, guiParchmentColor)
     }
-    if guiFocusTerminal && row == cursorRow && col == cursorCol {
+    let lift = min(termViewOffset, termHistoryCount)
+    if guiFocusTerminal && row == cursorRow + lift
+        && col == cursorCol {
         guiFillRect(x, y + 13, 16, 3, guiParchmentColor)
     }
 }
@@ -7324,6 +7507,8 @@ func consoleEnterTerminal() {
         for cell in 0 ..< (termStrideColumns * termRowsCapacity) {
             grid[cell] = 0x20
         }
+        termHistoryCount = 0
+        termViewOffset = 0
         termColumns = termColumnsForWindow()
         termRows = termRowsForWindow()
         cursorRow = 0
@@ -7449,11 +7634,16 @@ func pointerShow() {
 // The mouse's conversation: packets, clicks, and the door home.
 // ---------------------------------------------------------------------------
 
-/// The packet assembly: which byte of the three is expected
-/// next, and the first two bytes held while the third is coming.
+/// The packet assembly: which byte of the packet is expected
+/// next, and the bytes held while its last is coming. Three
+/// bytes to a plain mouse's packet; a wheel mouse (milestone
+/// 26) speaks a fourth, held in mouseThirdByte's keeping
+/// while it comes — mousePacketLength, settled at the
+/// waking, is the measure both assemblies keep.
 var mouseStage = 0
 var mouseFirstByte: UInt8 = 0
 var mouseSecondByte: UInt8 = 0
+var mouseThirdByte: UInt8 = 0
 
 /// The left button's last known state, so a press is the edge —
 /// the change — and not the holding.
@@ -7879,7 +8069,9 @@ func guiRelease() {
 /// partner) and is let go, which is how the assembly finds its
 /// feet again after any stumble. A whole packet moves the
 /// pointer — restoring its old ground and drawing it new — and
-/// answers the button's edges.
+/// answers the button's edges. A wheel mouse's packet carries
+/// a fourth byte (milestone 26): the packet is not whole —
+/// nothing moves, nothing answers — until it has come.
 func guiTakeMouseByte(_ byte: UInt8) {
     mouseBytesTaken &+= 1
     if mouseStage == 0 {
@@ -7893,11 +8085,42 @@ func guiTakeMouseByte(_ byte: UInt8) {
         mouseStage = 2
         return
     }
+    if mouseStage == 2 {
+        mouseThirdByte = byte
+        if mousePacketLength == 4 {
+            mouseStage = 3
+            return
+        }
+        mouseStage = 0
+        guiFinishMousePacket(0)
+        return
+    }
     mouseStage = 0
+    // The wheel byte counts a turn away from the hand —
+    // the direction a reader turns to read back — as a
+    // negative step (so the bench's mouse, and UTM's with
+    // it, answers a forward turn with 0xFF). The turning
+    // is reckoned the reader's way as the packet is
+    // finished: positive turned up, toward older lines,
+    // everywhere past this hand.
+    guiFinishMousePacket(-Int(Int8(bitPattern: byte)))
+}
+
+/// A whole packet is answered: the travels reckoned from its
+/// bytes, the pointer moved in its hidden moment (a carried
+/// window's outline travelling with it), the button's edges
+/// answered, and — when the packet carried a wheel byte that
+/// turned — the turning handed to the window under the
+/// pointer, by guiWheelTurn. The turning is reckoned the
+/// reader's way: positive turned up, away from the hand —
+/// toward older lines; negative turned down, toward the
+/// present. (The byte itself counts the other way; the
+/// assembly turns it over as the packet is finished.)
+func guiFinishMousePacket(_ wheelDelta: Int) {
     mousePacketsTaken &+= 1
     var travelX = Int(mouseSecondByte)
     if mouseFirstByte & 0x10 != 0 { travelX -= 256 }
-    var travelY = Int(byte)
+    var travelY = Int(mouseThirdByte)
     if mouseFirstByte & 0x20 != 0 { travelY -= 256 }
     // The mouse reckons up as forward; the screen reckons down,
     // so the Y travel is turned over as it is added.
@@ -7925,6 +8148,102 @@ func guiTakeMouseByte(_ byte: UInt8) {
         guiRelease()
     }
     mouseLeftWasDown = leftDown
+    if wheelDelta != 0 {
+        guiWheelTurn(wheelDelta)
+    }
+}
+
+/// One wheel notch's step in every scrollable view on the
+/// face: three lines — a notch is a nudge, not a leap; the
+/// page keys make the leaps.
+let guiWheelStep = 3
+
+/// The wheel's routing (milestone 26): a turning scrolls the
+/// window under the pointer — the rule Tyler's hand already
+/// knew when it turned the wheel over the Terminal. The
+/// window is addressed the way a press addresses it: the
+/// seniority walk (a standing feather's window first, then
+/// the room's holder, then the elders down), and the window
+/// is given the room before it scrolls, a press's own
+/// manners, so its repaint never paints over a neighbour.
+/// While a window is being carried there is no routing —
+/// the turning is let go, as a press mid-drag is not a
+/// second press. The bar and bare desktop have nothing to
+/// scroll, and a turning over them is let go too.
+func guiWheelTurn(_ delta: Int) {
+    if dragWindow != 0 { return }
+    // A windowed feather's canvas: the turning is the
+    // guest's, gathered into its keeping for its next poll
+    // of the mouse (service 8's wheel word).
+    if guestWindowed && pointerOverGuestCanvas() {
+        guestWheelAccum = min(max(guestWheelAccum + delta,
+                                  -128), 127)
+        return
+    }
+    if pointerY >= guiBarTop() { return }
+    if guestWindowed {
+        // The feather's window stands over the elders: a
+        // turning over its frame is swallowed — its ground
+        // is the guest's or no one's, never the window
+        // peeking from behind it.
+        if guiFeatherContains(pointerX, pointerY) { return }
+    }
+    let holder = guiRoomHolder()
+    if guiWheelWindow(holder, delta) { return }
+    var candidate = 4
+    while candidate >= 1 {
+        if candidate != holder
+            && guiWheelWindow(candidate, delta) { return }
+        candidate -= 1
+    }
+}
+
+/// One window's answer to a wheel turning, by its number in
+/// the standing order: the window must stand and the pointer
+/// must stand on it. The Terminal's view, the Files list and
+/// the Reader's page each move by the notch's step — up
+/// (a positive turning) toward older lines, down toward the
+/// present — through the same scroll hands their buttons
+/// and keys use, after the window has been given the room
+/// (in a session, by the session's own focus hand, which
+/// opens nothing). The Welcome card has nothing to scroll:
+/// a turning over it is answered and spent. Window 5 is
+/// answered by guiWheelTurn itself and never reaches here
+/// with work to do.
+func guiWheelWindow(_ window: Int, _ delta: Int) -> Bool {
+    if window == 5 { return false }
+    if !guiWindowStands(window) { return false }
+    let rect = guiWindowRect(window)
+    if pointerX < rect.0 || pointerX >= rect.0 + rect.2
+        || pointerY < rect.1 || pointerY >= rect.1 + rect.3 {
+        return false
+    }
+    if window == 1 { return true }
+    if window == 2 {
+        if guestWindowed {
+            guiSessionFocus(2)
+        } else if !guiFocusTerminal {
+            guiSetFocus(true)
+        }
+        termScrollBy(guiWheelStep * delta)
+        return true
+    }
+    if window == 3 {
+        if guestWindowed {
+            guiSessionFocus(3)
+        } else {
+            guiSetFocusFiles()
+        }
+        filesScrollBy(-guiWheelStep * delta)
+        return true
+    }
+    if guestWindowed {
+        guiSessionFocus(4)
+    } else {
+        guiSetFocusReader()
+    }
+    readerScrollBy(-guiWheelStep * delta)
+    return true
 }
 
 // ---------------------------------------------------------------------------
@@ -7957,6 +8276,21 @@ var mouseDefaultsAck = -1
 var mouseEnableAck = -1
 var mouseWakeAttempts = 0
 var mouseAnswering = false
+
+/// The wheel's record (milestone 26): the name the mouse
+/// answers to after the knock — 3 for a wheel mouse, 0 for a
+/// plain one, -1 when the knock was never heard (a mouse
+/// that had not answered its defaults is never knocked on).
+/// The packet length is settled from this word alone.
+var mouseWheelIdByte = -1
+
+/// The packet's length in bytes, as the waking settled it:
+/// 4 for a wheel mouse — the fourth byte carries the wheel's
+/// turning — 3 for a plain one. Every assembly, the face's
+/// and the guests', keeps this length from the waking on, so
+/// a plain mouse's conversation is byte-for-byte the one the
+/// face has always spoken.
+var mousePacketLength = 3
 
 /// The configuration byte as re-read after the waking — and
 /// again at the desktop's opening: proof the auxiliary port
@@ -8062,6 +8396,42 @@ func mouseSendByte(_ byte: UInt8) -> Int {
     return mouseReadByte(mouseByteWaitTicks)
 }
 
+/// Sets the mouse's sample rate (milestone 26): the 0xF3
+/// word, then the rate itself — two answers, and the second
+/// is the one returned. The knock below is made of these.
+func mouseSetSampleRate(_ rate: UInt8) -> Int {
+    if mouseSendByte(0xF3) != 0xFA { return -1 }
+    return mouseSendByte(rate)
+}
+
+/// The IntelliMouse knock (milestone 26): the sample rates
+/// 200, 100, 80 set in that order — the sequence a wheel
+/// mouse is listening for — and then the name asked again
+/// (0xF2). A plain mouse answers its name unchanged, 0; a
+/// wheel mouse answers 3, and from that answer on it speaks
+/// in four-byte packets, the fourth byte carrying the
+/// wheel's turning. The answer is kept in mouseWheelIdByte
+/// and the packet length settled from it. The rate is then
+/// set back to 100, the default it was found at — the knock
+/// changes the mouse's name, not its manners. Only a mouse
+/// that has already answered (its defaults heard) is ever
+/// knocked on: silence is not knocked on, so a mouseless
+/// machine pays nothing for the asking.
+func mouseAskForWheel() {
+    mouseWheelIdByte = -1
+    if mouseSetSampleRate(200) != 0xFA { return }
+    if mouseSetSampleRate(100) != 0xFA { return }
+    if mouseSetSampleRate(80) != 0xFA { return }
+    if mouseSendByte(0xF2) != 0xFA { return }
+    mouseWheelIdByte = mouseReadByte(mouseByteWaitTicks)
+    _ = mouseSetSampleRate(100)
+    if mouseWheelIdByte == 3 {
+        mousePacketLength = 4
+    } else {
+        mousePacketLength = 3
+    }
+}
+
 /// Asks the controller for its configuration byte (ask with
 /// 0x20, then take it) and returns it, or -1 in silence. The
 /// answer is a controller byte, arriving unmarked like the
@@ -8118,8 +8488,10 @@ func mouseUnmaskInputs() {
 /// (the mouse's IRQ may knock; its clock runs) and written
 /// back; the mouse itself is reset (0xFF) and its answer,
 /// its self-test word (0xAA) and its name (the device ID) are
-/// heard; its defaults are set (0xF6); and it is told to begin
-/// reporting (0xF4). Returns true when the reporting answer
+/// heard; its defaults are set (0xF6); the wheel knock is
+/// knocked (milestone 26 — sample rates 200, 100, 80, then
+/// the name asked again, settling the packet's length); and
+/// it is told to begin reporting (0xF4). Returns true when the reporting answer
 /// was the mouse's own 0xFA — the one word that promises a
 /// stream.
 func mouseWakeAttempt() -> Bool {
@@ -8138,6 +8510,8 @@ func mouseWakeAttempt() -> Bool {
     mouseResetAck = mouseSendByte(0xFF)
     mouseBatByte = -1
     mouseIdByte = -1
+    mouseWheelIdByte = -1
+    mousePacketLength = 3
     if mouseResetAck == 0xFA {
         mouseBatByte = mouseReadByte(mouseBatWaitTicks)
         if mouseBatByte == 0xAA {
@@ -8145,6 +8519,12 @@ func mouseWakeAttempt() -> Bool {
         }
     }
     mouseDefaultsAck = mouseSendByte(0xF6)
+    // The knock (milestone 26), asked only of a mouse that
+    // has answered its defaults — it is listening, so the
+    // asking is cheap; a silent mouse is never knocked on.
+    if mouseDefaultsAck == 0xFA {
+        mouseAskForWheel()
+    }
     mouseEnableAck = mouseSendByte(0xF4)
     return mouseEnableAck == 0xFA
 }
@@ -8239,13 +8619,24 @@ func mouseReportHex(_ value: Int) {
 /// milestone 16, the `mouse` command's answer — codes, kept
 /// where codes belong; the desktop's bar speaks its plain
 /// words instead ("Mouse ready"), from the same standing.
+/// Milestone 26: the name the first line speaks is the
+/// mouse's name after the knock when the knock was heard —
+/// the name it now answers to — and the wheel's standing is
+/// stated in plain words beside it, with the knock's own
+/// answer kept in the transcript.
 func composeMouseReport() {
     mouseReportPen = 0
     mouseReportWord("Mouse: ")
     if mouseAnswering {
         mouseReportWord("answering (id 0x")
-        mouseReportHex(mouseIdByte)
+        mouseReportHex(mouseWheelIdByte >= 0
+            ? mouseWheelIdByte : mouseIdByte)
         mouseReportWord(").")
+        if mouseWheelIdByte == 3 {
+            mouseReportWord(" Its wheel turns.")
+        } else if mouseWheelIdByte == 0 {
+            mouseReportWord(" It has no wheel.")
+        }
     } else {
         mouseReportWord("not answering.")
     }
@@ -8261,6 +8652,8 @@ func composeMouseReport() {
     mouseReportHex(mouseDefaultsAck)
     mouseReportWord(", reporting ")
     mouseReportHex(mouseEnableAck)
+    mouseReportWord(", wheel ")
+    mouseReportHex(mouseWheelIdByte)
     mouseReportWord(", port now ")
     mouseReportHex(mouseConfigAfter)
     mouseReportWord(", tries ")
@@ -8483,6 +8876,10 @@ func runGui() {
     // as extended codes behind the 0xE0 prefix, whose standing
     // the loop keeps between codes in e0Pending. Every other
     // key still does nothing there, and Esc still goes home.
+    // Milestone 26: while the Terminal holds the room, the
+    // page keys are the view's, not the shell's — the same
+    // prefix kept in the same e0Pending — and any other
+    // keypress first brings a lifted view home.
     var e0Pending = false
     while !guiWantsHome {
         var worked = false
@@ -8497,8 +8894,28 @@ func runGui() {
         while let code = nextScancode() {
             worked = true
             if termOpen && guiFocusTerminal {
-                handleScancode(code)
-                e0Pending = false
+                if e0Pending {
+                    e0Pending = false
+                    if code == 0x49 {          // Page Up
+                        termScrollBy(termRows - 1)
+                    } else if code == 0x51 {   // Page Down
+                        termScrollBy(-(termRows - 1))
+                    } else {
+                        handleScancode(0xE0)
+                        handleScancode(code)
+                    }
+                } else if code == 0xE0 {
+                    e0Pending = true
+                } else {
+                    // A keypress while the view stands lifted
+                    // (milestone 26): the view comes home to
+                    // the live end first, so the key is
+                    // answered in the present it lands in.
+                    if termViewOffset > 0 && code & 0x80 == 0 {
+                        termScrollBy(-termViewOffset)
+                    }
+                    handleScancode(code)
+                }
             } else if e0Pending {
                 e0Pending = false
                 guiScrollKey(code)
@@ -8513,9 +8930,12 @@ func runGui() {
         // the window holds the room — which is to say, while it
         // stands on top, where its paint belongs. A span left
         // pending under the other window is answered whole by
-        // the next full paint that raises it.
+        // the next full paint that raises it. While the view
+        // stands lifted (milestone 26) the span gathers
+        // unanswered: the read lines stand as they were left,
+        // and the return to the live end repaints whole.
         if consoleInTerminal && guiFocusTerminal
-            && termDirtyTop >= 0 {
+            && termViewOffset == 0 && termDirtyTop >= 0 {
             let top = termDirtyTop
             let bottom = termDirtyBottom
             termDirtyTop = -1

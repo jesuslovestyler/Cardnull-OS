@@ -512,7 +512,42 @@ it bends.*
    hand answering for a card that did not stand — a
    ghost button painted, and its click counted, on
    the bare desktop; the standing check its younger
-   siblings always kept stands in it now.)*
+   siblings always kept stands in it now. Milestone
+   26 — November 10, 2026 — taught the waking the
+   wheel knock and the desktop to scroll: after the
+   defaults, the mouse is knocked on with the
+   IntelliMouse sample-rate sequence (200, 100, 80)
+   and its name asked again, and the packet's length
+   follows the answer for the whole session — four
+   bytes from a wheel mouse, three from a plain one,
+   the plain road kept exactly as it was, and the
+   `mouse` command reporting the name it heard and
+   the wheel's standing in plain words beside it.
+   The wheel scrolls the window under the pointer,
+   three lines to a notch, the window given the room
+   first as a press gives it; the bar and the bare
+   desktop let a turning go, and so does a drag in
+   progress. The Terminal gained the scrollback it
+   never had — 128 lines kept in the floor as they
+   leave the screen — read back by the wheel and the
+   page keys, its view a distance from the end that
+   stands as new lines arrive and that any keypress
+   first brings home; the Files list and the
+   Reader's page turn the same scroll positions
+   their buttons and keys already kept. And the
+   turning crosses the door: the mouse poll's answer
+   grew a fourth word carrying the wheel's sum since
+   the guest last asked, spent by the asking —
+   windowed, gathered by the face's assembly from
+   turnings over the guest's canvas alone;
+   full-screen, from the guest's own packets — and
+   TERM scrolls its own scrollback by it, in its
+   window and on the whole screen alike. A mouse
+   that answers the plain name is handled exactly
+   as before; the bench proved that branch with a
+   throwaway build whose waking asks without
+   knocking, and the same mouse answered 0 and was
+   told of as having no wheel.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

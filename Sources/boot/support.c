@@ -373,6 +373,23 @@ unsigned char *cardnull_term_grid(void) {
     return term_grid;
 }
 
+/* Milestone 26: the Terminal conversation's memory.                 */
+/*                                                                    */
+/* Until now a line that scrolled off the Terminal window's top was   */
+/* gone — the grid keeps only what stands in it. The wheel changed    */
+/* that: the window's conversation can now be read back, so the       */
+/* lines that lift off the grid's top are kept here as they go —      */
+/* 128 whole stride-rows of the grid's own keeping, the same 120-     */
+/* column stride, so a kept line is a grid row exactly as it stood.   */
+/* How many stand here, and which of them the window shows, is the    */
+/* kernel's business; the floor lends only the room.                  */
+
+static unsigned char term_history[120 * 128];
+
+unsigned char *cardnull_term_history(void) {
+    return term_history;
+}
+
 static unsigned char mouse_report[160];
 
 unsigned char *cardnull_mouse_report(void) {

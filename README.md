@@ -90,6 +90,84 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 26 stands (November 10, 2026): **the wheel
+turns — mouse-wheel scrolling.** Tyler asked for it
+the same day the feathers got their windows, after
+trying to scroll the Terminal with a wheel the waking
+had never asked the mouse about. The waking asks now:
+after the defaults are set, the mouse is knocked on
+with the IntelliMouse sequence — sample rates 200,
+100, 80 — and its name is asked again. A name of 3 is
+a wheel mouse, and its packets carry a fourth byte
+ever after; a name of 0 is the plain mouse, three
+bytes to a packet, handled exactly as it always was —
+the packet's length follows the name the waking
+heard, and the `mouse` command tells the truth about
+it in the Terminal, where codes belong: "Mouse:
+answering (id 0x03). Its wheel turns.", with the
+knock's own answer kept in the wake's transcript. The
+fourth byte is a signed turning, reckoned the
+reader's way as it is taken (the byte itself counts
+a turn away from the hand as a negative step):
+positive turned up, toward older lines; negative
+turned down, toward the present. The rule is the one
+a hand expects: **the wheel scrolls the window under
+the pointer**, and gives that window the room first,
+with a press's own manners — three lines to a notch
+in every view, the page keys still making the leaps.
+The bar and the bare desktop have nothing to scroll
+and let a turning go; a turning mid-drag is let go
+with it. To scroll, the Terminal gained the past it
+never kept: its lines now gather into a scrollback
+of 128 lines as they leave the screen (kept in the
+floor's own keeping — no frames, no heap), and the
+wheel and the PageUp and PageDown keys read back
+through it; any keypress first brings the view home
+to the live tail, and what the shell says while the
+view stands lifted waits unseen until it does — the
+view is a distance from the end, and stands as the
+conversation grows. The Files list and the Reader's
+page drive the same scroll positions their rail
+buttons and keys have always driven. And the wheel
+crosses the door: service 8's answer gains a fourth
+word (bits 40–47) carrying the signed sum of the
+turnings since the guest last asked, spent by the
+asking — windowed, only turnings over the guest's
+canvas are the guest's; full-screen, the guest's own
+packets feed it. TERM.FEATHER keeps the contract and
+scrolls its own scrollback by it, three lines to a
+notch, clamped at its eldest line, in its window and
+on the whole screen alike; its help says so. A
+wheel-less mouse is handled honestly: the bench
+cannot hide QEMU's wheel, so the fallback was proven
+on a bench-only build whose waking asks the name
+without the knock — the same mouse answered 0, the
+report read "It has no wheel.", the three-byte
+discipline moved and clicked whole, and turns from
+the bench scrolled nothing. Whether UTM's mouse
+answers the knock is Tyler's witness to give; the
+bench's mouse answered 3 behind both doors and on
+the ownboot image alike. The bench proved the rest:
+the Terminal read back by wheel alone, three lines
+at a time and home again; the Files list moved its
+full three lines of room on one notch; the Reader's
+page (on a bench pressing carrying a long text)
+moved six lines on two notches; the windowed TERM
+dragged true while its view stood lifted and ended
+by its close box; the ghost-button re-probe painted
+nothing; and the regressions whole — `net` one
+discover and one offer on the wire, the Doxology
+note-exact, `dls` reading the disk's 14 files,
+`about` naming the bundle's 13 in memory, and `mem`
+reading **129,475 frames total, 1,563 used at a
+fresh boot and the same after the windowed sessions
+(1,564 behind the BIOS door)** — the one growth on
+record is the network's, twenty frames at its first
+asking and steady at its second. The kernel stands
+at 14,156 lines; the images at 3,661,824 bytes each,
+both doors still ours, byte search still finding
+no GRUB.
+
 Milestone 25 stands (November 10, 2026): **windowed
 feathers — a feather's face opens as a window on the
 desktop.** Tyler's word, given with the desktop design

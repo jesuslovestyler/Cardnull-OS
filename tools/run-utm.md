@@ -265,12 +265,19 @@ spoke it — whether it answered, and the wake line with
 what each step of the waking heard — and then what the
 face has taken from the mouse since: the bytes it has
 read from it, the packets it has made whole from those
-bytes (three bytes to a packet), and the presses of its
-button it has answered. The numbers grow as you use the
-mouse; run the command, move and click a while on the
-desktop, come home, and run it again. The desktop
-itself, meanwhile, keeps only the plain word of it, as
-the bar's walk below tells.
+bytes (three bytes to a packet from a plain mouse;
+four from a wheel mouse, since milestone 26 — the
+waking now knocks with the sample-rate sequence and
+asks the mouse's name a second time, and the report's
+first line tells what it heard in plain words beside
+the name: "Its wheel turns." or "It has no wheel.",
+with the knock's own answer kept in the wake line),
+and the presses of its button it has answered. The
+numbers grow as you use the mouse; run the command,
+move and click a while on the desktop, come home, and
+run it again. The desktop itself, meanwhile, keeps
+only the plain word of it, as the bar's walk below
+tells.
 
 And since milestone 17, the machine has a voice — try
 `sound`. The shell names the tune first (the Doxology's
@@ -726,3 +733,37 @@ stand whole at the wider measure — "In the beginning
 was the Word, and the Word was with God, and" on one
 line. The face fits the room it was opened in;
 Esc brings the shell back.
+
+## The wheel
+
+Since milestone 26, the mouse's wheel turns. The
+waking asks the mouse for it by name (the sample-rate
+knock), and the drill is simple: put the pointer over
+a window and turn the wheel — that window scrolls,
+and takes the room as it does, the way a click would
+give it. Three lines to a notch. The Terminal's
+conversation now keeps a past (128 lines of it):
+fill it with `help`, `verse`, `about`, `help` again,
+then turn the wheel up over it and the older lines
+come back; turn down and you are home at the live
+tail. PageUp and PageDown leap a windowful, and the
+first key you type while reading back brings the
+view home before the key is answered. The Files
+list and the Reader's page scroll by the same wheel.
+Over a feather's window the turning is the feather's
+own: open TERM, fill it past its room (`help`,
+`verse`, `about`, `verse`), put the pointer over its
+face and turn up — its own scrollback reads back,
+three lines to a notch, and no further than its
+eldest line.
+
+One question this page cannot settle, stated open:
+**whether UTM's mouse answers the knock.** The
+bench's mouse answers with the wheel's name (the
+`mouse` command reads "answering (id 0x03). Its
+wheel turns."), and UTM's mouse is near kin — but
+near kin is not the same mouse, and the witness is
+yours. If your mouse answers the plain name instead,
+the report will read "It has no wheel." and the
+desktop will behave exactly as it did before this
+stone: nothing is lost, and nothing pretends.

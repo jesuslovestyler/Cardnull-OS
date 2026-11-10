@@ -47,11 +47,28 @@
 # always has, and service 9's one owing there is paid the
 # same way.
 #
+# Milestone 26: the wheel turns here too. Service 8's
+# answer now carries the mouse's wheel turning in its
+# fourth word (bits 40–47, signed, the sum since the guest
+# last asked, spent by the asking), and the keyloop asks
+# on every turn, after the window standing is heard. A
+# turning lifts the view off the live tail into the
+# scrollback — three lines to a notch, the desktop's own
+# step — positive up toward older lines, negative down
+# back toward the present, never past either end; the
+# lift is kept at 0x38 and render reckons the first line
+# shown by it. Typing answers at the live tail regardless:
+# a submitted line joins the end, and the lift — a
+# distance from the end — stands as the count grows, as
+# the kernel's own Terminal keeps it. The wheel is for
+# reading back, as a terminal's wheel has always been.
+#
 # Its keeping, all in the one scratch page at 0x40010000:
 #   0x000  the screen's width      0x008  its height
 #   0x010  the visible text rows   0x018  the scrollback's count
 #   0x020  the input line's length 0x028  the lines last shown
 #   0x030  the text columns (from the width it was given)
+#   0x038  the view's lift (milestone 26)
 #   0x100  the input line (80)     0x200  the composed "> " line
 #   0x300  the scrollback's line lengths (28 bytes)
 #   0x400  the scrollback: 28 records of 72 bytes
@@ -83,6 +100,7 @@ _start:
 
     movq    $0, 0x18(%r15)          # the scrollback starts empty
     movq    $0, 0x20(%r15)          # and so does the input line
+    movq    $0, 0x38(%r15)          # the view opens on the live tail
 
     # The visible rows: (height - 190) / 16, held between
     # 4 and 24 — the scrollback's own depth is the real cap.
@@ -141,15 +159,44 @@ cols_done:
 
     # The whole life: knock at the window standing first —
     # a repaint owed is paid before anything else, frame
-    # and face together — then knock for a key; none
-    # waiting, yield and knock again.
+    # and face together — then ask the mouse for the
+    # wheel's turning (milestone 26), then knock for a
+    # key; none waiting, yield and knock again.
 keyloop:
     mov     $9, %rax                # service 9: window standing
     int     $0x80                   # the door
     test    $1, %rax                # a repaint owed?
-    je      kl_key
+    je      kl_wheel
     call    paint_frame             # the kernel has painted over
     call    render_all              # my ground: the whole face anew
+kl_wheel:
+    mov     $8, %rax                # service 8: poll the mouse
+    int     $0x80                   # the door
+    mov     %rax, %rdx
+    shr     $40, %rdx               # the wheel's word (bits 40-47)
+    movsbl  %dl, %edx               # its signed self: + up, - down
+    test    %edx, %edx
+    je      kl_key                  # nothing turned since last ask
+    lea     (%rdx, %rdx, 2), %rdx   # three lines to a notch
+    mov     0x38(%r15), %rax        # the view's lift
+    add     %rdx, %rax              # the new lift
+    mov     0x10(%r15), %rcx        # the visible rows
+    dec     %rcx                    # less the prompt's own row
+    mov     0x18(%r15), %r8         # the scrollback's count
+    cmp     %rcx, %r8               # shown = the lesser of
+    cmovb   %r8, %rcx               # the count and the room
+    mov     0x18(%r15), %r8
+    sub     %rcx, %r8               # the furthest the lift stands
+    test    %rax, %rax
+    jns     kw_high
+    xor     %eax, %eax              # never below the live tail
+kw_high:
+    cmp     %r8, %rax
+    cmova   %r8, %rax               # never past the eldest whole
+    cmp     0x38(%r15), %rax
+    je      kl_key                  # a turning that cannot move
+    mov     %rax, 0x38(%r15)
+    call    render_all              # the view stands anew
 kl_key:
     mov     $7, %rax                # service 7: read a key
     int     $0x80                   # the door
@@ -479,8 +526,15 @@ render_all:
     cmp     %r12, %rax              # the count and the room
     cmova   %r12, %rax
     mov     %rax, 0x28(%r15)        # the lines shown, kept
+    mov     0x38(%r15), %rdx        # the view's lift (26)
+    mov     %r13, %rcx
+    sub     %rax, %rcx              # the furthest it can stand
+    cmp     %rcx, %rdx
+    cmova   %rcx, %rdx              # clamped to the scrollback
+    mov     %rdx, 0x38(%r15)        # the clamped lift, kept true
     mov     %r13, %rbp
-    sub     %rax, %rbp              # the first of them
+    sub     %rax, %rbp              # the tail's first line,
+    sub     %rdx, %rbp              # lifted by the view's lift
     xor     %ebx, %ebx              # the row being painted
 ra_line:
     cmp     0x28(%r15), %rbx
@@ -621,6 +675,12 @@ sl_help:
     lea     help8(%rip), %rsi
     mov     $help8_end - help8, %rdx
     call    append_line
+    lea     help9(%rip), %rsi
+    mov     $help9_end - help9, %rdx
+    call    append_line
+    lea     help10(%rip), %rsi
+    mov     $help10_end - help10, %rdx
+    call    append_line
     jmp     sl_finish
 sl_verse:
     lea     verse1(%rip), %rsi
@@ -650,6 +710,7 @@ sl_about:
 sl_clear:
     movq    $0, 0x18(%r15)          # the scrollback wiped
     movq    $0, 0x20(%r15)          # the input with it
+    movq    $0, 0x38(%r15)          # and the view back at the tail
     call    render_all
     ret
 sl_exit:
@@ -715,6 +776,12 @@ help7_end:
 help8:
     .ascii  "gives the screen back. It never reaches me."
 help8_end:
+help9:
+    .ascii  "The mouse's wheel reads back: turn it up over"
+help9_end:
+help10:
+    .ascii  "me to see my older lines, down to return."
+help10_end:
 verse1:
     .ascii  "In the beginning was the Word, and the Word was with God, and"
 verse1_end:
