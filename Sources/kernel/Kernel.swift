@@ -122,6 +122,17 @@ func cardnullTermGrid() -> UnsafeMutablePointer<UInt8>
 @_silgen_name("cardnull_mouse_report")
 func cardnullMouseReport() -> UnsafeMutablePointer<UInt8>
 
+/// Provided by the boot floor (support.c): the Files window's
+/// keeping — 12,288 bytes the floor lends for milestone 19's
+/// two new windows: the disc's entries as the Files window
+/// read them, its status line, and the page the Reader window
+/// is showing. The layout is the kernel's business, in the
+/// milestone 19 section below (filesKeepingBytes and its
+/// companions); the floor only keeps the memory, as with
+/// every keeping before it.
+@_silgen_name("cardnull_files_keeping")
+func cardnullFilesKeeping() -> UnsafeMutablePointer<UInt8>
+
 /// Provided by the boot floor (font8x8.c): the 8x8 bitmap font the
 /// framebuffer backend draws letters from — 128 glyphs of 8 bytes,
 /// one byte per row, bit 0 the leftmost pixel. Daniel Hepper's
@@ -5337,8 +5348,8 @@ func guiPaintClicks() {
 func guiPaintWindowTitleBar(_ held: Bool) {
     guiFillRect(guiWinX, guiWinY, guiWinW, 36,
                 held ? guiHeldBarColor
-                    : (guiFocusTerminal ? guiDimBarColor
-                                        : guiCardinalColor))
+                    : (guiRoomHolder() == 1 ? guiCardinalColor
+                                            : guiDimBarColor))
     guiDrawText(guiWinX + 16, guiWinY + 10, 2, guiWindowTitle,
                 guiWhiteColor)
     guiPaintCloseBox()
@@ -5384,9 +5395,16 @@ func guiPaintWindow() {
 /// the top settling toward near-black at the bottom, each row's
 /// colour mixed once and laid across the row — then the OS's
 /// name standing large above the windows, the windows in their
-/// standing order (the one without the room first, the one
-/// holding it painted last, on top), and the bottom bar across
-/// the foot, painted last of all so nothing ever covers it.
+/// standing order (the one holding the room painted last, on
+/// top), and the bottom bar across the foot, painted last of
+/// all so nothing ever covers it. Milestone 19 made the room
+/// four-way — the Welcome side, the Terminal, the Files
+/// window, the Reader — and the standing order a reckoning
+/// rather than a pair of branches: the windows beneath stand
+/// in their fixed order (Welcome, Terminal, Files, Reader)
+/// and the room's holder is painted over them, last. Which
+/// window holds the room is guiRoomHolder's one reckoning,
+/// read by the painters and the press alike.
 /// A whole paint answers any dirty marks the Terminal's
 /// writing hands left behind, so they are cleared as it ends.
 func guiPaintDesktop() {
@@ -5402,13 +5420,15 @@ func guiPaintDesktop() {
     // centred over the screen.
     guiDrawText((framebufferWidth - 352) / 2, 40, 4, guiDesktopName,
                 guiGoldColor)
-    if guiFocusTerminal {
-        if welcomeOpen { guiPaintWindow() }
-        if termOpen { guiPaintTerminal() }
-    } else {
-        if termOpen { guiPaintTerminal() }
-        if welcomeOpen { guiPaintWindow() }
-    }
+    let holder = guiRoomHolder()
+    if holder != 1 && welcomeOpen { guiPaintWindow() }
+    if holder != 2 && termOpen { guiPaintTerminal() }
+    if holder != 3 && filesOpen { guiPaintFilesWindow() }
+    if holder != 4 && readerOpen { guiPaintReaderWindow() }
+    if holder == 1 && welcomeOpen { guiPaintWindow() }
+    if holder == 2 && termOpen { guiPaintTerminal() }
+    if holder == 3 && filesOpen { guiPaintFilesWindow() }
+    if holder == 4 && readerOpen { guiPaintReaderWindow() }
     guiPaintBar()
     termDirtyTop = -1
     termDirtyBottom = -1
@@ -5489,7 +5509,8 @@ var termSavedW = 0
 var termSavedH = 0
 
 /// The drag's bookkeeping: which window is being carried
-/// (0 none, 1 the Welcome card, 2 the Terminal), where in its
+/// (0 none, 1 the Welcome card, 2 the Terminal, 3 the Files
+/// window and 4 the Reader since milestone 19), where in its
 /// title bar the pointer took hold, and the outline's present
 /// rect — the window's own rect until the pointer moves it.
 var dragWindow = 0
@@ -5714,7 +5735,8 @@ func guiTextGlyphs(_ text: StaticString) -> Int {
 
 /// A bar button's width, reckoned from its label: the word at
 /// twofold size and the pad at both ends. Terminal earns 160,
-/// Welcome 144, Home 96 — each exactly its own size.
+/// Welcome 144, Files 112 (milestone 19), Home 96 — each
+/// exactly its own size.
 func guiBarButtonWidth(_ label: StaticString) -> Int {
     guiTextGlyphs(label) * 16 + 2 * guiBarBtnPad
 }
@@ -5725,14 +5747,21 @@ func guiBarButtonWidth(_ label: StaticString) -> Int {
 var barStatusX = 0
 var barStatusW = 0
 var barTermBtnX = 0
+var barFilesBtnX = 0
 var barWelcomeBtnX = 0
 var barHomeBtnX = 0
 var barClockEndX = 0
 
+/// The Files launcher's word (milestone 19): the bar names
+/// the window it calls, as it names the other two.
+let guiFilesTitle: StaticString = "Files"
+
 /// Reckons the bar's layout from the screen's own width and
 /// the mouse's standing (which sets the status word's length).
 /// The standing order: a 16 margin; the status in its plain
-/// words; a gap; the Terminal launcher; a gap; the Welcome
+/// words; a gap; the Terminal launcher; a gap; the Files
+/// launcher (milestone 19 — three launchers now, reckoned by
+/// the same budget as the two were); a gap; the Welcome
 /// launcher; then open ground; the clock, ending one gap
 /// before Home; and Home, closing one margin from the right
 /// edge. If the row cannot stand at this width, the gaps —
@@ -5750,24 +5779,36 @@ func guiLayoutBar() {
     barHomeBtnX = framebufferWidth - 16
         - guiBarButtonWidth(guiHomeLabel)
     barTermBtnX = barStatusX + barStatusW + statusGap
-    barWelcomeBtnX = barTermBtnX
+    barFilesBtnX = barTermBtnX
         + guiBarButtonWidth(guiTermTitle) + btnGap
+    barWelcomeBtnX = barFilesBtnX
+        + guiBarButtonWidth(guiFilesTitle) + btnGap
     if barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
         > barHomeBtnX - 8 {
         statusGap = 12
         barTermBtnX = barStatusX + barStatusW + statusGap
-        barWelcomeBtnX = barTermBtnX
+        barFilesBtnX = barTermBtnX
             + guiBarButtonWidth(guiTermTitle) + btnGap
+        barWelcomeBtnX = barFilesBtnX
+            + guiBarButtonWidth(guiFilesTitle) + btnGap
     }
     if barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
         > barHomeBtnX - 8 {
         btnGap = 8
-        barWelcomeBtnX = barTermBtnX
+        barFilesBtnX = barTermBtnX
             + guiBarButtonWidth(guiTermTitle) + btnGap
+        barWelcomeBtnX = barFilesBtnX
+            + guiBarButtonWidth(guiFilesTitle) + btnGap
     }
     barClockEndX = barHomeBtnX - 16
     guiClockVisible = barClockEndX - guiClockPatchW
         >= barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle) + 24
+}
+
+func guiBarFilesContains(_ x: Int, _ y: Int) -> Bool {
+    x >= barFilesBtnX
+        && x < barFilesBtnX + guiBarButtonWidth(guiFilesTitle)
+        && y >= guiBarTop() + 4 && y < guiBarTop() + 32
 }
 
 func guiBarTermContains(_ x: Int, _ y: Int) -> Bool {
@@ -5873,8 +5914,9 @@ func guiPaintClock() {
 
 /// Paints the bottom bar whole: its ground, the gold rule
 /// along its head, the mouse's standing in plain words, the
-/// two launchers at their reckoned places, the clock, and the
-/// Home button.
+/// three launchers at their reckoned places (Terminal,
+/// Files, Welcome — milestone 19), the clock, and the Home
+/// button.
 func guiPaintBar() {
     let top = guiBarTop()
     guiFillRect(0, top, framebufferWidth, guiBarHeight, guiBarColor)
@@ -5884,6 +5926,9 @@ func guiPaintBar() {
     guiPaintBarButton(barTermBtnX,
                       guiBarButtonWidth(guiTermTitle),
                       guiTermTitle, termOpen)
+    guiPaintBarButton(barFilesBtnX,
+                      guiBarButtonWidth(guiFilesTitle),
+                      guiFilesTitle, filesOpen)
     guiPaintBarButton(barWelcomeBtnX,
                       guiBarButtonWidth(guiWindowTitle),
                       guiWindowTitle, welcomeOpen)
@@ -5989,6 +6034,9 @@ func dragClampY(_ y: Int) -> Int {
 /// the hand feels the window is held), and the outline is
 /// drawn around the window where it stands — pointer hidden
 /// while all of it is drawn, so the cushion keeps the truth.
+/// Milestone 19: the keeping names four windows now — 1 the
+/// Welcome card, 2 the Terminal, 3 the Files window, 4 the
+/// Reader — and the drag serves each by the same rule.
 func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
     dragWindow = window
     if window == 1 {
@@ -5998,6 +6046,20 @@ func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
         dragRectY = guiWinY
         dragRectW = guiWinW
         dragRectH = guiWinH
+    } else if window == 3 {
+        dragOffsetX = px - guiFilesX
+        dragOffsetY = py - guiFilesY
+        dragRectX = guiFilesX
+        dragRectY = guiFilesY
+        dragRectW = guiFilesW
+        dragRectH = guiFilesH
+    } else if window == 4 {
+        dragOffsetX = px - guiReaderX
+        dragOffsetY = py - guiReaderY
+        dragRectX = guiReaderX
+        dragRectY = guiReaderY
+        dragRectW = guiReaderW
+        dragRectH = guiReaderH
     } else {
         dragOffsetX = px - guiTermX
         dragOffsetY = py - guiTermY
@@ -6009,6 +6071,10 @@ func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
     pointerHide()
     if window == 1 {
         guiPaintWindowTitleBar(true)
+    } else if window == 3 {
+        guiPaintFilesTitleBar(true)
+    } else if window == 4 {
+        guiPaintReaderTitleBar(true)
     } else {
         guiPaintTermTitleBar(true)
     }
@@ -6052,6 +6118,14 @@ func guiEndDrag() {
         moved = dragRectX != guiWinX || dragRectY != guiWinY
         guiWinX = dragRectX
         guiWinY = dragRectY
+    } else if carried == 3 {
+        moved = dragRectX != guiFilesX || dragRectY != guiFilesY
+        guiFilesX = dragRectX
+        guiFilesY = dragRectY
+    } else if carried == 4 {
+        moved = dragRectX != guiReaderX || dragRectY != guiReaderY
+        guiReaderX = dragRectX
+        guiReaderY = dragRectY
     } else {
         moved = dragRectX != guiTermX || dragRectY != guiTermY
         guiTermX = dragRectX
@@ -6062,6 +6136,10 @@ func guiEndDrag() {
         guiPaintDesktop()
     } else if carried == 1 {
         guiPaintWindowTitleBar(false)
+    } else if carried == 3 {
+        guiPaintFilesTitleBar(false)
+    } else if carried == 4 {
+        guiPaintReaderTitleBar(false)
     } else {
         guiPaintTermTitleBar(false)
     }
@@ -6073,10 +6151,17 @@ func guiEndDrag() {
 /// change places in the painting order as well as in their
 /// title bars, the one holding the room painted last, on top —
 /// and the Terminal's cursor takes or loses its underline with
-/// the allegiance.
+/// the allegiance. Milestone 19: giving the room down this
+/// road also takes it from the Files window or the Reader,
+/// whichever held it — the new windows have their own giving
+/// hands (guiSetFocusFiles, guiSetFocusReader), and every
+/// road leaves exactly one holder standing.
 func guiSetFocus(_ toTerminal: Bool) {
-    if guiFocusTerminal == toTerminal { return }
+    let filesHeld = guiFocusFiles || guiFocusReader
+    if guiFocusTerminal == toTerminal && !filesHeld { return }
     guiFocusTerminal = toTerminal
+    guiFocusFiles = false
+    guiFocusReader = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -6335,7 +6420,12 @@ func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
     if !guiWinContains(x, y) { return false }
     if guiCloseBoxContains(x, y) {
         welcomeOpen = false
-        if termOpen { guiFocusTerminal = true }
+        // The room falls to the Terminal — unless one of
+        // milestone 19's windows already holds it, in which
+        // case the closing changes nothing about the room.
+        if termOpen && !guiFocusFiles && !guiFocusReader {
+            guiFocusTerminal = true
+        }
         pointerHide()
         guiPaintDesktop()
         pointerShow()
@@ -6413,15 +6503,35 @@ func guiPressTerminal(_ x: Int, _ y: Int) -> Bool {
 /// so a press in the country they share lands on the one the
 /// eye sees there. A press on bare desktop gives the room to
 /// the Welcome side — which is to say, Esc will bring the
-/// face home from there.
+/// face home from there. Milestone 19: the Files window and
+/// the Reader stand in the same asking — the room's holder
+/// first (guiRoomHolder's reckoning, the painters' own), then
+/// the rest from the top of the fixed order down — and the
+/// bar carries a third launcher, Files, asked between the
+/// Terminal's and the Welcome card's.
 func guiPressAt(_ x: Int, _ y: Int) {
-    // A press anywhere but the Terminal title bar's plain
-    // ground puts the double-click's pairing down: the second
-    // half of a pair must land where the first half did.
+    // A press anywhere but a title bar's plain ground puts
+    // that bar's double-click pairing down: the second half
+    // of a pair must land where the first half did. The Files
+    // list's own pairing is put down by any press that does
+    // not land on the list itself.
     if !(termOpen && guiTermTitleContains(x, y)
         && !guiTermCloseContains(x, y)
         && !guiTermMaxContains(x, y)) {
         termTitlePressArmed = false
+    }
+    if !(filesOpen && guiFilesTitleContains(x, y)
+        && !guiFilesCloseContains(x, y)
+        && !guiFilesMaxContains(x, y)) {
+        filesTitlePressArmed = false
+    }
+    if !(readerOpen && guiReaderTitleContains(x, y)
+        && !guiReaderCloseContains(x, y)
+        && !guiReaderMaxContains(x, y)) {
+        readerTitlePressArmed = false
+    }
+    if !(filesOpen && guiFilesListContains(x, y)) {
+        filesPressArmed = false
     }
     if y >= guiBarTop() {
         if guiBarHomeContains(x, y) {
@@ -6436,6 +6546,14 @@ func guiPressAt(_ x: Int, _ y: Int) {
             }
             return
         }
+        if guiBarFilesContains(x, y) {
+            if filesOpen {
+                guiSetFocusFiles()
+            } else {
+                guiOpenFiles()
+            }
+            return
+        }
         if guiBarWelcomeContains(x, y) {
             if welcomeOpen {
                 guiSetFocus(false)
@@ -6446,14 +6564,28 @@ func guiPressAt(_ x: Int, _ y: Int) {
         }
         return
     }
-    if guiFocusTerminal {
-        if guiPressTerminal(x, y) { return }
-        if guiPressWelcome(x, y) { return }
-    } else {
-        if guiPressWelcome(x, y) { return }
-        if guiPressTerminal(x, y) { return }
+    let holder = guiRoomHolder()
+    if guiPressWindow(holder, x, y) { return }
+    var candidate = 4
+    while candidate >= 1 {
+        if candidate != holder
+            && guiPressWindow(candidate, x, y) { return }
+        candidate -= 1
     }
     guiSetFocus(false)
+}
+
+/// Asks one window, by its number in the standing order
+/// (1 the Welcome card, 2 the Terminal, 3 the Files window,
+/// 4 the Reader), to answer a press — the seniority walk's
+/// one step, so guiPressAt's order is a reckoning and not a
+/// thicket. The two elder windows answer as they always have;
+/// the two younger ones first check that they stand at all.
+func guiPressWindow(_ window: Int, _ x: Int, _ y: Int) -> Bool {
+    if window == 1 { return guiPressWelcome(x, y) }
+    if window == 2 { return guiPressTerminal(x, y) }
+    if window == 3 { return guiPressFiles(x, y) }
+    return guiPressReader(x, y)
 }
 
 /// A release: if the button stood pressed, it takes its resting
@@ -6954,7 +7086,17 @@ func guiPollMousePort() -> Bool {
 /// as on the text console. No standing traps anyone: closing
 /// the Terminal, or pressing the card, the other window, or
 /// bare desktop, arms Esc again, and Home never sleeps.
+/// Milestone 19 stands two more windows on the face — the
+/// Files window and the Reader, in their own section below —
+/// and the loop knows them by their standing in the room:
+/// while either holds it, the arrow and page keys scroll it,
+/// and Esc's rule is unchanged.
 func runGui() {
+    // The `files` command's word, taken and cleared at the
+    // door (milestone 19): typed at the text console, it asks
+    // for the face with the Files window standing on it.
+    let wantFiles = filesWantedAtFace
+    filesWantedAtFace = false
     if !useFramebuffer {
         writeLine(guiNoScreenLine)
         return
@@ -6971,12 +7113,54 @@ func runGui() {
     guiTermY = guiWorkTop
     guiTermW = framebufferWidth - 32
     guiTermH = guiBarTop() - guiWorkTop - 12
+    // Milestone 19's two windows join the arrangement: the
+    // Files window standing off-centre over the Terminal —
+    // large enough to read a disc by, small enough that the
+    // Terminal stands around it — and the Reader a page's
+    // shape beside it. Both start closed, as the Welcome
+    // card does; the bar calls them up.
+    guiFilesW = min(688, framebufferWidth - 32)
+    guiFilesH = min(448, guiBarTop() - guiWorkTop - 24)
+    guiFilesX = min(360, framebufferWidth - guiFilesW - 16)
+    guiFilesY = 136
+    if guiFilesY + guiFilesH > guiBarTop() - 8 {
+        guiFilesY = guiBarTop() - 8 - guiFilesH
+    }
+    if guiFilesY < guiWorkTop { guiFilesY = guiWorkTop }
+    guiReaderW = min(640, framebufferWidth - 32)
+    guiReaderH = min(480, guiBarTop() - guiWorkTop - 24)
+    guiReaderX = min(420, framebufferWidth - guiReaderW - 16)
+    guiReaderY = 120
+    if guiReaderY + guiReaderH > guiBarTop() - 8 {
+        guiReaderY = guiBarTop() - 8 - guiReaderH
+    }
+    if guiReaderY < guiWorkTop { guiReaderY = guiWorkTop }
     welcomeOpen = false
     termMaximized = false
     termSavedX = guiTermX
     termSavedY = guiTermY
     termSavedW = guiTermW
     termSavedH = guiTermH
+    filesOpen = false
+    readerOpen = false
+    guiFocusFiles = false
+    guiFocusReader = false
+    filesMaximized = false
+    filesSavedX = guiFilesX
+    filesSavedY = guiFilesY
+    filesSavedW = guiFilesW
+    filesSavedH = guiFilesH
+    readerMaximized = false
+    readerSavedX = guiReaderX
+    readerSavedY = guiReaderY
+    readerSavedW = guiReaderW
+    readerSavedH = guiReaderH
+    filesScroll = 0
+    filesSelected = -1
+    filesPressArmed = false
+    filesTitlePressArmed = false
+    readerTitlePressArmed = false
+    readerScroll = 0
     dragWindow = 0
     dragOutlineDrawn = false
     termTitlePressArmed = false
@@ -7008,6 +7192,11 @@ func runGui() {
     pointerIsDrawn = false
     guiPaintDesktop()
     pointerShow()
+    // The `files` command's word, honoured: the face opens
+    // with the Files window standing on it.
+    if wantFiles {
+        guiOpenFiles()
+    }
     // The face's whole work: drain the mouse's ring (and poll
     // its port) into packets; give the keyboard's ring to the
     // shell when the Terminal holds the room, and watch it for
@@ -7015,6 +7204,12 @@ func runGui() {
     // when the shell has written; and rest in `hlt` whenever
     // all are quiet — the timer's heartbeat wakes the resting
     // a hundred times a second, which no hand will ever notice.
+    // Milestone 19: while the Files window or the Reader holds
+    // the room, the arrow and page keys scroll it — they arrive
+    // as extended codes behind the 0xE0 prefix, whose standing
+    // the loop keeps between codes in e0Pending. Every other
+    // key still does nothing there, and Esc still goes home.
+    var e0Pending = false
     while !guiWantsHome {
         var worked = false
         while let byte = nextMouseByte() {
@@ -7029,6 +7224,12 @@ func runGui() {
             worked = true
             if termOpen && guiFocusTerminal {
                 handleScancode(code)
+                e0Pending = false
+            } else if e0Pending {
+                e0Pending = false
+                guiScrollKey(code)
+            } else if code == 0xE0 {
+                e0Pending = true
             } else if code == 0x01 {          // Esc, pressed
                 guiWantsHome = true
             }
@@ -7083,7 +7284,1548 @@ func runGui() {
 }
 
 // ---------------------------------------------------------------------------
-// First sound (milestone 17).
+// Milestone 19: the desktop file manager — the disc gets a face.
+//
+// Until now the disc could be read only in words: `ls` named
+// its files in the shell, `cat` spoke one, `run` and `feather`
+// carried programs off it. This stone gives the disc a window.
+// The Files window stands on the desktop beside the Terminal
+// and the Welcome card — a sibling in every mechanic the face
+// knows: it is called up from its own launcher in the bottom
+// bar (a third now, reckoned by the same layout budget: the
+// gaps give first, the furniture never), or by a new shell
+// command, `files`; it drags by its title bar under the same
+// outline and the same clamp; it maximizes and restores by
+// its box and by a title double-click; it closes by its box
+// alone; and it takes the room — the bright title bar and the
+// top of the painting order — by the same reckoning the two
+// elder windows keep, now gone four-way in guiRoomHolder.
+//
+// The list is the disc's own truth, read through the disc
+// machinery `ls` uses — the same ATAPI drive, the same
+// ISO9660 walk over the root's records, the same forgiving of
+// the ";1" suffix, the same two nameless entries passed over
+// — gathered into the floor's keeping (cardnullFilesKeeping)
+// when the window opens, so the window and `ls` can never
+// disagree: they read the one disc by the one road. Each entry
+// wears a small drawn mark of its kind — a folder for a
+// folder, a page for a text file, a cardinal play-square for
+// a program, a quill for a feather, a grey chip for the files
+// that are part of Cardnull itself — its true name as the
+// disc keeps it, and its size in plain words ("1,749 bytes";
+// a folder's line says "Folder", as `ls`'s says <DIR>). A
+// status line at the window's foot counts the disc's files,
+// in words. The disc is read-only this stone: the list is
+// read when the window opens, and opening it again reads it
+// again — that reopening is the whole of the refresh, stated
+// plainly rather than dressed as machinery.
+//
+// A double-click opens, by kind:
+//   - a text file opens the Reader: a fourth window, titled
+//     with the file's name, holding the file's actual bytes
+//     read off the disc, wrapped at its width and scrollable;
+//     its close box returns to the desktop with the Files
+//     window still standing;
+//   - a feather or a program is *launched through the
+//     Terminal*, by the most honest road the house has: the
+//     Files window gives the Terminal the room and types the
+//     very command a hand would type — "feather /FACE.FEATHER",
+//     "run /SPIN.BIN" — letter by letter through the shell's
+//     own typing hand, and presses Enter by calling the
+//     shell's answering hand. The conversation therefore shows
+//     the card and the run because the card and the run truly
+//     happen there, down milestone 9's and 11's roads with
+//     every validation standing; a graphical feather takes
+//     the whole screen under milestone 18's rules and returns
+//     to a desktop whose windows stand as they were; and Esc
+//     stops a session launched this way exactly as it stops
+//     a typed one. If the Terminal's line is not blank — a
+//     half-typed command of the user's own — the window does
+//     not type over it: it says so in its status line and
+//     opens nothing.
+//   - anything else does not open, and the window does not
+//     guess: a folder's double-click is answered in the status
+//     line ("... is a folder - this window shows the top of
+//     the disc."), and a file of the machine's own kind with
+//     "... is part of Cardnull itself and doesn't open." —
+//     BOOT.CATALOG, EFI.IMG and their kin are listed honestly
+//     and left alone, exactly as a hand is told about them.
+//
+// Scrolling, for the list that outgrows its window (the root
+// holds twenty entries; the window shows ten): the arrows at
+// the list's right edge, clicked a line at a time; and while
+// the window holds the room, the keyboard's arrow keys move
+// a line and its page keys a windowful — answered by the
+// face's loop out of the extended codes, the one piece of
+// keyboard the new windows take. The Reader scrolls by the
+// same machinery over its wrapped lines. The wheel is not
+// pretended: the mouse's waking does not ask for it, so no
+// window claims it.
+//
+// The keeping's honest bounds, stated rather than hidden:
+// forty-eight entries at most, a name's first thirty-one
+// letters (the disc's longest name is sixteen), and the
+// Reader holds a file's first 9,760 bytes — a longer page is
+// shown to that bound with a plain closing line saying the
+// file goes on. The windows take no frames and no heap: the
+// keeping is the floor's lending, and the list's reading is
+// the disc driver's ordinary work, so `mem` reads the same
+// after a visit as before it — the kernel's grown image
+// aside, as every milestone confesses.
+// ---------------------------------------------------------------------------
+
+/// The keeping's shape, agreed with the floor's lending:
+/// the entries at its head, the status line's bytes after
+/// them, the Reader's file name after that, and the Reader's
+/// page filling the rest.
+let filesKeepingBytes = 12288
+let filesMaxEntries = 48
+let filesEntryStride = 48
+let filesEntryNameCap = 31
+let filesListOffset = 0
+let filesStatusOffset = 2304          // filesMaxEntries * stride
+let filesStatusCap = 160
+let readerNameOffset = 2464
+let readerNameCap = 64
+let readerTextOffset = 2528
+let readerTextCap = 9760              // filesKeepingBytes - 2528
+
+/// The entry kinds, by the mark each wears.
+let filesKindFolder = 0
+let filesKindText = 1
+let filesKindProgram = 2
+let filesKindFeather = 3
+let filesKindSystem = 4
+
+/// The Files window's place and shape, reckoned at the
+/// face's opening beside its siblings'.
+var guiFilesX = 0
+var guiFilesY = 0
+var guiFilesW = 0
+var guiFilesH = 0
+
+/// Whether the Files window stands, and whether it holds
+/// the room.
+var filesOpen = false
+var guiFocusFiles = false
+
+/// The Files window's maximize bookkeeping, as the
+/// Terminal's: whether it stands maximized, and the place
+/// restore returns it to.
+var filesMaximized = false
+var filesSavedX = 0
+var filesSavedY = 0
+var filesSavedW = 0
+var filesSavedH = 0
+
+/// The list's books: how many entries the keeping holds,
+/// which of them stands first in the window, and which one
+/// the hand last chose.
+var filesCount = 0
+var filesScroll = 0
+var filesSelected = -1
+
+/// The status line's length, in the keeping.
+var filesStatusLength = 0
+
+/// The double-clicks' bookkeeping for the Files window, kept
+/// as the Terminal's is: the title bar's pairing (a press
+/// within half a second of the last trades maximize for
+/// restore), and the list's own — the row the last press
+/// chose, and when, so a second press on the same row inside
+/// the same window of ticks is the double-click that opens.
+var filesTitlePressTick: UInt64 = 0
+var filesTitlePressArmed = false
+var filesPressTick: UInt64 = 0
+var filesPressArmed = false
+var filesPressRow = -1
+
+/// The `files` command's word to the face: set when the
+/// command is answered at the text console, taken and
+/// cleared by runGui at its door.
+var filesWantedAtFace = false
+
+/// The Reader window's place and shape.
+var guiReaderX = 0
+var guiReaderY = 0
+var guiReaderW = 0
+var guiReaderH = 0
+
+/// Whether the Reader stands, and whether it holds the room.
+var readerOpen = false
+var guiFocusReader = false
+
+/// The Reader's maximize bookkeeping.
+var readerMaximized = false
+var readerSavedX = 0
+var readerSavedY = 0
+var readerSavedW = 0
+var readerSavedH = 0
+
+/// The Reader's page: the file name's length in its keeping,
+/// the text's length in its own, whether the file goes on
+/// past the keeping, and the first wrapped line the window
+/// shows.
+var readerNameLength = 0
+var readerTextLength = 0
+var readerTruncated = false
+var readerScroll = 0
+
+/// The Reader title bar's double-click pairing.
+var readerTitlePressTick: UInt64 = 0
+var readerTitlePressArmed = false
+
+/// The windows' words.
+let filesFolderWord: StaticString = "Folder"
+let filesFolderSuffix: StaticString =
+    " is a folder - this window shows the top of the disc."
+let filesSystemSuffix: StaticString =
+    " is part of Cardnull itself and doesn't open."
+let filesTerminalBusyLine: StaticString =
+    "The Terminal has an unfinished line - this opens when it is clear."
+let readerTruncatedLine: StaticString =
+    "The file goes on past what this window can hold."
+
+/// Which window holds the room, as one reckoning the
+/// painters and the press both read: 1 the Welcome side (the
+/// elder default — bare desktop included), 2 the Terminal,
+/// 3 the Files window, 4 the Reader. At most one of the three
+/// younger standings ever stands; every hand that gives the
+/// room clears the others as it takes it.
+func guiRoomHolder() -> Int {
+    if guiFocusReader { return 4 }
+    if guiFocusFiles { return 3 }
+    if guiFocusTerminal { return 2 }
+    return 1
+}
+
+/// Gives the room to the Files window: the whole desktop is
+/// repainted in the new standing, as guiSetFocus repaints it
+/// for the elder two.
+func guiSetFocusFiles() {
+    if guiFocusFiles && !guiFocusTerminal && !guiFocusReader {
+        return
+    }
+    guiFocusTerminal = false
+    guiFocusFiles = true
+    guiFocusReader = false
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+/// Gives the room to the Reader, by the same road.
+func guiSetFocusReader() {
+    if guiFocusReader && !guiFocusTerminal && !guiFocusFiles {
+        return
+    }
+    guiFocusTerminal = false
+    guiFocusFiles = false
+    guiFocusReader = true
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+// ---------------------------------------------------------------------------
+// The keeping's reading hands: one entry's facts, by its
+// number. An entry is forty-eight bytes: the name's letters
+// at its head (at most filesEntryNameCap of them), the
+// name's length at +32, its kind at +33, its size in little
+// endian at +36, and its extent — where its bytes live on
+// the disc — at +40.
+// ---------------------------------------------------------------------------
+
+func filesEntryNameLength(_ entry: Int) -> Int {
+    Int(cardnullFilesKeeping()[entry * filesEntryStride + 32])
+}
+
+func filesEntryKind(_ entry: Int) -> Int {
+    Int(cardnullFilesKeeping()[entry * filesEntryStride + 33])
+}
+
+func filesEntrySize(_ entry: Int) -> UInt32 {
+    let base = cardnullFilesKeeping()
+    let at = entry * filesEntryStride + 36
+    return UInt32(base[at]) | UInt32(base[at + 1]) << 8
+        | UInt32(base[at + 2]) << 16 | UInt32(base[at + 3]) << 24
+}
+
+func filesEntryExtent(_ entry: Int) -> UInt32 {
+    let base = cardnullFilesKeeping()
+    let at = entry * filesEntryStride + 40
+    return UInt32(base[at]) | UInt32(base[at + 1]) << 8
+        | UInt32(base[at + 2]) << 16 | UInt32(base[at + 3]) << 24
+}
+
+/// A name's kind, judged by its ending the way a hand judges
+/// it: a folder first, whatever its name; then the endings
+/// the window knows how to open — TXT a page, BIN a program,
+/// FEATHER a package — and everything else the machine's own
+/// kind. The comparison folds small letters up, as the disc
+/// reader's matching does.
+func filesClassify(_ base: UnsafeMutablePointer<UInt8>,
+                   _ entryBase: Int, _ nameLength: Int,
+                   _ isDirectory: Bool) -> Int {
+    if isDirectory { return filesKindFolder }
+    var dot = -1
+    var index = 0
+    while index < nameLength {
+        if base[entryBase + index] == 0x2E { dot = index }
+        index += 1
+    }
+    if dot < 0 { return filesKindSystem }
+    let extStart = entryBase + dot + 1
+    let extLength = nameLength - dot - 1
+    if filesExtensionMatches(base, extStart, extLength, "TXT") {
+        return filesKindText
+    }
+    if filesExtensionMatches(base, extStart, extLength, "BIN") {
+        return filesKindProgram
+    }
+    if filesExtensionMatches(base, extStart, extLength, "FEATHER") {
+        return filesKindFeather
+    }
+    return filesKindSystem
+}
+
+/// One ending against a word, letter for letter with case
+/// folded — the extension's whole length must be the word's.
+func filesExtensionMatches(_ base: UnsafeMutablePointer<UInt8>,
+                           _ start: Int, _ length: Int,
+                           _ word: StaticString) -> Bool {
+    var index = 0
+    while true {
+        let wanted = word.utf8Start[index]
+        if wanted == 0 { return index == length }
+        if index >= length { return false }
+        var byte = base[start + index]
+        if byte >= 0x61 && byte <= 0x7A { byte -= 0x20 }
+        if byte != wanted { return false }
+        index += 1
+    }
+}
+
+/// Reads the disc's root into the keeping: the walk
+/// listDirectory makes, record by record over the root's
+/// sectors — a record's own length saying where the next
+/// begins, a zero length ending the sector, the two nameless
+/// entries passed over, the ";1" suffix forgiven exactly as
+/// `ls` forgives it — gathering instead of printing. The
+/// window's list is therefore the shell's list, read by the
+/// one road; the proof holds the two screenshots side by
+/// side. The status line is set as the reading ends: the
+/// count in plain words, or the disc's own answer when there
+/// is no disc to read, or the reading failed — in which case
+/// the entries gathered before the failure stand, as `ls`'s
+/// partial listing stands.
+func filesReadRootList() {
+    filesCount = 0
+    if !discDriveFound {
+        filesSetStatus(discAbsentLine)
+        return
+    }
+    if !discIsoFound {
+        filesSetStatus(discUnknownFsLine)
+        return
+    }
+    let base = cardnullFilesKeeping()
+    let buffer = discBuffer()
+    var failed = false
+    let size = isoRootSize
+    if size > 0 {
+        var sectorIndex: UInt32 = 0
+        let sectorCount = (size + UInt32(discSectorBytes) - 1)
+            / UInt32(discSectorBytes)
+        while sectorIndex < sectorCount && !failed {
+            if !discReadSector(isoRootExtent + sectorIndex) {
+                failed = true
+                break
+            }
+            var inSector = discSectorBytes
+            let remaining = size
+                - sectorIndex * UInt32(discSectorBytes)
+            if remaining < UInt32(discSectorBytes) {
+                inSector = Int(remaining)
+            }
+            var offset = 0
+            while offset < inSector {
+                let recordLength = Int(buffer[offset])
+                if recordLength == 0 { break }
+                if recordLength >= 34
+                    && filesCount < filesMaxEntries {
+                    let nameLength = Int(buffer[offset + 32])
+                    if !(nameLength == 1
+                        && buffer[offset + 33] <= 1) {
+                        filesStoreEntry(base, buffer, offset)
+                    }
+                }
+                offset += recordLength
+            }
+            sectorIndex += 1
+        }
+    }
+    if failed {
+        filesSetStatus(discReadErrorLine)
+    } else {
+        filesSetCountStatus()
+    }
+}
+
+/// Gathers one directory record into the keeping, at the
+/// next entry's place: the name's effective letters (its
+/// ";1" forgiven, at most the keeping's cap of them), its
+/// kind, its size, and its extent.
+func filesStoreEntry(_ base: UnsafeMutablePointer<UInt8>,
+                     _ buffer: UnsafeMutablePointer<UInt8>,
+                     _ record: Int) {
+    let entryBase = filesListOffset
+        + filesCount * filesEntryStride
+    let nameLength = Int(buffer[record + 32])
+    var effective = nameLength
+    var index = 0
+    while index < nameLength {
+        if buffer[record + 33 + index] == 0x3B {   // ';'
+            effective = index
+            break
+        }
+        index += 1
+    }
+    let copyLength = min(effective, filesEntryNameCap)
+    index = 0
+    while index < copyLength {
+        base[entryBase + index] = buffer[record + 33 + index]
+        index += 1
+    }
+    base[entryBase + 32] = UInt8(copyLength)
+    let isDirectory = buffer[record + 25] & 0x02 != 0
+    base[entryBase + 33] = UInt8(filesClassify(
+        base, entryBase, copyLength, isDirectory))
+    let size = discU32(buffer, record + 10)
+    base[entryBase + 36] = UInt8(size & 0xFF)
+    base[entryBase + 37] = UInt8((size >> 8) & 0xFF)
+    base[entryBase + 38] = UInt8((size >> 16) & 0xFF)
+    base[entryBase + 39] = UInt8((size >> 24) & 0xFF)
+    let extent = discU32(buffer, record + 2)
+    base[entryBase + 40] = UInt8(extent & 0xFF)
+    base[entryBase + 41] = UInt8((extent >> 8) & 0xFF)
+    base[entryBase + 42] = UInt8((extent >> 16) & 0xFF)
+    base[entryBase + 43] = UInt8((extent >> 24) & 0xFF)
+    filesCount += 1
+}
+
+// ---------------------------------------------------------------------------
+// The status line: the window's one sentence, kept as bytes
+// in the keeping and painted at its foot, wrapped over two
+// lines — and standing in the body when the list is empty,
+// so the window's answer is never nowhere.
+// ---------------------------------------------------------------------------
+
+/// Sets the status to a standing sentence's words.
+func filesSetStatus(_ text: StaticString) {
+    let base = cardnullFilesKeeping()
+    var pen = 0
+    while text.utf8Start[pen] != 0 && pen < filesStatusCap {
+        base[filesStatusOffset + pen] = text.utf8Start[pen]
+        pen += 1
+    }
+    filesStatusLength = pen
+}
+
+/// Sets the status to the count, in plain words: "20 files
+/// on the disc." (and "1 file", because this house conjugates).
+func filesSetCountStatus() {
+    let base = cardnullFilesKeeping()
+    var pen = 0
+    var divisor: UInt32 = 1
+    var rest = UInt32(filesCount)
+    while rest / divisor >= 10 { divisor *= 10 }
+    while true {
+        base[filesStatusOffset + pen] = 0x30 + UInt8(rest / divisor)
+        pen += 1
+        rest %= divisor
+        if divisor == 1 { break }
+        divisor /= 10
+    }
+    let tail: StaticString = filesCount == 1
+        ? " file on the disc." : " files on the disc."
+    var index = 0
+    while tail.utf8Start[index] != 0 {
+        base[filesStatusOffset + pen] = tail.utf8Start[index]
+        pen += 1
+        index += 1
+    }
+    filesStatusLength = pen
+}
+
+/// Sets the status to a sentence about one entry: its true
+/// name, then the suffix's words — the folder's answer, or
+/// the machine's-own answer.
+func filesSetStatusNameSentence(_ entry: Int,
+                                _ suffix: StaticString) {
+    let base = cardnullFilesKeeping()
+    var pen = 0
+    let nameLength = filesEntryNameLength(entry)
+    var index = 0
+    while index < nameLength && pen < filesStatusCap {
+        base[filesStatusOffset + pen]
+            = base[entry * filesEntryStride + index]
+        pen += 1
+        index += 1
+    }
+    index = 0
+    while suffix.utf8Start[index] != 0 && pen < filesStatusCap {
+        base[filesStatusOffset + pen] = suffix.utf8Start[index]
+        pen += 1
+        index += 1
+    }
+    filesStatusLength = pen
+}
+
+/// Paints the status line's words at a place, wrapped by
+/// words over at most two lines of twofold letters. A word
+/// that cannot stand whole on a fresh line is drawn to the
+/// line's end and the sentence rests there — the window's
+/// sentences are written to fit their two lines, and the
+/// walk never paints past them.
+func guiPaintStatusLines(_ x: Int, _ y: Int) {
+    let base = cardnullFilesKeeping()
+    let cols = (guiFilesW - 24) / 16
+    var line = 0
+    var col = 0
+    var index = 0
+    while index < filesStatusLength && line < 2 {
+        let byte = base[filesStatusOffset + index]
+        if byte == 0x20 {
+            index += 1
+            if col > 0 { col += 1 }
+            continue
+        }
+        var wordLength = 0
+        while index + wordLength < filesStatusLength
+            && base[filesStatusOffset + index + wordLength] != 0x20 {
+            wordLength += 1
+        }
+        if col + wordLength > cols && col > 0 {
+            line += 1
+            col = 0
+            if line >= 2 { return }
+            continue
+        }
+        var step = 0
+        while step < wordLength && col < cols {
+            guiDrawGlyph(x + col * 16, y + line * 20, 2,
+                         base[filesStatusOffset + index + step],
+                         guiInkColor)
+            col += 1
+            step += 1
+        }
+        index += wordLength
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Drawing hands the two windows share with no elder sibling:
+// letters read out of a keeping, and a size in decimal with
+// its thousands gathered — "2,949,120" — because a size on
+// the desktop is a fact spoken plainly, commas and all.
+// ---------------------------------------------------------------------------
+
+/// Draws letters held in a keeping, from a place and for a
+/// length, and returns the column just past the last one —
+/// guiDrawText's twin for bytes that are not a StaticString:
+/// a file's name, wherever it must stand.
+@discardableResult
+func guiDrawBytes(_ x: Int, _ y: Int, _ scale: Int,
+                  _ base: UnsafeMutablePointer<UInt8>,
+                  _ start: Int, _ length: Int,
+                  _ rgb: UInt32) -> Int {
+    var penX = x
+    var index = 0
+    while index < length {
+        let byte = base[start + index]
+        if byte >= 0x20 && byte != 0x7F {
+            guiDrawGlyph(penX, y, scale, byte, rgb)
+        }
+        penX += 8 * scale
+        index += 1
+    }
+    return penX
+}
+
+/// Draws a value in decimal with a comma wherever the
+/// thousands gather, and returns the pen's end — the size's
+/// drawing hand, so the number a window speaks is the number
+/// `ls` speaks, dressed for the desktop.
+@discardableResult
+func guiDrawGroupedDecimal(_ x: Int, _ y: Int, _ scale: Int,
+                           _ value: UInt64,
+                           _ rgb: UInt32) -> Int {
+    var divisor: UInt64 = 1
+    var digits = 1
+    while value / divisor >= 10 { divisor *= 10; digits += 1 }
+    var penX = x
+    var remaining = value
+    var digitIndex = 0
+    while true {
+        guiDrawGlyph(penX, y, scale,
+                     0x30 + UInt8(remaining / divisor), rgb)
+        penX += 8 * scale
+        digitIndex += 1
+        remaining %= divisor
+        if divisor == 1 { break }
+        divisor /= 10
+        if (digits - digitIndex) % 3 == 0 {
+            guiDrawGlyph(penX, y, scale, 0x2C, rgb)   // ','
+            penX += 8 * scale
+        }
+    }
+    return penX
+}
+
+/// Draws one entry's size at a row's right end: the grouped
+/// number and its word — " bytes", or " byte" for the one
+/// lonesome case — ending where the row's reckoning says
+/// sizes end, so the column stands straight down the list.
+func guiDrawSizeRight(_ endX: Int, _ y: Int, _ size: UInt32) {
+    var digits = 1
+    var reckon = size
+    while reckon >= 10 { digits += 1; reckon /= 10 }
+    let commas = (digits - 1) / 3
+    let word: StaticString = size == 1 ? " byte" : " bytes"
+    let wordGlyphs = size == 1 ? 5 : 6
+    let startX = endX - (digits + commas + wordGlyphs) * 16
+    let after = guiDrawGroupedDecimal(startX, y, 2,
+                                      UInt64(size), guiInkColor)
+    guiDrawText(after, y, 2, word, guiInkColor)
+}
+
+/// Paints one scroll button: a bar button's small cousin,
+/// 28 x 28, carrying a triangle of honest rectangles — up or
+/// down — in ink when the way it points can be travelled,
+/// and in a dimmed ink when it cannot, so the button never
+/// promises a road that is not there.
+func guiPaintScrollButton(_ bx: Int, _ by: Int, _ up: Bool,
+                          _ enabled: Bool) {
+    guiFillRect(bx, by, 28, 28, guiButtonColor)
+    guiFillRect(bx, by, 28, 2, guiBorderColor)
+    guiFillRect(bx, by + 26, 28, 2, guiBorderColor)
+    guiFillRect(bx, by, 2, 28, guiBorderColor)
+    guiFillRect(bx + 26, by, 2, 28, guiBorderColor)
+    let ink: UInt32 = enabled ? guiInkColor : 0x9A8B74
+    var row = 0
+    while row < 8 {
+        let width = up ? 2 * (row + 1) : 2 * (8 - row)
+        guiFillRect(bx + 14 - width / 2, by + 6 + row * 2,
+                    width, 2, ink)
+        row += 1
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The Files window. Its layout, all of it reckoned from its
+// own rect like its siblings': the title strip across the
+// head (36, the house measure); the list from 48 below the
+// top, in rows of 32 — a 24 mark, a name at twofold, a size
+// at the right — down to the status strip's divider; and
+// the status strip, 56 at the foot, holding the window's
+// sentence over two lines. The scroll buttons stand in a
+// rail at the list's right: up at the list's head, down
+// above the divider, each exactly the square that is
+// painted, as the boxes in the title are.
+// ---------------------------------------------------------------------------
+
+/// One list row's height: the mark's 24 with air above and
+/// below, and the name's twofold letters centred in it.
+let filesRowHeight = 32
+
+func filesListTop() -> Int { guiFilesY + 48 }
+func filesStatusTop() -> Int { guiFilesY + guiFilesH - 56 }
+
+/// How many rows the list can show whole, as the window
+/// stands — the reckoning every scroll is clamped by.
+func filesVisibleRows() -> Int {
+    max(1, (filesStatusTop() - filesListTop()) / filesRowHeight)
+}
+
+/// The scroll buttons' left edge: the rail at the window's
+/// right, inside its border.
+func filesRailX() -> Int { guiFilesX + guiFilesW - 40 }
+
+func guiFilesContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiFilesX && x < guiFilesX + guiFilesW
+        && y >= guiFilesY && y < guiFilesY + guiFilesH
+}
+
+func guiFilesCloseContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiCloseBoxX(guiFilesX, guiFilesW)
+        && x < guiCloseBoxX(guiFilesX, guiFilesW) + guiBoxW
+        && y >= guiFilesY + guiBoxTop
+        && y < guiFilesY + guiBoxTop + guiBoxH
+}
+
+func guiFilesMaxContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiMaxBoxX(guiFilesX, guiFilesW)
+        && x < guiMaxBoxX(guiFilesX, guiFilesW) + guiBoxW
+        && y >= guiFilesY + guiBoxTop
+        && y < guiFilesY + guiBoxTop + guiBoxH
+}
+
+func guiFilesTitleContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiFilesX && x < guiFilesX + guiFilesW
+        && y >= guiFilesY && y < guiFilesY + 36
+}
+
+func guiFilesUpContains(_ x: Int, _ y: Int) -> Bool {
+    x >= filesRailX() && x < filesRailX() + 28
+        && y >= filesListTop() && y < filesListTop() + 28
+}
+
+func guiFilesDownContains(_ x: Int, _ y: Int) -> Bool {
+    x >= filesRailX() && x < filesRailX() + 28
+        && y >= filesStatusTop() - 36
+        && y < filesStatusTop() - 8
+}
+
+/// The list's own ground: the rows' field, from the list's
+/// head to its foot, clear of the rail at its right.
+func guiFilesListContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiFilesX + 8 && x < guiFilesX + guiFilesW - 48
+        && y >= filesListTop()
+        && y < filesListTop() + filesVisibleRows() * filesRowHeight
+}
+
+/// The entry a list press at this height lands on, or -1
+/// when the press stands below the disc's last entry.
+func filesRowAt(_ y: Int) -> Int {
+    let slot = (y - filesListTop()) / filesRowHeight
+    let entry = filesScroll + slot
+    return entry < filesCount ? entry : -1
+}
+
+/// Paints the Files window's maximize box, as the Terminal's
+/// is painted: one square at rest, two while maximized.
+func guiPaintFilesMaxBox() {
+    let boxX = guiMaxBoxX(guiFilesX, guiFilesW)
+    let boxY = guiFilesY + guiBoxTop
+    guiFillRect(boxX, boxY, guiBoxW, guiBoxH, guiButtonColor)
+    if filesMaximized {
+        guiFillRect(boxX + 17, boxY + 5, 12, 12, guiWhiteColor)
+        guiFillRect(boxX + 18, boxY + 6, 10, 10, guiButtonColor)
+        guiFillRect(boxX + 10, boxY + 11, 12, 12, guiWhiteColor)
+        guiFillRect(boxX + 11, boxY + 12, 10, 10, guiButtonColor)
+    } else {
+        guiFillRect(boxX + 13, boxY + 7, 14, 14, guiWhiteColor)
+        guiFillRect(boxX + 14, boxY + 8, 12, 12, guiButtonColor)
+    }
+}
+
+/// Paints the Files window's title strip alone, in the
+/// colour of its standing, with its name and both its boxes —
+/// the whole-window painter lays its strip through this same
+/// hand, as its siblings' painters do.
+func guiPaintFilesTitleBar(_ held: Bool) {
+    guiFillRect(guiFilesX, guiFilesY, guiFilesW, 36,
+                held ? guiHeldBarColor
+                    : (guiFocusFiles ? guiCardinalColor
+                                     : guiDimBarColor))
+    guiDrawText(guiFilesX + 16, guiFilesY + 10, 2, guiFilesTitle,
+                guiWhiteColor)
+    guiPaintFilesMaxBox()
+    guiPaintXBox(guiCloseBoxX(guiFilesX, guiFilesW),
+                 guiFilesY + guiBoxTop)
+}
+
+/// Paints one entry's mark, in a 24 x 24 field: honest
+/// rectangles and nothing borrowed, a mark per kind — a
+/// folder in gold and parchment, a page with its folded
+/// corner and its written lines, a program's cardinal square
+/// carrying a gold play-triangle, a feather's quill in gold
+/// on a cardinal stem, and a grey chip for the files that
+/// are Cardnull itself.
+func guiPaintFileIcon(_ ix: Int, _ iy: Int, _ kind: Int) {
+    if kind == filesKindFolder {
+        guiFillRect(ix + 2, iy + 5, 20, 15, guiGoldColor)
+        guiFillRect(ix + 2, iy + 2, 9, 4, guiGoldColor)
+        guiFillRect(ix + 2, iy + 10, 20, 10, guiButtonColor)
+        guiFillRect(ix + 2, iy + 10, 20, 2, guiBorderColor)
+    } else if kind == filesKindText {
+        guiFillRect(ix + 4, iy + 1, 16, 22, guiWhiteColor)
+        guiFillRect(ix + 4, iy + 1, 16, 2, guiBorderColor)
+        guiFillRect(ix + 4, iy + 21, 16, 2, guiBorderColor)
+        guiFillRect(ix + 4, iy + 1, 2, 22, guiBorderColor)
+        guiFillRect(ix + 18, iy + 1, 2, 22, guiBorderColor)
+        guiFillRect(ix + 15, iy + 1, 5, 5, guiCardinalColor)
+        guiFillRect(ix + 7, iy + 9, 10, 2, guiInkColor)
+        guiFillRect(ix + 7, iy + 13, 10, 2, guiInkColor)
+        guiFillRect(ix + 7, iy + 17, 6, 2, guiInkColor)
+    } else if kind == filesKindProgram {
+        guiFillRect(ix + 2, iy + 2, 20, 20, guiCardinalColor)
+        var row = 0
+        while row < 10 {
+            let width = row < 5 ? row + 1 : 10 - row
+            guiFillRect(ix + 9, iy + 7 + row, width, 1,
+                        guiGoldColor)
+            row += 1
+        }
+    } else if kind == filesKindFeather {
+        var row = 0
+        while row < 16 {
+            let width = row < 8 ? 2 + row : 2 + (15 - row)
+            guiFillRect(ix + 12 - width / 2, iy + 3 + row,
+                        width, 1, guiGoldColor)
+            row += 1
+        }
+        guiFillRect(ix + 11, iy + 3, 2, 18, guiCardinalColor)
+    } else {
+        guiFillRect(ix + 3, iy + 3, 18, 18, 0x8A8A8A)
+        guiFillRect(ix + 8, iy + 8, 8, 8, guiInkColor)
+        var pin = 0
+        while pin < 3 {
+            guiFillRect(ix + 5 + pin * 6, iy + 1, 2, 2, 0x8A8A8A)
+            guiFillRect(ix + 5 + pin * 6, iy + 21, 2, 2, 0x8A8A8A)
+            guiFillRect(ix + 1, iy + 5 + pin * 6, 2, 2, 0x8A8A8A)
+            guiFillRect(ix + 21, iy + 5 + pin * 6, 2, 2, 0x8A8A8A)
+            pin += 1
+        }
+    }
+}
+
+/// Paints the Files window whole: shadow, parchment body and
+/// border, the title strip, the list as it stands scrolled —
+/// the chosen entry wearing the pressed-button tan the
+/// Welcome card's button wears held — the scroll rail, and
+/// the status strip with its sentence. The scroll is first
+/// clamped home inside the window's present shape, as the
+/// Terminal's marks are clamped at a resize: a maximize may
+/// have made the standing scroll a lie, and the painter
+/// does not paint lies.
+func guiPaintFilesWindow() {
+    let maxScroll = max(0, filesCount - filesVisibleRows())
+    if filesScroll > maxScroll { filesScroll = maxScroll }
+    if filesScroll < 0 { filesScroll = 0 }
+    guiFillRect(guiFilesX + 10, guiFilesY + 12, guiFilesW,
+                guiFilesH, guiShadowColor)
+    guiFillRect(guiFilesX, guiFilesY, guiFilesW, guiFilesH,
+                guiParchmentColor)
+    guiFillRect(guiFilesX, guiFilesY, guiFilesW, 2, guiBorderColor)
+    guiFillRect(guiFilesX, guiFilesY + guiFilesH - 2, guiFilesW,
+                2, guiBorderColor)
+    guiFillRect(guiFilesX, guiFilesY, 2, guiFilesH, guiBorderColor)
+    guiFillRect(guiFilesX + guiFilesW - 2, guiFilesY, 2,
+                guiFilesH, guiBorderColor)
+    guiPaintFilesTitleBar(false)
+    guiFillRect(guiFilesX + 2, filesStatusTop(), guiFilesW - 4,
+                2, guiBorderColor)
+    let base = cardnullFilesKeeping()
+    if filesCount == 0 {
+        // Nothing to list: the status's words stand in the
+        // body, where the eye looks for the list.
+        guiPaintStatusLines(guiFilesX + 12, filesListTop() + 4)
+    }
+    var slot = 0
+    while slot < filesVisibleRows() {
+        let entry = filesScroll + slot
+        if entry >= filesCount { break }
+        let rowY = filesListTop() + slot * filesRowHeight
+        if entry == filesSelected {
+            guiFillRect(guiFilesX + 8, rowY, guiFilesW - 56,
+                        filesRowHeight, guiPressedColor)
+        }
+        guiPaintFileIcon(guiFilesX + 12, rowY + 4,
+                         filesEntryKind(entry))
+        guiDrawBytes(guiFilesX + 48, rowY + 8, 2, base,
+                     entry * filesEntryStride,
+                     filesEntryNameLength(entry), guiInkColor)
+        if filesEntryKind(entry) == filesKindFolder {
+            let wordX = guiFilesX + guiFilesW - 56
+                - guiTextGlyphs(filesFolderWord) * 16
+            guiDrawText(wordX, rowY + 8, 2, filesFolderWord,
+                        guiInkColor)
+        } else {
+            guiDrawSizeRight(guiFilesX + guiFilesW - 56,
+                             rowY + 8, filesEntrySize(entry))
+        }
+        slot += 1
+    }
+    guiPaintScrollButton(filesRailX(), filesListTop(), true,
+                         filesScroll > 0)
+    guiPaintScrollButton(filesRailX(), filesStatusTop() - 36,
+                         false, filesScroll < maxScroll)
+    if filesCount > 0 {
+        guiPaintStatusLines(guiFilesX + 12, filesStatusTop() + 8)
+    }
+}
+
+/// Scrolls the list by whole lines — a step from a button or
+/// an arrow key, a windowful from a page key — clamped at
+/// both ends of the disc's truth, and repainted where it
+/// stands. A scroll that cannot move paints nothing.
+func filesScrollBy(_ lines: Int) {
+    let maxScroll = max(0, filesCount - filesVisibleRows())
+    let target = min(max(filesScroll + lines, 0), maxScroll)
+    if target == filesScroll { return }
+    filesScroll = target
+    pointerHide()
+    guiPaintFilesWindow()
+    pointerShow()
+}
+
+/// The Files window's maximize and restore, one control,
+/// down the Terminal's own road: the whole work area, or its
+/// own place back, the list's reckoning following its shape.
+func guiToggleFilesMaximize() {
+    if filesMaximized {
+        guiFilesX = filesSavedX
+        guiFilesY = filesSavedY
+        guiFilesW = filesSavedW
+        guiFilesH = filesSavedH
+        filesMaximized = false
+    } else {
+        filesSavedX = guiFilesX
+        filesSavedY = guiFilesY
+        filesSavedW = guiFilesW
+        filesSavedH = guiFilesH
+        guiFilesX = 0
+        guiFilesY = guiWorkTop
+        guiFilesW = framebufferWidth
+        guiFilesH = guiBarTop() - guiWorkTop
+        filesMaximized = true
+    }
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+/// Opens the Files window: the disc's list is read afresh —
+/// the opening is the refresh, as the section's head states —
+/// the window stands at its first page with nothing chosen,
+/// and takes the room.
+func guiOpenFiles() {
+    filesReadRootList()
+    filesOpen = true
+    filesScroll = 0
+    filesSelected = -1
+    filesPressArmed = false
+    guiSetFocusFiles()
+    pointerHide()
+    guiPaintFilesWindow()
+    pointerShow()
+}
+
+// ---------------------------------------------------------------------------
+// The Reader window: a text file, open as a page. Its text
+// stands in the keeping (the file's first readerTextCap
+// bytes, read off the disc by the Reader's opening); its
+// layout is a walk over those bytes, reckoned fresh at every
+// painting from the window's present width, so a maximize
+// re-wraps the page the way a resize re-wraps any honest
+// page. The wrapping keeps `cat`'s manners, because the two
+// are the same file wearing two faces: line feeds end lines,
+// carriage returns are let go, a tab steps to a plain space,
+// and any other byte the screen cannot honestly draw is
+// passed over — occupying no column, in the reckoning or in
+// the painting, so the two never disagree. Within a line of
+// the file, the wrapping breaks at the last space that fits,
+// as words are wrapped everywhere; a word longer than the
+// page's whole width is broken where it stands, there being
+// no space to break at.
+// ---------------------------------------------------------------------------
+
+func readerTextX() -> Int { guiReaderX + 16 }
+func readerTextTop() -> Int { guiReaderY + 52 }
+func readerRailX() -> Int { guiReaderX + guiReaderW - 40 }
+func readerBottom() -> Int { guiReaderY + guiReaderH - 16 }
+
+/// The page's width in letters: the window's width less its
+/// margins and the scroll rail, at twofold letters.
+func readerCols() -> Int {
+    max(8, (guiReaderW - 64) / 16)
+}
+
+/// The page's height in lines, as the window stands.
+func readerVisibleRows() -> Int {
+    max(1, (readerBottom() - readerTextTop()) / 16)
+}
+
+func guiReaderContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiReaderX && x < guiReaderX + guiReaderW
+        && y >= guiReaderY && y < guiReaderY + guiReaderH
+}
+
+func guiReaderCloseContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiCloseBoxX(guiReaderX, guiReaderW)
+        && x < guiCloseBoxX(guiReaderX, guiReaderW) + guiBoxW
+        && y >= guiReaderY + guiBoxTop
+        && y < guiReaderY + guiBoxTop + guiBoxH
+}
+
+func guiReaderMaxContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiMaxBoxX(guiReaderX, guiReaderW)
+        && x < guiMaxBoxX(guiReaderX, guiReaderW) + guiBoxW
+        && y >= guiReaderY + guiBoxTop
+        && y < guiReaderY + guiBoxTop + guiBoxH
+}
+
+func guiReaderTitleContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiReaderX && x < guiReaderX + guiReaderW
+        && y >= guiReaderY && y < guiReaderY + 36
+}
+
+func guiReaderUpContains(_ x: Int, _ y: Int) -> Bool {
+    x >= readerRailX() && x < readerRailX() + 28
+        && y >= readerTextTop() && y < readerTextTop() + 28
+}
+
+func guiReaderDownContains(_ x: Int, _ y: Int) -> Bool {
+    x >= readerRailX() && x < readerRailX() + 28
+        && y >= readerBottom() - 28 && y < readerBottom()
+}
+
+/// One display line's span, from the byte where it begins:
+/// the byte one past its last drawn letter, and the byte
+/// where the next line begins (-1 when the text is spent).
+/// The reckoning walks the file's own line first (to its
+/// line feed or the text's end), wrapping it at the page's
+/// width with the break at the last space that fit — or,
+/// there being none, a hard break at the width. Bytes the
+/// page cannot draw are passed over without a column, the
+/// tab alone stepping in as a space: `cat`'s manners, kept.
+func readerLineSpan(_ pos: Int, _ cols: Int) -> (end: Int,
+                                                 next: Int) {
+    let base = cardnullFilesKeeping()
+    var index = pos
+    var col = 0
+    var breakEnd = -1      // the last space's place, if broken there
+    var breakNext = -1     // and the byte after it
+    while index < readerTextLength {
+        let byte = base[readerTextOffset + index]
+        if byte == 0x0A {
+            return (index, index + 1)
+        }
+        if byte == 0x0D || (byte < 0x20 && byte != 0x09)
+            || byte == 0x7F {
+            index += 1            // let go: no column, not drawn
+            continue
+        }
+        if col == cols {
+            if breakNext > pos { return (breakEnd, breakNext) }
+            return (index, index)
+        }
+        col += 1
+        index += 1
+        if byte == 0x20 || byte == 0x09 {
+            breakEnd = index - 1
+            breakNext = index
+        }
+    }
+    return (index, -1)
+}
+
+/// The page's whole count of display lines, walked end to
+/// end — the number every Reader scroll is clamped by,
+/// together with the closing note's line when the file goes
+/// on past the keeping.
+func readerCountLines() -> Int {
+    if readerTextLength == 0 { return 0 }
+    let cols = readerCols()
+    var count = 0
+    var pos = 0
+    while pos < readerTextLength {
+        let span = readerLineSpan(pos, cols)
+        count += 1
+        if span.next < 0 { break }
+        pos = span.next
+    }
+    return count
+}
+
+func readerTotalLines() -> Int {
+    readerCountLines() + (readerTruncated ? 1 : 0)
+}
+
+/// Paints the Reader's page: the wrapped lines as they stand
+/// scrolled, walked from the text's head each time — the
+/// text is a few thousand bytes, and a fresh honest walk
+/// beats a kept index that a resize could make a liar. The
+/// closing note stands as the page's last line when the file
+/// goes on past the keeping.
+func guiPaintReaderBody() {
+    let base = cardnullFilesKeeping()
+    let cols = readerCols()
+    let rows = readerVisibleRows()
+    let wrapped = readerCountLines()
+    var pos = 0
+    var line = 0
+    while line < readerScroll && pos < readerTextLength {
+        let span = readerLineSpan(pos, cols)
+        if span.next < 0 {
+            pos = readerTextLength
+            break
+        }
+        pos = span.next
+        line += 1
+    }
+    var row = 0
+    while row < rows {
+        let y = readerTextTop() + row * 16
+        if line < wrapped {
+            let span = readerLineSpan(pos, cols)
+            var col = 0
+            var index = pos
+            while index < span.end {
+                let byte = base[readerTextOffset + index]
+                if byte == 0x0D || (byte < 0x20 && byte != 0x09)
+                    || byte == 0x7F {
+                    index += 1
+                    continue
+                }
+                let glyph: UInt8 = byte == 0x09 ? 0x20 : byte
+                guiDrawGlyph(readerTextX() + col * 16, y, 2,
+                             glyph, guiInkColor)
+                col += 1
+                index += 1
+            }
+            if span.next < 0 { break }
+            pos = span.next
+        } else if readerTruncated && line == wrapped {
+            guiDrawText(readerTextX(), y, 2, readerTruncatedLine,
+                        0x6B5636)
+        } else {
+            break
+        }
+        line += 1
+        row += 1
+    }
+}
+
+/// Paints the Reader's maximize box, as its siblings'.
+func guiPaintReaderMaxBox() {
+    let boxX = guiMaxBoxX(guiReaderX, guiReaderW)
+    let boxY = guiReaderY + guiBoxTop
+    guiFillRect(boxX, boxY, guiBoxW, guiBoxH, guiButtonColor)
+    if readerMaximized {
+        guiFillRect(boxX + 17, boxY + 5, 12, 12, guiWhiteColor)
+        guiFillRect(boxX + 18, boxY + 6, 10, 10, guiButtonColor)
+        guiFillRect(boxX + 10, boxY + 11, 12, 12, guiWhiteColor)
+        guiFillRect(boxX + 11, boxY + 12, 10, 10, guiButtonColor)
+    } else {
+        guiFillRect(boxX + 13, boxY + 7, 14, 14, guiWhiteColor)
+        guiFillRect(boxX + 14, boxY + 8, 12, 12, guiButtonColor)
+    }
+}
+
+/// Paints the Reader's title strip alone: its name is the
+/// file's, read out of the keeping — the one title on the
+/// desktop that is not a standing word — with both its boxes.
+func guiPaintReaderTitleBar(_ held: Bool) {
+    guiFillRect(guiReaderX, guiReaderY, guiReaderW, 36,
+                held ? guiHeldBarColor
+                    : (guiFocusReader ? guiCardinalColor
+                                      : guiDimBarColor))
+    guiDrawBytes(guiReaderX + 16, guiReaderY + 10, 2,
+                 cardnullFilesKeeping(), readerNameOffset,
+                 readerNameLength, guiWhiteColor)
+    guiPaintReaderMaxBox()
+    guiPaintXBox(guiCloseBoxX(guiReaderX, guiReaderW),
+                 guiReaderY + guiBoxTop)
+}
+
+/// Paints the Reader window whole: shadow, parchment body
+/// and border — a page's colours, as the Welcome card wears —
+/// its title strip, its wrapped page, and its scroll rail.
+func guiPaintReaderWindow() {
+    let maxScroll = max(0, readerTotalLines()
+                        - readerVisibleRows())
+    if readerScroll > maxScroll { readerScroll = maxScroll }
+    if readerScroll < 0 { readerScroll = 0 }
+    guiFillRect(guiReaderX + 10, guiReaderY + 12, guiReaderW,
+                guiReaderH, guiShadowColor)
+    guiFillRect(guiReaderX, guiReaderY, guiReaderW, guiReaderH,
+                guiParchmentColor)
+    guiFillRect(guiReaderX, guiReaderY, guiReaderW, 2,
+                guiBorderColor)
+    guiFillRect(guiReaderX, guiReaderY + guiReaderH - 2,
+                guiReaderW, 2, guiBorderColor)
+    guiFillRect(guiReaderX, guiReaderY, 2, guiReaderH,
+                guiBorderColor)
+    guiFillRect(guiReaderX + guiReaderW - 2, guiReaderY, 2,
+                guiReaderH, guiBorderColor)
+    guiPaintReaderTitleBar(false)
+    guiPaintReaderBody()
+    guiPaintScrollButton(readerRailX(), readerTextTop(), true,
+                         readerScroll > 0)
+    guiPaintScrollButton(readerRailX(), readerBottom() - 28,
+                         false, readerScroll < maxScroll)
+}
+
+/// Scrolls the page by whole lines, clamped and repainted,
+/// down filesScrollBy's road.
+func readerScrollBy(_ lines: Int) {
+    let maxScroll = max(0, readerTotalLines()
+                        - readerVisibleRows())
+    let target = min(max(readerScroll + lines, 0), maxScroll)
+    if target == readerScroll { return }
+    readerScroll = target
+    pointerHide()
+    guiPaintReaderWindow()
+    pointerShow()
+}
+
+/// The Reader's maximize and restore, one control, down the
+/// Terminal's own road — the page re-wraps at its new width
+/// because the layout is a walk, not a keeping.
+func guiToggleReaderMaximize() {
+    if readerMaximized {
+        guiReaderX = readerSavedX
+        guiReaderY = readerSavedY
+        guiReaderW = readerSavedW
+        guiReaderH = readerSavedH
+        readerMaximized = false
+    } else {
+        readerSavedX = guiReaderX
+        readerSavedY = guiReaderY
+        readerSavedW = guiReaderW
+        readerSavedH = guiReaderH
+        guiReaderX = 0
+        guiReaderY = guiWorkTop
+        guiReaderW = framebufferWidth
+        guiReaderH = guiBarTop() - guiWorkTop
+        readerMaximized = true
+    }
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+/// Opens the Reader on one entry: its name is kept, and its
+/// bytes are read off the disc sector by sector — `cat`'s
+/// own reading, into the keeping instead of onto the screen —
+/// to the keeping's bound, the going-on marked when the file
+/// is longer. A read the drive refuses opens nothing: the
+/// Files window's status line carries the disc's answer, and
+/// the desktop stands as it stood.
+func guiOpenReader(_ entry: Int) {
+    let base = cardnullFilesKeeping()
+    let nameLength = filesEntryNameLength(entry)
+    var index = 0
+    while index < nameLength && index < readerNameCap {
+        base[readerNameOffset + index]
+            = base[entry * filesEntryStride + index]
+        index += 1
+    }
+    readerNameLength = index
+    let size = filesEntrySize(entry)
+    let extent = filesEntryExtent(entry)
+    let wanted = size < UInt32(readerTextCap)
+        ? size : UInt32(readerTextCap)
+    readerTruncated = size > wanted
+    let buffer = discBuffer()
+    var read: UInt32 = 0
+    var sectorIndex: UInt32 = 0
+    while read < wanted {
+        if !discReadSector(extent + sectorIndex) {
+            filesSetStatus(discReadErrorLine)
+            pointerHide()
+            guiPaintFilesWindow()
+            pointerShow()
+            return
+        }
+        var count = wanted - read
+        if count > UInt32(discSectorBytes) {
+            count = UInt32(discSectorBytes)
+        }
+        var step = 0
+        while step < Int(count) {
+            base[readerTextOffset + Int(read) + step]
+                = buffer[step]
+            step += 1
+        }
+        read += count
+        sectorIndex += 1
+    }
+    readerTextLength = Int(wanted)
+    readerScroll = 0
+    readerOpen = true
+    guiSetFocusReader()
+    pointerHide()
+    guiPaintReaderWindow()
+    pointerShow()
+}
+
+// ---------------------------------------------------------------------------
+// Opening, by kind — and the scroll keys the face's loop
+// answers while one of the new windows holds the room.
+// ---------------------------------------------------------------------------
+
+/// The scroll keys, answered by runGui's loop when the
+/// Terminal does not hold the keyboard: the extended codes
+/// behind the 0xE0 prefix — Up and Down a line, Page Up and
+/// Page Down a windowful — given to whichever of the new
+/// windows holds the room. All other extended keys are let
+/// go, as the face has always let them go.
+func guiScrollKey(_ code: UInt8) {
+    if guiFocusFiles && filesOpen {
+        if code == 0x48 {              // Up
+            filesScrollBy(-1)
+        } else if code == 0x50 {       // Down
+            filesScrollBy(1)
+        } else if code == 0x49 {       // Page Up
+            filesScrollBy(-filesVisibleRows())
+        } else if code == 0x51 {       // Page Down
+            filesScrollBy(filesVisibleRows())
+        }
+    } else if guiFocusReader && readerOpen {
+        if code == 0x48 {
+            readerScrollBy(-1)
+        } else if code == 0x50 {
+            readerScrollBy(1)
+        } else if code == 0x49 {
+            readerScrollBy(-readerVisibleRows())
+        } else if code == 0x51 {
+            readerScrollBy(readerVisibleRows())
+        }
+    }
+}
+
+/// Is the Terminal's own standing line empty? The shell's
+/// live marks answer when the conversation stands in the
+/// window; when the window is closed, its conversation is
+/// kept aside in its saved marks and its grid, and those
+/// answer — the same bytes a reopening would resume.
+func guiFilesTerminalBlank() -> Bool {
+    if consoleInTerminal { return lineIsBlank() }
+    if !termStarted { return true }
+    let grid = cardnullTermGrid()
+    let start = termSavedLineStartRow * termStrideColumns
+        + termSavedLineStartCol
+    let end = termSavedCursorRow * termStrideColumns
+        + termSavedCursorCol
+    var cell = start
+    while cell < end {
+        if grid[cell] != 0x20 { return false }
+        cell += 1
+    }
+    return true
+}
+
+/// Launches one entry — a feather or a bare program —
+/// through the Terminal, by typing its command: the Terminal
+/// is opened or given the room, and then the command's very
+/// letters are written through the shell's typing hand and
+/// the line is submitted to the shell's answering hand, so
+/// what follows — the card, the proof, the run, the report —
+/// is the commands' own work, not a likeness of it. A line
+/// the user has half-typed is never typed over: the window
+/// says so in its status line instead, and opens nothing.
+func guiFilesLaunch(_ entry: Int) {
+    if !guiFilesTerminalBlank() {
+        filesSetStatus(filesTerminalBusyLine)
+        pointerHide()
+        guiPaintFilesWindow()
+        pointerShow()
+        return
+    }
+    if !termOpen {
+        guiOpenTerminal()
+    } else {
+        guiSetFocus(true)
+    }
+    if filesEntryKind(entry) == filesKindFeather {
+        writeStatic(featherCommand)
+    } else {
+        writeStatic(runCommand)
+    }
+    writeChar(0x20)                    // ' '
+    writeChar(0x2F)                    // '/'
+    let base = cardnullFilesKeeping()
+    let nameLength = filesEntryNameLength(entry)
+    var index = 0
+    while index < nameLength {
+        writeChar(base[entry * filesEntryStride + index])
+        index += 1
+    }
+    submitLine()
+}
+
+/// A double-click's opening, by kind: a page to the Reader,
+/// a package or a program to the Terminal's road, and the
+/// kinds that do not open answered in the status line, in
+/// words — the window does not guess with a double-click.
+func guiFilesOpenEntry(_ entry: Int) {
+    let kind = filesEntryKind(entry)
+    if kind == filesKindText {
+        guiOpenReader(entry)
+    } else if kind == filesKindFeather
+        || kind == filesKindProgram {
+        guiFilesLaunch(entry)
+    } else if kind == filesKindFolder {
+        filesSetStatusNameSentence(entry, filesFolderSuffix)
+        pointerHide()
+        guiPaintFilesWindow()
+        pointerShow()
+    } else {
+        filesSetStatusNameSentence(entry, filesSystemSuffix)
+        pointerHide()
+        guiPaintFilesWindow()
+        pointerShow()
+    }
+}
+
+/// A press inside the Files window, the window asked in its
+/// own seniority, as its siblings are: its close box closes
+/// it alone — the room falling to the Terminal when the
+/// Terminal stands, as the Welcome card's closing lets it
+/// fall; its maximize box trades its size; its title bar
+/// takes hold for the drag, unless the press is the second
+/// of a pair, which trades the size instead; its scroll
+/// buttons step the list a line; a press on the list chooses
+/// its entry — and a second press on the same entry, inside
+/// the pairing's window, is the double-click that opens it.
+/// Any other press gives the window the room. Returns false
+/// when the point is not the window's at all.
+func guiPressFiles(_ x: Int, _ y: Int) -> Bool {
+    if !filesOpen { return false }
+    if !guiFilesContains(x, y) { return false }
+    if guiFilesCloseContains(x, y) {
+        filesOpen = false
+        filesPressArmed = false
+        if guiFocusFiles {
+            guiFocusFiles = false
+            guiFocusTerminal = termOpen
+        }
+        pointerHide()
+        guiPaintDesktop()
+        pointerShow()
+        return true
+    }
+    if guiFilesMaxContains(x, y) {
+        guiSetFocusFiles()
+        guiToggleFilesMaximize()
+        return true
+    }
+    if guiFilesTitleContains(x, y) {
+        guiSetFocusFiles()
+        if filesTitlePressArmed
+            && ticks &- filesTitlePressTick
+                <= guiDoubleClickTicks {
+            filesTitlePressArmed = false
+            guiToggleFilesMaximize()
+            return true
+        }
+        filesTitlePressArmed = true
+        filesTitlePressTick = ticks
+        guiBeginDrag(3, x, y)
+        return true
+    }
+    if guiFilesUpContains(x, y) {
+        guiSetFocusFiles()
+        filesScrollBy(-1)
+        return true
+    }
+    if guiFilesDownContains(x, y) {
+        guiSetFocusFiles()
+        filesScrollBy(1)
+        return true
+    }
+    if guiFilesListContains(x, y) {
+        guiSetFocusFiles()
+        let row = filesRowAt(y)
+        if row >= 0 {
+            if filesPressArmed && row == filesPressRow
+                && ticks &- filesPressTick
+                    <= guiDoubleClickTicks {
+                filesPressArmed = false
+                filesSelected = row
+                guiFilesOpenEntry(row)
+                return true
+            }
+            filesPressArmed = true
+            filesPressRow = row
+            filesPressTick = ticks
+            if filesSelected != row {
+                filesSelected = row
+                pointerHide()
+                guiPaintFilesWindow()
+                pointerShow()
+            }
+        }
+        return true
+    }
+    guiSetFocusFiles()
+    return true
+}
+
+/// A press inside the Reader, in the same seniority: its
+/// close box closes it alone — the room falling back to the
+/// Files window it was opened from, when that still stands —
+/// its maximize box, its title bar's drag and double-click,
+/// its scroll buttons, and any other press giving it the
+/// room. Returns false when the point is not the Reader's.
+func guiPressReader(_ x: Int, _ y: Int) -> Bool {
+    if !readerOpen { return false }
+    if !guiReaderContains(x, y) { return false }
+    if guiReaderCloseContains(x, y) {
+        readerOpen = false
+        if guiFocusReader {
+            guiFocusReader = false
+            if filesOpen {
+                guiFocusFiles = true
+            } else {
+                guiFocusTerminal = termOpen
+            }
+        }
+        pointerHide()
+        guiPaintDesktop()
+        pointerShow()
+        return true
+    }
+    if guiReaderMaxContains(x, y) {
+        guiSetFocusReader()
+        guiToggleReaderMaximize()
+        return true
+    }
+    if guiReaderTitleContains(x, y) {
+        guiSetFocusReader()
+        if readerTitlePressArmed
+            && ticks &- readerTitlePressTick
+                <= guiDoubleClickTicks {
+            readerTitlePressArmed = false
+            guiToggleReaderMaximize()
+            return true
+        }
+        readerTitlePressArmed = true
+        readerTitlePressTick = ticks
+        guiBeginDrag(4, x, y)
+        return true
+    }
+    if guiReaderUpContains(x, y) {
+        guiSetFocusReader()
+        readerScrollBy(-1)
+        return true
+    }
+    if guiReaderDownContains(x, y) {
+        guiSetFocusReader()
+        readerScrollBy(1)
+        return true
+    }
+    guiSetFocusReader()
+    return true
+}
+
+/// The `files` command's work: in the Terminal, the window
+/// opens where the conversation stands; at the text console,
+/// the face opens with the window standing on it — the word
+/// is left for runGui at its door, and the command walks the
+/// `gui` command's own road in.
+func runFilesCommand() {
+    if consoleInTerminal {
+        guiOpenFiles()
+    } else {
+        filesWantedAtFace = true
+        runGui()
+    }
+}
 //
 // The machine has been silent for sixteen milestones. This stone
 // gives it the smallest honest voice: the PC speaker, the beeper
@@ -7336,6 +9078,12 @@ func runSound() {
 //           only then run in ring 3 down run's own road
 //           (milestone 11; matched by its first word, the path
 //           being its own)
+//   files   the disc in a window: the Files window opens on
+//           the desktop — from the text console, the face opens
+//           with it standing — and the disc is browsed with
+//           the mouse there: read in the Reader, run through
+//           the Terminal, as the milestone 19 section tells
+//           (milestone 19)
 //   gui     the graphical face: a drawn desktop, one window, and
 //           a pointer that answers the PS/2 mouse, until the
 //           close box or Esc brings the shell home (milestone 12)
@@ -7370,6 +9118,7 @@ let catCommand: StaticString = "cat"
 let runCommand: StaticString = "run"
 let bothCommand: StaticString = "both"
 let featherCommand: StaticString = "feather"
+let filesCommand: StaticString = "files"
 let guiCommand: StaticString = "gui"
 let mouseCommand: StaticString = "mouse"
 let soundCommand: StaticString = "sound"
@@ -7391,6 +9140,8 @@ let helpBothLine: StaticString =
     "  both    run two programs, taking turns (both /A.BIN /B.BIN)"
 let helpFeatherLine: StaticString =
     "  feather open a feather package and run it (feather /path)"
+let helpFilesLine: StaticString =
+    "  files   open the Files window - the disc, browsable"
 let helpGuiLine: StaticString =
     "  gui     open the graphical desktop (Esc brings you home)"
 let helpMouseLine: StaticString =
@@ -7690,6 +9441,7 @@ func submitLine() {
     let isRun = firstWordMatches(runCommand)
     let isBoth = firstWordMatches(bothCommand)
     let isFeather = firstWordMatches(featherCommand)
+    let isFiles = commandMatches(filesCommand)
     let isGui = commandMatches(guiCommand)
     let isMouse = commandMatches(mouseCommand)
     let isSound = commandMatches(soundCommand)
@@ -7711,6 +9463,7 @@ func submitLine() {
             writeLine(helpRunLine)
             writeLine(helpBothLine)
             writeLine(helpFeatherLine)
+            writeLine(helpFilesLine)
             writeLine(helpGuiLine)
             writeLine(helpMouseLine)
             writeLine(helpSoundLine)
@@ -7740,6 +9493,8 @@ func submitLine() {
             runBoth()
         } else if isFeather {
             runFeather()
+        } else if isFiles {
+            runFilesCommand()
         } else if isGui {
             if consoleInTerminal {
                 // Already here: this window is the desktop's own

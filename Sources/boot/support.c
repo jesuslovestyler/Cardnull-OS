@@ -380,6 +380,27 @@ unsigned char *cardnull_mouse_report(void) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Milestone 19: the Files window's keeping.                          */
+/*                                                                    */
+/* The desktop gains a window onto the disc, and a Reader window      */
+/* beside it, and both keep their facts in bytes — the disc's         */
+/* entries as the Files window read them, its status line, and the    */
+/* page the Reader is showing — for the same reason every keeping     */
+/* above is lent: Embedded Swift cannot name fixed mutable storage    */
+/* without a heap. The floor makes no decision about the bytes;       */
+/* their layout is the kernel's business, agreed here only in size:   */
+/* 12,288 bytes, within which the kernel keeps its list at the head   */
+/* and the Reader's page toward the tail (the kernel's own constants  */
+/* name the offsets — filesKeepingBytes and its companions).          */
+/* ------------------------------------------------------------------ */
+
+static unsigned char files_keeping[12288];
+
+unsigned char *cardnull_files_keeping(void) {
+    return files_keeping;
+}
+
+/* ------------------------------------------------------------------ */
 /* Milestone 6: the frame allocator's two lendings.                    */
 /*                                                                     */
 /* The allocator itself — which frames exist, which are free, what   */

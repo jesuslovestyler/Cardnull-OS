@@ -173,6 +173,13 @@ every line says why it exists.
   the kernel composes at boot from the mouse waking's own
   answers, printed on the console and drawn on the desktop
   from the same keeping, so the two tellings never disagree.
+  Milestone 19 added one lending more, 12,288 bytes
+  (`cardnull_files_keeping`): the Files window's list of the
+  disc's root (48 entries of 48 bytes — name, kind, size,
+  extent), its status line's bytes, and the Reader window's
+  kept name and page (a file's first 9,760 bytes, read off
+  the disc at the opening) — raw storage, as all these
+  lendings are; the reckoning lives in the kernel.
 - **`font8x8.c`** — the letters for the framebuffer screen: the
   public-domain 8x8 bitmap font from Daniel Hepper's font8x8
   project (built on the public-domain IBM VGA font heritage),

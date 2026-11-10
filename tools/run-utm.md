@@ -69,7 +69,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Seventeen commands, for now:
+Press Enter and the prompt answers. Eighteen commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -86,6 +86,8 @@ Press Enter and the prompt answers. Seventeen commands, for now:
 - `both` — run two programs, taking turns: `both /a.bin /b.bin`
 - `feather` — open a feather package and run its program:
   `feather /hello.feather`
+- `files` — open the Files window on the desktop: the disc,
+  browsable with the mouse
 - `gui` — open the graphical desktop (Esc brings you home)
 - `mouse` — the mouse's report: its waking transcript, and what
   the face has taken from it since
@@ -473,5 +475,44 @@ Esc works throughout, as always: pressed during any of
 these, it stops the session and gives the screen back — a
 guest never receives Esc as its own key; the feather
 terminal's `help` says so in its own words.
+
+## The Files window: the disc, browsable
+
+Since milestone 19 the disc has a face. Click **Files** in
+the desktop's bottom bar — or type `files` in the Terminal —
+and the Files window opens: the disc's contents as a list,
+the same list `ls` prints, each file with a small drawn
+mark of its kind, its name, and its size in plain words. A
+line at the window's foot says how many files the disc
+holds. The list is longer than the window: use the arrow
+buttons at its right edge, or the arrow and Page Up / Page
+Down keys while the window is the one you're working in.
+
+Double-click a file to open it, by kind:
+
+- **A text file** (WELCOME.TXT is the one to try) opens in
+  the **Reader**: a window titled with the file's name,
+  showing the file's own words, wrapped to the window. Its
+  close box returns you to the desktop with Files still
+  standing.
+- **A feather** runs — through the Terminal, exactly as if
+  you had typed the command: the Terminal comes forward
+  and you see the card, the checksum's proof, and the run.
+  A feather with a face (try FACE.FEATHER) takes the whole
+  screen and gives the desktop back as it was; a text
+  feather (HELLO.FEATHER) prints its words in the Terminal.
+- **A program** (a .BIN) runs the same way, as `run` —
+  including SPIN.BIN, which still answers your Esc.
+- **The system files and folders** do not open. The
+  window's foot says so in plain words — "…is part of
+  Cardnull itself and doesn't open." They are listed
+  honestly, never hidden.
+
+The window itself behaves like its siblings: drag it by
+its title bar, use its corner boxes to maximize and
+restore (a double-click on the title does the same), close
+it with the X. The list is read fresh each time the window
+opens — the disc cannot change under it, so opening is the
+refresh.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

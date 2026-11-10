@@ -79,6 +79,93 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
+Milestone 19 stands (November 10, 2026): **the desktop
+file manager — the disc gets a face.** A third window
+stands on the desktop: **Files**, opened from a new
+Files button in the bottom bar — the bar's layout
+reckoned again for three launchers, the gaps giving
+way first and the furniture never, as the law of
+milestone 16 demands — or by a new `files` command
+(the shell now answers eighteen). The window lists
+the disc's root through the same machinery `ls` uses,
+so the two can never disagree: every entry wears a
+small drawn mark of its kind — a folder in gold and
+parchment, a white page for a text file, a cardinal
+square for a program, a gold quill for a feather, a
+grey chip for the files that are Cardnull itself —
+its true name, and its size in plain words
+("2,949,120 bytes"); a folder is named Folder, as
+`ls` names it <DIR>. A status line at the window's
+foot says how many files the disc holds, and the
+list scrolls when it outgrows the window: buttons on
+a rail at its right, and the arrow and Page keys
+while the window holds the keyboard — the mouse this
+house woke reports no wheel, and none is pretended.
+A double-click opens, by kind. A text file opens the
+**Reader**, a second new window titled with the
+file's name: the file's own words, read off the disc
+sector by sector as `cat` reads them, wrapped to the
+window's width and scrollable the same way; closing
+it leaves Files standing. A feather or a bare
+program **runs through the Terminal, as if typed**:
+the window gives the Terminal the room, types
+`feather /NAME` or `run /NAME` into it letter by
+letter through the shell's own typing hand and
+submits the line, so the card, the checksum's proof,
+the run and the report are the commands' own work,
+not a likeness of it — a text feather prints there
+(HELLO.FEATHER, proven), a graphical feather takes
+the whole screen and gives the desktop back as it
+stood (FACE.FEATHER, proven), and a program that
+never yields still answers the user's Esc
+(SPIN.BIN, proven). A command line the user has
+half-typed is never typed over: the window says so
+in its status line instead, and opens nothing.
+Anything else does not open, and the status line
+says why in words — "EFI.IMG is part of Cardnull
+itself and doesn't open." — the system files listed
+honestly, never hidden, and a folder answered with
+its own plain sentence. The list is read when the
+window opens; the disc is read-only, so reopening is
+the refresh — stated, rather than refresh machinery
+being pretended. Both windows keep the house
+manners: drag by the title with the rest-state
+repaint, the shared 40×28 close and maximize boxes,
+maximize and restore by the box and by the title's
+double-click, true standing among the windows, the
+drag clamp — and the desktop's law holds on every
+new pixel: plain words only, no hex, no codes. The
+bounds are stated, not hidden: the window's keeping
+holds 48 entries of up to 31 letters, and the Reader
+holds a file's first 9,760 bytes — a longer file is
+read to there, and the page's last line says the
+file goes on past what the window can hold. No file
+on today's disc reaches either bound, and
+WELCOME.TXT's page fits the Reader whole, so the
+Reader's scroll stands proven as machinery — the
+same buttons and keys, exercised on the Files list,
+which does overflow — and waits for a longer text to
+exercise it. `mem`'s in-use count at 4096 MB rises
+twelve frames over milestone 18's (1,271 → 1,283):
+the stone's one floor keeping — 12,288 bytes lent by
+support.c for the list, the status line and the
+Reader's page — is three of them, and the new kernel
+code is the rest; the windows spend no frames and no
+heap as they stand, scroll and open, their state
+living in that keeping and the kernel's statics, as
+the Terminal's grid has since milestone 13. The
+floor otherwise did not change — the one keeping is
+the whole of it, owned as milestone 18 owned its
+widening. Proven in QEMU (TCG, the UTM shape) on the
+UEFI door at the bench's 512 MB disc shape and on
+the SeaBIOS door: the list against the same
+session's `ls`, entry for entry; the Reader against
+`cat`; both launches and the round trips; the
+classic pair, the tampered feather refused, the
+song's note list, and faulttest's halt, all as
+before. The day's stones are witnessed together in
+UTM at the run's end, as Tyler chose this morning.
+
 Milestone 18 stands (November 10, 2026): **feathers with
 faces — the door learns to draw, and a terminal becomes
 a feather.** Seventeen milestones the kernel's hand was

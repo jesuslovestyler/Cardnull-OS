@@ -340,7 +340,40 @@ it bends.*
    graphical session and after it. What the suite is
    not: a window manager for guests, a sound service
    (the speaker remains the kernel's own voice), or a
-   signature — the store's day is still to come.)*
+   signature — the store's day is still to come.
+   Milestone 19 — November 10, 2026 — gave the disc a
+   face: a Files window on the desktop, and a Reader
+   beside it. The window lists the disc's root through
+   the very walk `ls` makes — one machinery, two faces,
+   so the list and the command can never disagree —
+   each entry wearing a drawn mark of its kind, its
+   true name, and its size in plain words, under a
+   status line that counts the disc's files; the list
+   scrolls by rail buttons and by the arrow and Page
+   keys, the mouse here reporting no wheel and none
+   being pretended. A double-click opens by kind, and
+   the openings are honest about their roads: a text
+   file is read into the Reader sector by sector, as
+   `cat` reads, and wrapped by a walk reckoned fresh
+   at the window's width; a feather or a program is
+   not run by the window at all — the window gives the
+   Terminal the room and types the command into it,
+   letter by letter, so the card, the proof and the
+   report are the commands' own, and a half-typed line
+   is never typed over (the window says so instead);
+   and what does not open — the system files, and
+   folders at this stone — is answered in the status
+   line in plain words, listed and never hidden. The
+   desktop's law binds the new windows whole: plain
+   words only, the shared box geometry, the composed
+   bar reckoned again for a third launcher with the
+   gaps giving first. The state lives in one floor
+   keeping of stated bounds — 48 entries, 31 letters,
+   a Reader page of 9,760 bytes with its going-on
+   confessed on the page itself — and the list is
+   read at the opening, the disc being read-only:
+   reopening is the refresh, stated rather than
+   machinery pretended.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles
