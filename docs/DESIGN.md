@@ -399,7 +399,36 @@ it bends.*
    own, ARP and everything above this exchange belong
    to later stones; guests gain no service at the
    door, and the packet fields never stand where a
-   guest can reach them.)*
+   guest can reach them. Milestone 21 — November 10,
+   2026 — took the writable step these notes promised
+   at the ladder's climbing: a hard-disk driver, a
+   format of our own, and an installer. The driver
+   speaks AHCI DMA to the hard disk on the very
+   controller the CD taught the kernel — the bus
+   settled by the machines' own evidence, Tyler's
+   UTM declaring both drives IDE and those drives
+   standing, on q35, on the AHCI controller's ports —
+   leaving the CD's read-only path untouched and
+   without any write road. The format, CARDNULL DISK
+   1, is defined in `docs/DISK.md` and is small the
+   way the feather is small: a checksummed superblock,
+   one flat directory, files in unbroken runs, written
+   data-then-entry-then-superblock so the disk never
+   claims what is not there, and judged afresh at
+   every command — blank, foreign, damaged, or ready,
+   in plain words. Making is gated by a typed word,
+   and the refusal of a wrong word is proven to leave
+   the disk byte-identical. The installer copies the
+   system's own files through the real disc path and
+   writes its own confession onto the disk: booting
+   from the disk waits for Cardnull's own bootloader.
+   That bootloader — the last GPL-shaped passenger,
+   GRUB, replaced by a small public-domain loader of
+   our own — is the next stone, and the one after it
+   teaches the kernel to carry its files in memory,
+   so a stick, which is not a CD, can be a home too.
+   The Files window keeps its disc face at this stone;
+   a face for the hard disk rides a later one.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

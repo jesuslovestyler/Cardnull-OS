@@ -79,6 +79,94 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
+Milestone 21 stands (November 10, 2026): **the writable
+disk, and the installer — a visiting stick becomes a
+home.** Six new commands (the shell now answers
+twenty-five): `disk`, `format`, `dsave`, `dls`, `dcat`,
+`install`. The bus was settled by evidence, not by the
+expectation carried in: Tyler's UTM declares both of
+its drives IDE, and on the q35 machine those drives
+stand on the ICH9 AHCI controller milestone 8 found —
+the CD on its port 2, exactly where milestone 8 put it,
+and the hard disk on another port of the same
+controller (the bench proved it with QEMU's own device
+tree: a scratch drive attached as IDE index 0 signs in
+on port 0). So the hard-disk driver speaks **AHCI DMA**
+to a plain ATA disk — IDENTIFY first, its model and
+measure read from the device itself: "QEMU HARDDISK",
+64 MiB (67108864 bytes) on the bench — with READ/WRITE
+DMA EXT where the disk's reach passes the 28-bit line,
+the classic forms below it, a flush after every making,
+and its own command list, table, and data frame. **The
+floor did not move**: AHCI needs no programmed-I/O data
+road, and the CD's ATAPI path is untouched — it has no
+write road at all, and cannot gain one by accident,
+the new driver addressing only the hard disk's port.
+On the disk stands a format of our own, **CARDNULL
+DISK 1**, defined in `docs/DISK.md`: a superblock in
+sector 0 carrying the signature, the geometry, and an
+FNV-1a-64 checksum (an integrity check, the feather's
+own reckoning — not a signature); a flat directory of
+128 entries in sectors 1..16; file data from sector 17
+in unbroken runs, written data first, entry second,
+superblock last, so the disk never claims what is not
+there. Every command re-reads the superblock and judges
+the disk afresh — blank, foreign, damaged, ready — and
+`disk` speaks the judgment in plain words, reckoning
+the file count and the room from the directory itself,
+never from a remembered mirror. `format` and `install`
+are gated by a typed word at their own sub-prompt
+(FORMAT, INSTALL; capitals folded, the whole word
+demanded): the bench proved the gate is real by typing
+a near miss — "Nothing was written. The disk stands
+exactly as it was." — and the host's own sha256 of the
+scratch image stood **identical before and after the
+aborted format** (3b6a07d0…c421351). Persistence is the
+proof, and it was witnessed, not inferred: a greeting
+saved in one boot ("hello from cardnull on its own
+disk", 36 bytes) was read back word for word after a
+full shutdown and a cold boot, a second file beside it
+in the second boot, both listed by `dls`. The
+installer is v1 and honest: it names the disk, warns
+that installing erases it, demands its word, formats,
+and copies the disc's own files through the real disc
+path — WELCOME.TXT and every .BIN and .FEATHER the
+disc carries, thirteen files — then writes
+INSTALLED.TXT saying what was done and what was not:
+"Booting from this disk waits for Cardnull's own
+bootloader; the machine still boots from the disc or
+stick." After a reboot the installed disk still stands,
+all fourteen files, read from the disk. The boundary
+is the stone's own, stated on screen and here:
+**installing makes the disk a Cardnull home for files;
+booting from it waits for Cardnull's own bootloader**,
+the next stone — and the Files window keeps its disc
+face this stone, a disk face riding a later one. The
+accounting: `mem` at the bench's 512 MB reads 1,554
+frames used after the disk driver has raised and
+worked (its keeping is three frames, taken once), and
+the standing count at 4096 MB is 1,293 — milestone
+20's 1,285 and eight frames of grown kernel (the
+kernel grew from 10,486 to 12,253 lines; its image
+193,040 → 228,384 bytes). At 4096 MB this bench's
+firmware parks the AHCI bar beyond the kernel's reach,
+as it has since milestone 8, so the disk sessions ran
+at 512 MB; in UTM, where the bar stands in reach, the
+same commands answer at 4096 MB — Tyler's witness of
+the day's stones together stands at the run's end, and
+his disk walk in `tools/run-utm.md` begins, as it
+must, with a warning: witness with a new throwaway
+disk, never one holding anything he keeps. Proven in
+QEMU (TCG, the UTM shape) on both firmware doors:
+absence answered plainly with no disk attached; the
+refusals — unformatted `dsave`, a taken name — each in
+their plain words; and the regressions whole — the
+desktop, `ls` and the Files list agreeing, FACE from
+Files, the classic pair (9 by the door, 0 by the
+timer), `net` answered once, the tampered feather
+refused, the song's note list, faulttest's halt, and
+`disk` behind SeaBIOS reading the installed disk.
+
 Milestone 20 stands (November 10, 2026): **first network
 packet — the e1000 driver, and one honest conversation.**
 A new command, `net` (the shell now answers nineteen),

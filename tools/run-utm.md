@@ -547,4 +547,71 @@ it with the X. The list is read fresh each time the window
 opens — the disc cannot change under it, so opening is the
 refresh.
 
-Shut the VM down whenever you like; nothing persists, nothing can break.
+## The hard disk: writing, saving, installing
+
+Since milestone 21 the OS can write — to the VM's **hard
+disk**, never to the CD (the CD cannot be written at all;
+the commands say so on screen). Six commands in the
+Terminal work the disk: `disk`, `format`, `dsave`, `dls`,
+`dcat`, `install`.
+
+> **Read this first, before you witness:** `format` and
+> `install` **erase the hard disk completely**, after a
+> typed confirmation. Witness with a **new throwaway disk
+> added to the VM for this walk** — in UTM, stop the VM,
+> open its settings, add a new drive (a small one, 64 MB
+> is plenty), and let it be the disk this walk uses.
+> **Never point these commands at a disk holding anything
+> you keep.** The walk below assumes a fresh, empty disk
+> you are willing to lose.
+
+With the VM running and a fresh disk attached, type:
+
+    disk
+
+It reports the CD ("read-only, as ever") and the hard
+disk: its model and size in plain words, and its state —
+a fresh disk reads *"It is blank: nothing on it is
+Cardnull's yet."* (No disk attached at all is answered
+just as plainly: "No hard disk is attached.")
+
+    format
+
+The command states that everything on the disk will be
+erased, and asks for a word: type **FORMAT** and press
+Enter. Anything else — a wrong word, a bare Enter —
+writes nothing, and the command says so. Then:
+
+    dsave greeting hello from cardnull on its own disk
+    dcat greeting
+    dls
+
+The greeting is saved (36 bytes: the words and a closing
+newline), read back, and listed. Saving under a name that
+already stands is refused — names are not reused — and
+saving to an unformatted disk is refused in plain words
+too. Now the proof that matters: **shut the VM fully
+down, start it again, and type `dcat greeting`** — the
+words come back from the disk, word for word. What you
+save now *does* persist, on that disk, between boots.
+
+Finally, the installer:
+
+    install
+
+It names the disk, warns that installing erases it, and
+asks for its word: type **INSTALL** and press Enter. It
+formats the disk and copies the disc's own files onto it
+— the welcome, every program, every feather — and writes
+one more, INSTALLED.TXT, which `dcat installed.txt` reads
+back from the disk, including its honest last word:
+**booting from this disk waits for Cardnull's own
+bootloader** — the machine still boots from the CD (or,
+one day, the stick); installing has made the disk a
+Cardnull home for files, not yet a bootable home. The
+format itself is defined in `docs/DISK.md`.
+
+Shut the VM down whenever you like. The CD's world is as
+it ever was — nothing on it persists or can break — and
+now the hard disk keeps what you saved on it, exactly as
+long as you keep the disk.
