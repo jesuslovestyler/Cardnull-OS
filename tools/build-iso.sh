@@ -83,21 +83,30 @@ echo "==> [2/6] Assembling the guest programs (milestones 9 and 10)"
 # is the milestone's whole point. Milestone 10 adds the pair —
 # a and b, the two guests that take turns under `both`. Milestone
 # 15 adds spin, the guest that never yields and never leaves: the
-# witness that the timer's preemptive turns are real.
-for guest in hello count bad a b spin; do
+# witness that the timer's preemptive turns are real. Milestone
+# 18 adds badgfx, which reaches through the drawing door for the
+# kernel's own memory and is stopped at the wall, and wildrect,
+# which asks the rectangle service for more screen than there is
+# and stands, clipped, to tell about it.
+for guest in hello count bad a b spin badgfx wildrect; do
     clang --target="$TARGET" -c \
         "$ROOT/programs/$guest.s" -o "$BUILD/$guest.o"
     "$LD" -Ttext=0x40000000 --oformat binary \
         -o "$BUILD/$guest.bin" "$BUILD/$guest.o"
 done
-# The first feather's program (milestone 11): the greeting guest
-# in feathers/, assembled the same way — it differs from the
-# five above only in how it travels, packed behind a card in
-# step 5 rather than carried bare.
-clang --target="$TARGET" -c \
-    "$ROOT/feathers/greet.s" -o "$BUILD/greet.o"
-"$LD" -Ttext=0x40000000 --oformat binary \
-    -o "$BUILD/greet.bin" "$BUILD/greet.o"
+# The feathers' programs: the greeting guest in feathers/
+# (milestone 11), assembled the same way — it differs from the
+# guests above only in how it travels, packed behind a card in
+# step 5 rather than carried bare. Milestone 18 adds face, the
+# greeting painted through the door's drawing services, and
+# term, the terminal that is a feather, standing on the door
+# alone.
+for feather in greet face term; do
+    clang --target="$TARGET" -c \
+        "$ROOT/feathers/$feather.s" -o "$BUILD/$feather.o"
+    "$LD" -Ttext=0x40000000 --oformat binary \
+        -o "$BUILD/$feather.bin" "$BUILD/$feather.o"
+done
 
 echo "==> [3/6] Compiling the Swift kernel (Embedded Swift, $TARGET)"
 "$SWIFTC" \
@@ -116,7 +125,7 @@ echo "==> [4/6] Linking kernel.bin"
     -o "$BUILD/kernel.bin" \
     "$BUILD/boot.o" "$BUILD/Kernel.o" "$BUILD/support.o" "$BUILD/font8x8.o"
 
-echo "==> [5/6] Packing the first feather (milestone 11)"
+echo "==> [5/6] Packing the feathers (milestones 11 and 18)"
 # The feather (docs/FEATHER.md): the card source in feathers/
 # and the greeting guest built in step 2, joined by the
 # packer, which reckons the program's size and FNV-1a checksum
@@ -129,6 +138,14 @@ python3 "$ROOT/tools/pack-feather.py" pack \
     "$BUILD/HELLO.FEATHER"
 python3 "$ROOT/tools/pack-feather.py" tamper \
     "$BUILD/HELLO.FEATHER" "$BUILD/TAMPERED.FEATHER"
+# Milestone 18's two: the greeting face and the terminal,
+# each behind its own card, packed by the same hand.
+python3 "$ROOT/tools/pack-feather.py" pack \
+    "$ROOT/feathers/face.card" "$BUILD/face.bin" \
+    "$BUILD/FACE.FEATHER"
+python3 "$ROOT/tools/pack-feather.py" pack \
+    "$ROOT/feathers/term.card" "$BUILD/term.bin" \
+    "$BUILD/TERM.FEATHER"
 
 echo "==> [6/6] Packing dist/cardnull.iso"
 cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
@@ -149,12 +166,19 @@ cp "$BUILD/bad.bin" "$ISO_DIR/BAD.BIN"
 cp "$BUILD/a.bin" "$ISO_DIR/A.BIN"
 cp "$BUILD/b.bin" "$ISO_DIR/B.BIN"
 cp "$BUILD/spin.bin" "$ISO_DIR/SPIN.BIN"
+# Milestone 18's two bare guests: the wall's witness and the
+# clip's witness, carried bare like their elders.
+cp "$BUILD/badgfx.bin" "$ISO_DIR/BADGFX.BIN"
+cp "$BUILD/wildrect.bin" "$ISO_DIR/WILDRECT.BIN"
 # The feathers (milestone 11): the packages the new `feather`
 # command opens — the card read first, the checksum proven,
 # and only then the program run. Files on the disc, like
 # everything the OS reads; nothing of them is in the kernel.
+# Milestone 18 adds its two faced feathers beside the first.
 cp "$BUILD/HELLO.FEATHER" "$ISO_DIR/HELLO.FEATHER"
 cp "$BUILD/TAMPERED.FEATHER" "$ISO_DIR/TAMPERED.FEATHER"
+cp "$BUILD/FACE.FEATHER" "$ISO_DIR/FACE.FEATHER"
+cp "$BUILD/TERM.FEATHER" "$ISO_DIR/TERM.FEATHER"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
 # Behind the UEFI door, GRUB speaks through the firmware's text
 # console until it is told otherwise — and a console is not a video

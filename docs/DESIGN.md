@@ -291,7 +291,56 @@ it bends.*
    with a voice is future work; and no audio chip is
    driven — the intel-hda in the test machine sits as
    silent as it has sat for sixteen milestones, and
-   a driver for it is future work too.)*
+   a driver for it is future work too. Milestone
+   18 — November 10, 2026 — opened the face to guests,
+   and retired the limit every earlier stone in this
+   step restated ("no program but the kernel draws").
+   The service door (interrupt 0x80) grew a second
+   suite — screen size, fill rectangle, draw text, read
+   key, poll mouse: services 4–8, written down in
+   docs/FEATHER.md — answered by the kernel behind the
+   same walls as the first suite: a guest never touches
+   the framebuffer; it names places, shapes, colours
+   and words, and the kernel's own hand draws, clipped
+   to the screen, with degenerate and wholly-off-screen
+   rectangles refused by a stated answer rather than a
+   fault. Draw text proves its reach against the
+   guest's estate with the write-string discipline —
+   and stops the guest where a reach leaves the estate,
+   under a protection report of the door's own, where
+   service 1 has always answered all-ones and let the
+   guest walk on; the sharpening is deliberate, and
+   the disc carries its witnesses: BADGFX, refused at
+   the door's wall with its address reported, and
+   WILDRECT, whose too-large rectangle is drawn
+   clipped while its guest stands unharmed. The face
+   rules are stated as law in the kernel and the
+   feather document: a graphical guest takes the whole
+   screen for its session (no windowing of guests
+   yet); on every road home — the leaving, a fault,
+   the door's stop, or the user's Esc, which keeps
+   milestone 15's standing armed through graphical
+   sessions and is never delivered to a guest — the
+   covered world is repainted from what was never
+   touched, the desktop and the Terminal's
+   conversation from their keepings or the text
+   shell's grid, exactly; and a pair session keeps
+   the text door only, its graphical knocks refused
+   with the reason spoken once on the shared screen,
+   a face not being a thing two guests can share by
+   turns. And the stone milestone 13 promised when it
+   labelled the kernel's Terminal window honestly
+   ("a true terminal feather waits on guest services")
+   arrived as a feather: TERM.FEATHER, a terminal
+   standing on the door alone — its own framed
+   screen, prompt, echo, scrollback and small command
+   set — beside FACE.FEATHER, a greeting painted by
+   its guest, cardinal and all. Faces cost no frames
+   and no heap: `mem` reads the same numbers before a
+   graphical session and after it. What the suite is
+   not: a window manager for guests, a sound service
+   (the speaker remains the kernel's own voice), or a
+   signature — the store's day is still to come.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

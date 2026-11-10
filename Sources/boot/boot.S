@@ -522,7 +522,14 @@ cardnull_isr14:
 # roots, not of policy. Milestone 10 adds a third answer here for
 # the same reason: service 3 — yield — whose keeping is the pair
 # machinery further down (whose turn it is is a matter of books
-# and table roots, not of policy either).
+# and table roots, not of policy either). Milestone 18 widens
+# what the stub carries up to Swift: the graphical services take
+# up to five words, so the guest's rcx, r8 and r9 — already lying
+# in the saved frame PUSH_ALL laid down, at the offsets the first
+# three words are read from — are passed as the handler's fourth,
+# fifth and sixth arguments. Nothing a guest of milestones 9–17
+# can observe has changed: services 0–3 are answered from the
+# same words as ever, and the answer still rides home in rax.
 # ---------------------------------------------------------------------------
     .globl  cardnull_syscall_stub
 cardnull_syscall_stub:
@@ -535,6 +542,9 @@ cardnull_syscall_stub:
     mov     112(%rsp), %rdi                 # the service number (saved rax)
     mov     80(%rsp), %rsi                  # the guest's first word (saved rsi)
     mov     88(%rsp), %rdx                  # the guest's second (saved rdx)
+    mov     96(%rsp), %rcx                  # the guest's third (saved rcx, milestone 18)
+    mov     56(%rsp), %r8                   # the guest's fourth (saved r8, milestone 18)
+    mov     48(%rsp), %r9                   # the guest's fifth (saved r9, milestone 18)
     call    cardnull_syscall_handler
     mov     %rax, 112(%rsp)                 # the answer rides home in rax
     POP_ALL

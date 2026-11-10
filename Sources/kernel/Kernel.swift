@@ -3522,7 +3522,9 @@ func loadProgramImage(_ extent: UInt32, _ size: UInt32) -> Bool {
 
 /// The service door's answering voice, called by the floor's stub
 /// with the guest's registers translated into arguments: the
-/// service number, then the guest's rsi and rdx. The answer rides
+/// service number, then the guest's rsi, rdx, rcx, r8 and r9 —
+/// the last three carried up since milestone 18, whose services
+/// take more words than the first suite's two. The answer rides
 /// home in the guest's rax. The door's services, as the guests'
 /// sources publish them:
 ///
@@ -3535,6 +3537,30 @@ func loadProgramImage(_ extent: UInt32, _ size: UInt32) -> Bool {
 ///      space, the undrawable are passed over.
 ///   2  write one character — the first argument's low byte,
 ///      under the same drawing rules.
+///   4  screen size — the graphical suite (milestone 18), kept
+///      in its own section below: the framebuffer's width in
+///      the answer's low half and its height in the high half,
+///      or 0 when no graphical screen is the guest's to use.
+///   5  fill a rectangle — (x, y, width, height, colour) in
+///      the five words, drawn clipped to the screen; the
+///      answer is 0 when anything of it was drawn and 1 when
+///      the ask was refused whole, nothing drawn.
+///   6  draw text — (x, y, address, length, colour); the
+///      reach proven against the estate with exactly service
+///      1's discipline before a byte is read, but where
+///      service 1 answers a bad reach with all-ones and lets
+///      the guest walk on, this service stops the guest: a
+///      feather is never handed a kernel's-eye view of memory
+///      it does not own, not even by refusal's implication.
+///      The answer is the count drawn, capped at 256.
+///   7  read a key — the next key waiting for the guest, as a
+///      character (Enter answers 0x0A, Backspace 0x08), or 0
+///      when none waits. Esc is never the answer: it is the
+///      user's key, and milestone 15's stop stands armed.
+///   8  poll the mouse — the session's own reckoning of the
+///      pointer: x, then y, then the buttons, packed into
+///      the answer's words; all-ones when it is not the
+///      guest's to ask.
 ///   Anything else: not a service; the answer is all-ones.
 ///
 /// There is no sound service, and the absence is deliberate:
@@ -3550,10 +3576,13 @@ func loadProgramImage(_ extent: UInt32, _ size: UInt32) -> Bool {
 /// Service 3, the yielding (milestone 10), never arrives either,
 /// for the same reason: whose turn it is is books and table
 /// roots. What reaches this voice is speech — services 1 and 2 —
-/// and anything else, which is answered no.
+/// the graphical suite — services 4 to 8, answered by
+/// graphicalService in milestone 18's section below — and
+/// anything else, which is answered no.
 @_cdecl("cardnull_syscall_handler")
 public func syscallHandler(_ service: UInt64, _ first: UInt64,
-                           _ second: UInt64) -> UInt64 {
+                           _ second: UInt64, _ third: UInt64,
+                           _ fourth: UInt64, _ fifth: UInt64) -> UInt64 {
     if service == 1 {
         if first < programBase { return UInt64.max }
         let offset = first - programBase
@@ -3573,6 +3602,10 @@ public func syscallHandler(_ service: UInt64, _ first: UInt64,
     if service == 2 {
         printGuestByte(UInt8(truncatingIfNeeded: first))
         return 1
+    }
+    if service >= 4 && service <= 8 {
+        return graphicalService(service, first, second, third,
+                                fourth, fifth)
     }
     return UInt64.max
 }
@@ -3675,10 +3708,12 @@ func runProgram() {
     writePathArgument(length)
     writeLine(runRunningSuffix)
     writeLine(sessionStopLine)
+    resetGuestDoorState()
     programRunning = true
     let verdict = cardnullLaunchProgram(root, programBase, programStackTop)
     programRunning = false
     teardownProgramSpace(root)
+    restoreGuestScreen()
     if verdict == programKilledVerdict {
         writeLine(programKilledLine)
     } else {
@@ -3844,6 +3879,7 @@ func runBoth() {
     writePathSlice(bothSecondStart, bothSecondEnd)
     writeLine(bothTogetherSuffix)
     writeLine(sessionStopLine)
+    resetGuestDoorState()
     programRunning = true
     pairRunning = true
     let verdictA = cardnullLaunchPair(rootA, programBase, programStackTop,
@@ -4371,11 +4407,13 @@ func runFeather() {
     writePathArgument(length)
     writeLine(runRunningSuffix)
     writeLine(sessionStopLine)
+    resetGuestDoorState()
     programRunning = true
     let verdict = cardnullLaunchProgram(root, programBase,
                                         programStackTop)
     programRunning = false
     teardownProgramSpace(root)
+    restoreGuestScreen()
     if verdict == programKilledVerdict {
         writeLine(programKilledLine)
     } else {
@@ -4383,6 +4421,526 @@ func runFeather() {
         writeNumber(verdict)
         writeNewline()
     }
+}
+
+// ---------------------------------------------------------------------------
+// Feathers with faces (milestone 18): the door's second suite.
+//
+// Until now a guest could speak but could not be seen: the text
+// door (services 1 and 2) lends it the shell's voice, letter by
+// letter, onto a screen the kernel keeps. This milestone gives
+// a guest a face of its own — five new services through the same
+// int 0x80 door, behind the same walls:
+//
+//   4  screen size — the framebuffer's width and height, so a
+//      guest can reckon its painting from the screen it was
+//      actually given, not from a guess baked into its bytes.
+//   5  fill a rectangle — the kernel draws, clipped to the
+//      screen. A guest never touches the framebuffer itself;
+//      it names a place, a shape and a colour (0x00RRGGBB),
+//      and the kernel's own hand — guiFillRect, the desktop's
+//      painter — lays the pixels. Degenerate asks (a width or
+//      height that is not positive) and asks lying wholly off
+//      the screen are refused with the answer 1 and nothing
+//      drawn; a partly-off-screen ask is drawn clipped and
+//      answers 0. No ask can fault: the corners are clamped
+//      into the screen's neighbourhood before any arithmetic
+//      that could run away is trusted.
+//   6  draw text — the kernel renders the guest's words with
+//      its own GUI font at twofold size (the size the desktop's
+//      windows speak in: 16 pixels a letter). The pointer and
+//      length are proven against the guest's estate with
+//      exactly service 1's discipline — the whole reach inside
+//      the estate before a byte is read — and a reach that
+//      leaves the estate stops the guest under the door's own
+//      protection report, the fault road's twin, below. The
+//      drawn count is capped at 256 letters; text is clipped
+//      at the screen's edge, a letter at a time.
+//   7  read a key — while a session stands, the keyboard is
+//      the guest's: this service takes scancodes out of the
+//      same ring the shell drains and translates them with the
+//      shell's own table, under shift and caps state the guest
+//      keeps for itself, so neither typist disturbs the other.
+//      Enter answers 0x0A, Backspace 0x08, and keys that are
+//      not characters — shifts, arrows, releases — answer 0,
+//      as does an empty ring: the service never waits. A guest
+//      that wants to wait knocks, hears 0, and yields
+//      (service 3) until a key answers — the blocking shape is
+//      built out of the two honest pieces, and said so.
+//      One key is never the guest's: Esc. Milestone 15's law
+//      stands armed through a graphical session exactly as
+//      through a text one — the keyboard handler keeps the Esc
+//      make code out of the ring while any session stands and
+//      asks for the stop instead — and should an Esc make ever
+//      be found waiting in the ring, this service asks for the
+//      same stop and answers 0. A feather never receives Esc.
+//   8  poll the mouse — the session's own reckoning of the
+//      pointer: each knock drains the mouse ring and makes
+//      packets of the bytes with the face's own discipline
+//      (a first byte carries bit 3; anything else is a byte
+//      astray and is let go), the travels are added and
+//      clamped to the screen, and the answer carries the
+//      place and the buttons. The reckoning opens at the
+//      screen's centre at the session's first knock. The
+//      kernel draws no pointer for a guest — the reckoning is
+//      data, and a guest that wants a visible pointer paints
+//      its own from it, as the terminal feather could one day.
+//
+// The face rules, stated as law and kept by the hands below:
+//
+//   - The suite is claimed whole. A single guest's first knock
+//     on any of services 4–8 takes the door's graphical side:
+//     its own typing state, its own mouse reckoning, and —
+//     where the boot brought a framebuffer — the whole screen
+//     for the session. There is no windowing of guests: a
+//     graphical guest's face is the screen, edge to edge,
+//     until it leaves. (A text guest that never knocks is
+//     untouched by all of this — nothing is claimed, nothing
+//     is restored, and milestones 9–17 behave exactly as they
+//     did, which the milestone's regressions lean on.)
+//   - The way back is exact. When the session ends — by the
+//     guest's leaving, by the user's Esc, by a fault, by the
+//     door's own stop — the world it covered is repainted from
+//     what was never touched: launched from the desktop's
+//     Terminal, the desktop paints itself whole and the
+//     Terminal's conversation stands in its grid as it stood,
+//     word for word; launched from the text shell, the shell's
+//     grid paints back through the screen. The estate is then
+//     taken back as ever, so `mem` after a graphical session
+//     reads as it read before it: faces cost no frames and no
+//     heap — the framebuffer was reserved out of the pool at
+//     boot, and the suite's keepings are a handful of words.
+//   - A pair takes the text door only. Graphical services are
+//     for a session of one guest: two guests share one screen
+//     by taking turns speaking on it, and a face cannot be
+//     shared by turns. While a pair session stands, a knock
+//     on the suite is refused — the refusal spoken plainly on
+//     the screen, once per session, and answered with the
+//     service's nothing (0 for size, text and keys, 1 for a
+//     rectangle, all-ones for the mouse). `both` itself is
+//     not refused — the kernel cannot know a guest's mind
+//     before it knocks — but the knock is, with the reason.
+//
+// The witnesses: FACE.FEATHER, a greeting painted by a guest;
+// TERM.FEATHER, a terminal that is a feather, standing on this
+// suite alone — the stone milestone 13 promised when it
+// labelled the kernel's Terminal window honestly; BADGFX.BIN,
+// which knocks on draw text with a pointer aimed at the
+// kernel's first byte and is stopped at the same wall BAD.BIN
+// found, through the door instead of through a fault; and
+// WILDRECT.BIN, which asks for a rectangle far larger than the
+// screen and stands, clipped and unharmed, to tell about it.
+// ---------------------------------------------------------------------------
+
+/// The door protection report's words — the fault report's
+/// twin for a stopping the door itself hands down, written
+/// into the same top rows of the same grid by the same hands,
+/// so a stopped guest's screen reads one way by either road:
+/// the title, the address the guest reached for, and the
+/// service that was refused, in plain words.
+let doorReportTitle: StaticString =
+    "A guest reached past its own ground - the guest was stopped."
+let doorReportServiceLine: StaticString =
+    "  Service: draw text - the reach left the guest's estate."
+
+/// The pair refusal, spoken once per pair session at the first
+/// graphical knock: the reason, plainly, on the shared screen.
+let guestPairRefusalLine: StaticString =
+    "Graphical services belong to a session of one guest; a pair keeps the text door only."
+
+/// The drawn count's cap for service 6: a guest may ask the
+/// door to read at most this many of its letters in one knock.
+/// The whole asked reach is still proven against the estate
+/// first — the cap bounds the drawing, never the proving.
+let guestTextCap: UInt64 = 256
+
+/// The suite's text measure: the kernel's GUI font at twofold
+/// size, the measure of the desktop's own windows.
+let guestTextScale = 2
+
+/// Has the running single guest claimed the screen? Set at the
+/// suite's first knock (when the boot brought a framebuffer),
+/// read by the launch's caller when the session ends: while it
+/// stands, the covered world must be repainted on the way home.
+var guestGraphical = false
+
+/// Has the running guest taken the graphical suite at all this
+/// session? The claim's one-time keeping: the typing state and
+/// the mouse reckoning are opened fresh at the first knock and
+/// never again within the session.
+var guestDoorTaken = false
+
+/// Has the pair refusal been spoken this session? Once is
+/// plain; at every knock would be a nag.
+var guestPairRefusalSpoken = false
+
+/// The guest's own typing state, kept apart from the shell's
+/// (shiftHeld, capsLock, extendedPrefix are the shell's own):
+/// a guest's Shift is its own affair, and the shell's next
+/// line must never inherit a capital from a feather's reading.
+var guestKeyShift = false
+var guestKeyCaps = false
+var guestKeyExtended = false
+
+/// The session's mouse reckoning: the pointer's place as the
+/// session's polls have added it up, the buttons of the last
+/// whole packet, and the packet assembly's stage and stashed
+/// bytes — the face's discipline (guiTakeMouseByte) kept a
+/// second time, for a second reader, rather than shared: the
+/// face's stage must stand untouched while a guest holds the
+/// room, and the session's must open clean at its first knock.
+var guestMouseX = 0
+var guestMouseY = 0
+var guestMouseButtons: UInt64 = 0
+var guestMouseStage = 0
+var guestMouseFirst: UInt8 = 0
+var guestMouseSecond: UInt8 = 0
+
+/// Sets the suite's keepings back to their rest, at every
+/// launch — run, both and feather alike — so no session ever
+/// inherits the last session's face, keys or refusals.
+func resetGuestDoorState() {
+    guestGraphical = false
+    guestDoorTaken = false
+    guestPairRefusalSpoken = false
+}
+
+/// The claim, taken at a single guest's first knock on the
+/// graphical suite: the typing state wiped, the mouse
+/// reckoning opened at the screen's centre, and — where the
+/// boot brought a framebuffer — the screen itself claimed, so
+/// the launch's caller knows to repaint the covered world when
+/// the session ends. Called once per session (guestDoorTaken
+/// keeps it so); later knocks walk straight past.
+func guestTakeDoor() {
+    if guestDoorTaken { return }
+    guestDoorTaken = true
+    guestKeyShift = false
+    guestKeyCaps = false
+    guestKeyExtended = false
+    guestMouseStage = 0
+    guestMouseButtons = 0
+    if useFramebuffer {
+        guestGraphical = true
+        guestMouseX = framebufferWidth / 2
+        guestMouseY = framebufferHeight / 2
+    }
+}
+
+/// The pair refusal's speaking: the reason, once per session.
+/// A pair's guests go on with the text door exactly as before;
+/// only the knock is refused, and its answer — chosen by the
+/// caller per service — is the service's nothing.
+func guestPairRefusal() {
+    if guestPairRefusalSpoken { return }
+    guestPairRefusalSpoken = true
+    writeLine(guestPairRefusalLine)
+}
+
+/// The door's protection report: the title at the grid's top
+/// row, the address reached for beneath it, and the service
+/// refused in the third — written through putCell like the
+/// fault report, so it lands in whichever grid is live and
+/// stands through the screen's restoration.
+func printDoorReport(_ address: UInt64) {
+    _ = writeStaticAt(0, 0, doorReportTitle)
+    let col = writeStaticAt(1, 0, pageFaultAddressLabel)
+    _ = writeHexAt(1, col, address, 16)
+    _ = writeStaticAt(2, 0, doorReportServiceLine)
+}
+
+/// Stops the running guest at the door: the protection report
+/// is written, its facts are kept beside the fault handler's,
+/// and the floor's abandon hand carries the machine home with
+/// the stopped verdict — the same road the page fault takes,
+/// walked from the door instead. Never returns.
+func doorStopGuest(_ address: UInt64) -> Never {
+    programFaultAddress = address
+    printDoorReport(address)
+    if pairRunning {
+        cardnullAbandonGuestInPair(programKilledVerdict)
+    }
+    cardnullAbandonProgram(programKilledVerdict)
+}
+
+/// The way home for a covered world, called by run and feather
+/// once the estate is taken back: if the guest claimed the
+/// screen, the world it covered is repainted from what it
+/// never touched. From the desktop's Terminal: the mouse ring
+/// is drained to a clean packet boundary — the courtesy
+/// runGui performs at its own opening — the face's packet
+/// stage is reset, the pointer's cushion is let go (its ground
+/// was the guest's painting, and laying it back would stamp a
+/// dead face onto the living one), the desktop paints itself
+/// whole — windows, bar, and the Terminal's conversation from
+/// its grid — and the pointer is drawn fresh over the restored
+/// ground. From the text shell: the shell's grid paints back
+/// through the screen, and the cursor is drawn at its place.
+/// A session that never claimed the screen returns at once.
+/// The text shell's branch blackens the whole pixel field
+/// before the grid is painted back — the same courtesy the
+/// face's own way home performs — because a graphical guest
+/// paints past the grid's rows, and a repaint of the grid
+/// alone would leave the lower field wearing the guest's
+/// face. (On the VGA text screen there is no field past the
+/// grid, and the repaint is the whole story there.)
+func restoreGuestScreen() {
+    if !guestGraphical { return }
+    guestGraphical = false
+    if consoleInTerminal {
+        while nextMouseByte() != nil {}
+        mouseStage = 0
+        pointerIsDrawn = false
+        guiPaintDesktop()
+        pointerShow()
+    } else {
+        if useFramebuffer {
+            for row in 0 ..< framebufferHeight {
+                for col in 0 ..< framebufferWidth {
+                    putPixel(x: col, y: row, white: false)
+                }
+            }
+        }
+        repaintScreen()
+        moveHardwareCursor()
+    }
+}
+
+/// The graphical suite's answering voice: services 4–8, with
+/// the five words the stub now carries up. The laws are checked
+/// in the order they bind: a pair session refuses everything
+/// first (with the reason spoken once); the key service needs
+/// no screen and is answered next; the drawing services need
+/// the framebuffer the boot brought, and without one answer
+/// their nothings. Only then is the claim taken and the work
+/// done.
+func graphicalService(_ service: UInt64, _ first: UInt64,
+                      _ second: UInt64, _ third: UInt64,
+                      _ fourth: UInt64, _ fifth: UInt64) -> UInt64 {
+    if pairRunning {
+        guestPairRefusal()
+        if service == 5 { return 1 }
+        if service == 8 { return UInt64.max }
+        return 0
+    }
+    if service == 7 {
+        guestTakeDoor()
+        return guestReadKey()
+    }
+    if !useFramebuffer {
+        if service == 5 { return 1 }
+        if service == 8 { return UInt64.max }
+        return 0
+    }
+    guestTakeDoor()
+    if service == 4 {
+        return UInt64(framebufferWidth)
+            | UInt64(framebufferHeight) << 32
+    }
+    if service == 5 {
+        return guestFillRectangle(first, second, third, fourth,
+                                  fifth)
+    }
+    if service == 6 {
+        return guestDrawText(first, second, third, fourth, fifth)
+    }
+    return guestMousePoll()
+}
+
+/// Service 5, the rectangle: (x, y, width, height, colour) read
+/// as signed words, for a guest may honestly ask for a shape
+/// that begins off the screen's top or left. The ask is judged
+/// before it is drawn: a width or height that is not positive
+/// is degenerate and refused; the far corner is reckoned
+/// against overflow before it is trusted (an origin past zero
+/// and a reach that would wrap the reckoning are answered with
+/// the reckoning's own ceiling, which is off any screen); both
+/// corners are then clamped to the screen, and an ask nothing
+/// of which stands on the screen is refused. What remains is
+/// drawn by the desktop's own painter and answers 0; every
+/// refusal answers 1 with nothing drawn, and no road faults.
+func guestFillRectangle(_ xWord: UInt64, _ yWord: UInt64,
+                        _ wWord: UInt64, _ hWord: UInt64,
+                        _ colorWord: UInt64) -> UInt64 {
+    let sx = Int64(bitPattern: xWord)
+    let sy = Int64(bitPattern: yWord)
+    let sw = Int64(bitPattern: wWord)
+    let sh = Int64(bitPattern: hWord)
+    if sw <= 0 || sh <= 0 { return 1 }
+    var right: Int64
+    if sx > 0 && sw > Int64.max - sx {
+        right = Int64.max
+    } else {
+        right = sx + sw
+    }
+    var bottom: Int64
+    if sy > 0 && sh > Int64.max - sy {
+        bottom = Int64.max
+    } else {
+        bottom = sy + sh
+    }
+    let width = Int64(framebufferWidth)
+    let height = Int64(framebufferHeight)
+    let x0 = sx < 0 ? Int64(0) : sx
+    let y0 = sy < 0 ? Int64(0) : sy
+    let x1 = right < 0 ? Int64(0) : (right > width ? width : right)
+    let y1 = bottom < 0 ? Int64(0) : (bottom > height ? height : bottom)
+    if x1 <= x0 || y1 <= y0 { return 1 }
+    guiFillRect(Int(x0), Int(y0), Int(x1 - x0), Int(y1 - y0),
+                UInt32(truncatingIfNeeded: colorWord))
+    return 0
+}
+
+/// Service 6, the guest's drawn words: (x, y, address, length,
+/// colour). The reach is proven first, with exactly service
+/// 1's discipline — the pointer at or past the estate's base,
+/// the length within the estate's span, the reach's end within
+/// the span after it — and a reach that fails the proof stops
+/// the guest under the door's protection report: the kernel
+/// never reads a byte outside a guest's estate at a guest's
+/// word, and a guest that asks it to does not walk on. The
+/// drawing itself: at most the cap's letters, each painted by
+/// the GUI's own glyph hand at twofold size — which clips
+/// letter by letter at the screen's edge — the pen stepping
+/// one letter's width per byte whether the byte paints or not.
+/// The pen's place is first drawn into the screen's
+/// neighbourhood (a letter's width of letters around it), so
+/// no coordinate a guest can name makes the reckoning run off
+/// the world's edge: a wholly distant ask simply paints
+/// nothing and still answers its count.
+func guestDrawText(_ xWord: UInt64, _ yWord: UInt64,
+                   _ pointer: UInt64, _ length: UInt64,
+                   _ colorWord: UInt64) -> UInt64 {
+    if pointer < programBase {
+        doorStopGuest(pointer)
+    }
+    let offset = pointer - programBase
+    let span = programEstateTop - programBase
+    if length > span {
+        doorStopGuest(pointer)
+    }
+    if offset > span - length {
+        doorStopGuest(pointer)
+    }
+    let count = length < guestTextCap ? length : guestTextCap
+    let color = UInt32(truncatingIfNeeded: colorWord)
+    var penX = Int(Int64(bitPattern: xWord))
+    var penY = Int(Int64(bitPattern: yWord))
+    if penX > framebufferWidth + 4096 { penX = framebufferWidth + 4096 }
+    if penX < -4096 { penX = -4096 }
+    if penY > framebufferHeight + 4096 { penY = framebufferHeight + 4096 }
+    if penY < -4096 { penY = -4096 }
+    var index: UInt64 = 0
+    while index < count {
+        let byte = UnsafePointer<UInt8>(
+            bitPattern: UInt(pointer + index))!.pointee
+        if byte >= 0x20 && byte != 0x7F {
+            guiDrawGlyph(penX, penY, guestTextScale, byte, color)
+        }
+        penX += 8 * guestTextScale
+        index += 1
+    }
+    return count
+}
+
+/// Service 7, the guest's keys: scancodes are taken from the
+/// shell's own ring and read with the guest's own typing
+/// state, until one of them is a key — or the ring stands
+/// empty, which answers 0. Shift and Caps Lock are bookkeeping
+/// (their makes and breaks are consumed, the state kept, and
+/// 0 answered by going on to the next code rather than by
+/// reporting a key that typed nothing); the extended prefix
+/// swallows its second code whole, as the shell's reader does;
+/// releases are not the guest's affair; Enter and Backspace
+/// answer with their control letters, 0x0A and 0x08. The
+/// translation itself is the shell's own table, consulted with
+/// the guest's state standing in the shell's globals for the
+/// one call and the shell's own state restored after it — no
+/// interrupt handler reads those globals, so the exchange is
+/// invisible to everyone. Esc's make code, should it ever be
+/// found waiting here (the keyboard handler keeps it out of
+/// the ring while a session stands, and asks for the stop
+/// itself), asks for the stop and answers 0: the law holds by
+/// both roads, and a feather never receives Esc.
+func guestReadKey() -> UInt64 {
+    while let code = nextScancode() {
+        if code == 0x01 {
+            cardnullSetStopRequest(1)
+            return 0
+        }
+        if guestKeyExtended {
+            guestKeyExtended = false
+            continue
+        }
+        if code == 0xE0 {
+            guestKeyExtended = true
+            continue
+        }
+        switch code {
+        case 0x2A, 0x36:            // Shift pressed: the guest's own
+            guestKeyShift = true
+        case 0xAA, 0xB6:            // Shift released
+            guestKeyShift = false
+        case 0x3A:                  // Caps Lock: the guest's latch
+            guestKeyCaps = !guestKeyCaps
+        case 0x1C:                  // Enter
+            return 0x0A
+        case 0x0E:                  // Backspace
+            return 0x08
+        case 0x80 ... 0xFF:         // any other release: not a key
+            continue
+        default:
+            let shellShift = shiftHeld
+            let shellCaps = capsLock
+            shiftHeld = guestKeyShift
+            capsLock = guestKeyCaps
+            let character = ascii(forScancode: code)
+            shiftHeld = shellShift
+            capsLock = shellCaps
+            if character != 0 {
+                return UInt64(character)
+            }
+        }
+    }
+    return 0
+}
+
+/// Service 8, the mouse's word: the ring is drained and its
+/// bytes made packets of, with the face's own discipline —
+/// three bytes to a packet, the first carrying bit 3, a byte
+/// without it let go — the travels signed by the first byte's
+/// flags, the screen's down reckoned against the mouse's up,
+/// the place clamped to the screen, and the last whole
+/// packet's buttons kept. The answer packs the reckoning:
+/// the x place in the low word, the y above it, the buttons
+/// above that (bit 0 the left, bit 1 the right, bit 2 the
+/// middle). Between polls the bytes wait in the ring; a guest
+/// that never polls simply never hears them, and the ring's
+/// own fullness lets old news go, as it does for the face.
+func guestMousePoll() -> UInt64 {
+    while let byte = nextMouseByte() {
+        if guestMouseStage == 0 {
+            if byte & 0x08 == 0 { continue }
+            guestMouseFirst = byte
+            guestMouseStage = 1
+        } else if guestMouseStage == 1 {
+            guestMouseSecond = byte
+            guestMouseStage = 2
+        } else {
+            guestMouseStage = 0
+            var travelX = Int(guestMouseSecond)
+            if guestMouseFirst & 0x10 != 0 { travelX -= 256 }
+            var travelY = Int(byte)
+            if guestMouseFirst & 0x20 != 0 { travelY -= 256 }
+            guestMouseX = min(max(guestMouseX + travelX, 0),
+                              framebufferWidth - 1)
+            guestMouseY = min(max(guestMouseY - travelY, 0),
+                              framebufferHeight - 1)
+            guestMouseButtons = UInt64(guestMouseFirst & 0x07)
+        }
+    }
+    return UInt64(guestMouseX) | UInt64(guestMouseY) << 16
+        | guestMouseButtons << 32
 }
 
 // ---------------------------------------------------------------------------

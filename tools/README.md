@@ -9,21 +9,23 @@ here.
 - **`build-iso.sh`** — the whole pipeline, end to end:
   1. assembles the boot floor (`Sources/boot/boot.S`, `support.c`)
      with clang, freestanding;
-  2. assembles the guest programs (`programs/*.s`, and the first
-     feather's program in `feathers/`) with clang and flattens
+  2. assembles the guest programs (`programs/*.s`, and the
+     feathers' programs in `feathers/`) with clang and flattens
      them with ld.lld — flat binaries the disc carries as files,
      never linked into the kernel (milestones 9 and 10);
   3. compiles the Swift kernel (`Sources/kernel/Kernel.swift`) with
      swiftc in **Embedded Swift** mode for `x86_64-unknown-none-elf`;
   4. links `build/kernel.bin` with ld.lld and
      `Sources/boot/linker.ld`;
-  5. packs the first feather (milestone 11) with the packer below —
-     the card source in `feathers/` joined to the greeting guest,
-     its size and checksum reckoned from its real bytes — and
-     packs its wounded twin, TAMPERED.FEATHER, beside it;
+  5. packs the feathers with the packer below — each card source
+     in `feathers/` joined to its guest, its size and checksum
+     reckoned from its real bytes: HELLO (milestone 11), FACE
+     and TERM (milestone 18, standing on the door's graphical
+     suite) — and packs HELLO's wounded twin, TAMPERED.FEATHER,
+     beside them;
   6. packs **`dist/cardnull.iso`** with grub-mkrescue — a GRUB that
      loads `/boot/kernel.bin` by Multiboot2, the disc also carrying
-     WELCOME.TXT, the six guest binaries, and the two feathers at
+     WELCOME.TXT, the eight guest binaries, and the four feathers at
      its root. The ISO is written at ISO 9660 level 3 so a
      feather's name stands whole in the tree (HELLO.FEATHER, not
      HELLO.FEA).

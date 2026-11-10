@@ -90,7 +90,14 @@ every line says why it exists.
     in .bss beside the books: the quantum and the slice's
     remainder, the two counts, the stop word, and a flag for
     a single session standing, set by the single launch and
-    cleared by every road home.
+    cleared by every road home. Milestone 18 grew the
+    service-door stub once more, and nothing else in the
+    floor: where the handler once received the guest's
+    first three words, the stub now also lifts the saved
+    rcx, r8 and r9 off its own stack and hands Swift all
+    six, so the door's wider services — a rectangle's
+    shape and colour, a text's reach — arrive whole. The
+    first suite observes nothing new.
 - **`support.c`** — runtime support shims: the stack-protector guard
   word and failure path, allocation entry points that honestly
   decline (there is no heap yet), and the port I/O hands

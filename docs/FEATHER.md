@@ -115,6 +115,88 @@ field, and this document will be amended to say so. Until
 then, nothing in the format claims or imitates signing, and
 the checksum's modesty is part of the format.
 
+## The door's services — what a program may ask
+
+A feather's program speaks to the kernel through one door,
+interrupt 0x80 — the same door `run`'s bare guests use. The
+guest names the service in `rax`; the words ride in `rsi`,
+`rdx`, `rcx`, `r8`, `r9`, in that order; the answer comes
+home in `rax`. Every other register is kept across the door.
+Services 0–3 are the first suite (milestones 9, 10 and 15);
+services 4–8 are the graphical suite (milestone 18), which
+gives a guest a face.
+
+| # | service | the words | the answer |
+| --- | --- | --- | --- |
+| 0 | exit | `rdi` = the exit code | never returns |
+| 1 | write string | address, length | the count written, or all-ones when the reach leaves the guest's estate |
+| 2 | write character | the character in `rsi`'s low byte | 1 |
+| 3 | yield | — | — (the machine goes to the partner, or the guest simply resumes) |
+| 4 | screen size | — | the width in the low half, the height in the high half; 0 when no graphical screen is the guest's |
+| 5 | fill rectangle | x, y, width, height, colour (0x00RRGGBB) | 0 when drawn (clipped to the screen), 1 when refused whole — degenerate, or off the screen entirely — with nothing drawn |
+| 6 | draw text | x, y, address, length, colour | the count drawn, at most 256 |
+| 7 | read key | — | the key as a character (Enter = 0x0A, Backspace = 0x08), or 0 when no key waits |
+| 8 | poll mouse | x, y, buttons | the pointer's place in the low words and its buttons above them (bit 0 left, 1 right, 2 middle); all-ones when it is not the guest's to ask |
+
+The laws that bind the suite:
+
+- **The estate is the whole world.** Draw text proves its
+  pointer and length against the guest's own ground with
+  exactly the write-string discipline — the whole reach
+  inside the estate before a byte is read. Where write
+  string answers a bad reach with all-ones and lets the
+  guest walk on, draw text **stops the guest**: the kernel
+  reports the address at the top of the screen (the door's
+  protection report), the launching screen is restored,
+  and the shell answers with the stopping's words.
+  BADGFX.BIN walks this road on purpose. A guest never
+  touches the framebuffer itself: it names places, shapes
+  and colours, and the kernel's own hand draws — a wild
+  rectangle is clipped, never written wide (WILDRECT.BIN
+  is the witness).
+- **The screen is the guest's, whole.** A guest that uses
+  the graphical suite takes the whole screen for its
+  session; there is no windowing of guests yet. When the
+  session ends — by leaving, by a fault, by the user's
+  Esc — the world it covered is repainted exactly: the
+  desktop and the Terminal's conversation, or the text
+  shell's grid, as they stood.
+- **One guest only.** Graphical services belong to a
+  session of one guest (`run` or `feather`). In a pair
+  session (`both`) a graphical knock is refused — the
+  reason spoken on the screen once, and the service's
+  nothing answered (0, or 1 for a rectangle, or all-ones
+  for the mouse) — because a face cannot be shared by
+  turns.
+- **Esc is the user's key.** While any session stands,
+  Esc ends it — the guest is stopped and the shell
+  reports the stopping — and a guest never receives Esc
+  through read key. A guest that wants to wait for a key
+  knocks on read key, hears 0, and yields (service 3)
+  until a key answers.
+- **Text is the kernel's font at twofold size** — the
+  measure of the desktop's windows, 16 pixels a letter —
+  clipped at the screen's edge. Keys are read with the
+  kernel's own translation (Shift and Caps Lock as the
+  shell reads them), under typing state the guest keeps
+  for itself. The mouse answer is the session's own
+  reckoning — it opens at the screen's centre and is fed
+  by the guest's polls; the kernel draws no pointer for a
+  guest.
+- **There is no sound service.** The speaker is the
+  kernel's own voice (milestone 17's `sound` command); a
+  feather cannot yet sing, and a guest asking for a
+  service the door does not have hears all-ones.
+
+Two feathers on every disc since milestone 18 stand on
+this suite alone: FACE.FEATHER, a greeting painted by its
+guest (a cardinal drawn from honest rectangles), and
+TERM.FEATHER — a terminal that *is* a feather, with its
+own framed screen, prompt, scrollback and small command
+set (`help`, `verse`, `about`, `clear`, `exit`), the
+stone the kernel's Terminal window always said was
+coming.
+
 ## Foreign packages
 
 The OS does not try to run what is not a feather: `.exe`,

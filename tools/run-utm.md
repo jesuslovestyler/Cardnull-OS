@@ -304,9 +304,10 @@ standing open: the Terminal, filling the work area
 between the name and the bottom bar, its text grid
 reckoned from its size (76 columns by 37 rows at
 1280 x 800). The Terminal is the kernel's own shell in a
-window — the built-in shell, honestly, not a feather; a
-true terminal feather still waits on guest drawing and
-keyboard services, a later stone. Every command in this
+window — the built-in shell, honestly, not a feather.
+(The true terminal feather it waited for arrived with
+milestone 18 — TERM.FEATHER, in the walk at the end of
+this page.) Every command in this
 walk runs there, guests included: `run`, `both`, and
 `feather` print inside the window, and the conversation
 scrolls inside its own grid and is kept when the window
@@ -430,5 +431,47 @@ code, so the standing "used" count at 4096 MB behind
 the UEFI door reads 1,271 where milestone 15 read
 1,270 — the one frame is this milestone's grown image;
 the visit itself spends nothing.)
+
+And since milestone 18 the guests have faces. In the
+Terminal, run:
+
+    feather /face.feather
+
+and the whole screen becomes the feather's own painting: a
+parchment panel on a deep-cardinal field, the OS's name,
+"Welcome to Cardnull OS.", John 1:1 drawn as text, and a
+small cardinal the guest drew out of rectangles — honest
+rectangles, no borrowed art. Any key sends it home, and the
+desktop and the Terminal's conversation stand exactly as
+they were. Then the stone the Terminal's label always
+promised:
+
+    feather /term.feather
+
+A terminal that is a feather. It draws its own framed
+screen, keeps its own scrollback, and answers its own small
+set of words — try `help` (which also tells you the truth
+about Esc), `verse`, `about`, `clear`, and `exit` to go
+back. While it runs the kernel's shell is not involved at
+all: everything it shows arrived through the service door.
+Two more witnesses ride the disc:
+
+    run /wildrect.bin
+
+paints the whole screen gold with one too-large rectangle
+— the kernel clips it to the screen rather than writing
+wide — and waits for a key before leaving cleanly; and
+
+    run /badgfx.bin
+
+paints a small panel, then asks the kernel to draw text
+from an address in the kernel's own ground. The door
+refuses and stops it: a short report names the address and
+the service at the top of the screen, the desktop comes
+back whole, and the shell answers "The guest was stopped."
+Esc works throughout, as always: pressed during any of
+these, it stops the session and gives the screen back — a
+guest never receives Esc as its own key; the feather
+terminal's `help` says so in its own words.
 
 Shut the VM down whenever you like; nothing persists, nothing can break.

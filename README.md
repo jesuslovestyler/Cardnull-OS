@@ -79,6 +79,104 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
+Milestone 18 stands (November 10, 2026): **feathers with
+faces — the door learns to draw, and a terminal becomes
+a feather.** Seventeen milestones the kernel's hand was
+the only one that drew; this stone opens the face to
+guests, through the same door and behind the same walls.
+The service door (interrupt 0x80) keeps its first suite
+exactly — 0 exit, 1 write string, 2 write character,
+3 yield — and gains a second: **4 screen size** (the
+width home in the answer's low half, the height in its
+high half, 0 when no graphical screen is the guest's),
+**5 fill rectangle** (place, shape and colour named by
+the guest; 0 when drawn, clipped to the screen; 1 when
+refused whole — degenerate, or off the screen entirely —
+with nothing drawn), **6 draw text** (the kernel's own
+GUI letters at twofold size; at most 256 letters a
+knock; the count drawn comes home), **7 read key** (the
+next key as a character, Enter as 0x0A and Backspace as
+0x08, or 0 when none waits — a guest waits by knocking
+and yielding), and **8 poll mouse** (the pointer's place
+and buttons, a reckoning the session itself keeps; the
+kernel draws no pointer for a guest). A guest never
+touches the framebuffer: it names places, shapes,
+colours and words, and the kernel's hand draws. Draw
+text proves its address and length against the guest's
+own estate with exactly the write-string discipline —
+and where service 1 has always answered a bad reach
+with all-ones and let the guest walk on, draw text
+stops the guest: a short protection report names the
+address and the service at the screen's top, the
+launching screen is restored, and the shell answers
+with the stopping's words. The sharpening is
+deliberate: a string mis-aimed is a guest's own loss,
+but a face is painted in the user's sight, and the
+door guards what it paints. The face rules stand as
+law in the kernel and in docs/FEATHER.md: a graphical
+guest takes the whole screen for its session (no
+windowing of guests yet); on every road home — leaving,
+fault, the door's stop, or the user's Esc — the covered
+world is restored exactly, the desktop and the
+Terminal's conversation repainted from their keepings
+or the text shell blackened whole and its grid painted
+back; graphical services belong to a session of one
+guest, a pair's knocks refused with the reason spoken
+once on the shared screen; and **Esc is always the
+user's key** — milestone 15's stop stands armed through
+graphical sessions, and a guest never receives Esc as
+its own input. One floor change, owned plainly: the
+door's stub now lifts the guest's saved rcx, r8 and r9
+beside the first three words, three added moves, so the
+wider knocks reach Swift whole; the first suite
+observes nothing new. Two feathers ride the disc on
+the new suite alone. FACE.FEATHER paints a greeting: a
+parchment panel on a deep-cardinal field, the OS's
+name, "Welcome to Cardnull OS.", John 1:1
+(Douay-Rheims) drawn as text, and a small cardinal made
+of thirteen honest rectangles — any key (but Esc, per
+the law) sends it home. TERM.FEATHER is the stone
+milestone 13 promised when it labelled the kernel's
+Terminal window honestly: a terminal that *is* a
+feather, standing on the door alone — its own framed
+screen, prompt, echo with backspace, scrollback, and a
+small command set of its own (`help`, which carries the
+Esc law in its own words; `verse`, John 1:1 from its
+own pages; `about`; `clear`; `exit`). While it runs,
+the kernel's shell is not involved at all. Two bare
+guests witness the walls: WILDRECT.BIN, refused its
+degenerate rectangle and granted its too-large one
+clipped to the whole screen, leaves cleanly; and
+BADGFX.BIN, which paints its little panel and then
+asks the door to draw text from the kernel's own
+address 0x100000, is stopped under the report, the
+screen restored and the shell standing. The proof is
+three QEMU sessions (this bench, 512 MB, TCG as ever):
+FACE and TERM from the desktop Terminal, TERM from the
+text shell (its "versx" backspaced to "verse" on its
+own prompt line; its wrapped verse and the shell's
+one-line verse standing one screen apart), Esc during
+TERM answered with the stopping's words and the
+desktop whole, the classic pair and the spin pair with
+milestone 15's own counts (9 by the door for the one;
+5 and 5 for the other), the tampered feather refused,
+`sound` singing its printed account, and the BIOS door
+walked whole — boot to desktop, TERM, home, the shell
+answering `verse`. `mem` read 1,530 frames used before
+the graphical sessions and 1,530 after them on this
+bench: a graphical session spends no frames and no
+heap, claiming ground the boot already reserved. The
+honest edges: the suite was witnessed at one
+framebuffer size (1280 x 800) — its reckonings are
+made from the size the door reports, and FACE and TERM
+both ask before they paint, but a second width remains
+unproven on this bench, as it has since milestone 16;
+the mouse answer is data only, no guest-drawn pointer
+was attempted; guests cannot sing (milestone 17's
+absence stands); and Tyler's witness — the whole of
+today's building, checked once at his word — is still
+to come.
+
 Milestone 17 stands (November 10, 2026): **first sound —
 the PC speaker learns to sing.** Sixteen milestones the
 machine was silent; this stone gives it the smallest
