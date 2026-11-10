@@ -373,7 +373,33 @@ it bends.*
    confessed on the page itself — and the list is
    read at the opening, the disc being read-only:
    reopening is the refresh, stated rather than
-   machinery pretended.)*
+   machinery pretended. Milestone 20 — November 10,
+   2026 — opened the networking door these notes named
+   among the later ones. A driver for the Intel e1000
+   the test machines carry, found on the PCI bus by
+   vendor and class as milestone 8 found the disc
+   controller, its registers mapped through the
+   kernel's tables as that driver's were. The shape is
+   the house's throughout: descriptor rings and packet
+   buffers kept in allocator frames, every address
+   proven below the card's 32-bit DMA reach before the
+   card is told it; the card's hardware address read
+   out of the card itself, never invented; its
+   interrupts silenced and the rings polled on the
+   heartbeat, the conversation being short enough that
+   interrupt-driven reception is a named later
+   refinement rather than a present need. And the
+   conversation is deliberately one exchange: a DHCP
+   discover built by hand, an offer judged strictly —
+   each field read only within the frame's proven
+   length, the asking's own transaction number
+   required — reported with its addresses, and the
+   address not taken, the shell confessing as much on
+   screen. The taking of a lease, an address of our
+   own, ARP and everything above this exchange belong
+   to later stones; guests gain no service at the
+   door, and the packet fields never stand where a
+   guest can reach them.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

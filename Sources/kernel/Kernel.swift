@@ -9034,6 +9034,786 @@ func runSound() {
     writeLine(soundRestLine)
 }
 
+// ---------------------------------------------------------------------------
+//
+// Milestone 20: the first conversation on the wire.
+//
+// Nineteen milestones the machine spoke to no one but the person at
+// its own keyboard. This stone gives it a neighbour: an Intel e1000
+// network card, the card the test machines carry (QEMU's and UTM's
+// 82540EM), found on the PCI bus the way milestone 8 found the disc
+// controller — by walking the bus and asking who is there.
+//
+// The driver is the smallest honest one. It finds the card, earns
+// its trust the way the datasheet asks — interrupts silenced, a
+// reset, the multicast table cleared, the card's own hardware
+// address read out of it (never invented) and written into its
+// first receive filter — and lays two descriptor rings in frames
+// the allocator hands over: sixteen receive descriptors, each
+// naming a buffer frame of its own, and a transmit ring of sixteen
+// with one buffer. The card is a DMA engine: it reads and writes
+// memory itself, so every address it is ever handed is proven
+// below 4 GiB before the rings stand — the allocator's own cap is
+// exactly that line, and the taking asserts it again, address by
+// address, rather than trusting it silently. Nothing here takes an
+// interrupt: the card's mask register silences it, and the kernel
+// polls the rings on the heartbeat, the way this stone's
+// conversations are short enough to allow. Interrupts are a later
+// stone's refinement, stated as such.
+//
+// The conversation itself is one question and, when the wire is
+// kind, one answer. The kernel builds a DHCP discover by hand —
+// Ethernet, IPv4, UDP, BOOTP, its own address in the asking —
+// lays it in the transmit ring, and listens on the receive ring
+// against a five-second deadline reckoned on the heartbeat. A DHCP
+// offer addressed to this card, carrying this asking's own
+// transaction number, is the answer; anything else on the wire is
+// counted and stepped over, and a frame too short or wrongly
+// shaped to be an answer is never parsed past its proven length —
+// the kernel survives its own wire. And the answer is reported,
+// not taken: this stone asks and listens, and keeps no lease. The
+// taking — a DHCP request, an address of our own, and everything
+// an address would then allow — belongs to later stones, as do
+// ARP, ping, and anything above this one exchange. Guests gain no
+// network service: the wire is the kernel's own, this stone, and
+// the packet fields never stand where a guest can reach them.
+// ---------------------------------------------------------------------------
+
+/// The card's registers, as offsets from its memory base — the
+/// first base-address register's ground. Only the registers this
+/// driver honestly speaks are named.
+let netRegCTRL: UInt64 = 0x0000      // the card's control
+let netRegSTATUS: UInt64 = 0x0008    // its standing: link, speed
+let netRegICR: UInt64 = 0x00C0       // interrupt causes (read clears)
+let netRegIMC: UInt64 = 0x00D8       // interrupt mask — set = silenced
+let netRegRCTL: UInt64 = 0x0100      // receive control
+let netRegTCTL: UInt64 = 0x0400      // transmit control
+let netRegTIPG: UInt64 = 0x0410      // the gaps between packets
+let netRegRDBAL: UInt64 = 0x2800     // receive ring base, low
+let netRegRDBAH: UInt64 = 0x2804     // receive ring base, high
+let netRegRDLEN: UInt64 = 0x2808     // receive ring length, bytes
+let netRegRDH: UInt64 = 0x2810       // receive head (the card's)
+let netRegRDT: UInt64 = 0x2818       // receive tail (ours to write)
+let netRegTDBAL: UInt64 = 0x3800     // transmit ring base, low
+let netRegTDBAH: UInt64 = 0x3804     // transmit ring base, high
+let netRegTDLEN: UInt64 = 0x3808     // transmit ring length, bytes
+let netRegTDH: UInt64 = 0x3810       // transmit head (the card's)
+let netRegTDT: UInt64 = 0x3818       // transmit tail (ours to write)
+let netRegMTA: UInt64 = 0x5200       // the multicast table, 128 words
+let netRegRAL0: UInt64 = 0x5400      // receive address filter, low
+let netRegRAH0: UInt64 = 0x5404      // receive address filter, high
+
+/// The rings' shape: sixteen descriptors apiece, sixteen bytes to
+/// a descriptor, and a 2048-byte field behind each receive
+/// descriptor — the card's own standard buffer size, and room for
+/// any frame an Ethernet honestly carries.
+let netRingCount = 16
+let netBufferBytes = 2048
+
+/// The register pages this driver maps of the card's ground: the
+/// registers it speaks live within the base's first 0x6000 bytes —
+/// the multicast table and the address filters are the farthest it
+/// reaches — so those are the pages it asks the tables for.
+let netRegisterSpan: UInt64 = 0x6000
+
+/// Did the walk of the bus find the card? Until it does, `net`
+/// answers with the absence, plainly — the shape milestone 8's
+/// disc commands have always worn.
+var netCardFound = false
+
+/// The found card's place on the bus and its own device number,
+/// kept so the report names what was actually found.
+var netDevice: UInt32 = 0
+var netFunction: UInt32 = 0
+var netDeviceID: UInt32 = 0
+
+/// The card's register base: its first base-address register,
+/// masked of its type bits. The registers stand in the PCI dark
+/// the paging section leaves unmapped on purpose; the driver maps
+/// its own door at the finding, as the disc driver does.
+var netBase: UInt64 = 0
+
+/// The driver's fields, taken from the frame allocator at the
+/// first `net` and kept for the kernel's life: one frame for the
+/// receive descriptors, one for the transmit descriptors, one
+/// buffer the asking is built in, and one keeping frame whose
+/// first sixteen words are the receive buffers' addresses — one
+/// frame apiece behind them, twenty frames in all. Their
+/// addresses are physical as well as virtual, the identity map's
+/// gift, which is what a DMA engine must be told.
+var netFramesReady = false
+var netRxDescFrame: UInt64 = 0
+var netTxDescFrame: UInt64 = 0
+var netTxBufferFrame: UInt64 = 0
+var netRxKeepingFrame: UInt64 = 0
+
+/// The card's hardware address, packed: the first octet in the
+/// lowest byte, the sixth in the fifth. Read out of the card's
+/// own filter registers after its reset — the card loads them
+/// from its permanent memory — so the address the shell speaks is
+/// the card's own testimony, never a number made up here.
+var netMacPacked: UInt64 = 0
+
+/// The conversation's bookkeeping: this asking's transaction
+/// number, the receive descriptor the listening has reached, and
+/// — when an offer is recognised — the addresses it carried.
+var netXid: UInt32 = 0
+var netRxNext = 0
+var netOfferAddress: UInt32 = 0
+var netOfferServer: UInt32 = 0
+
+/// One register of the card, read or written through memory, at
+/// the offset from its base: the same hands the disc driver uses,
+/// which the compiler may not inline away.
+@inline(__always)
+func netRead32(_ offset: UInt64) -> UInt32 {
+    mmioRead32(netBase + offset)
+}
+
+@inline(__always)
+func netWrite32(_ offset: UInt64, _ value: UInt32) {
+    mmioWrite32(netBase + offset, value)
+}
+
+/// One octet of the card's hardware address, by its place.
+@inline(__always)
+func netMacByte(_ index: Int) -> UInt8 {
+    UInt8((netMacPacked >> UInt64(index * 8)) & 0xFF)
+}
+
+/// One word — eight bytes — of a descriptor: a descriptor is two
+/// words, the first its buffer's address, the second its lengths,
+/// orders, and standing, laid out by the card's own format.
+@inline(__always)
+func netDescWord(_ frame: UInt64, _ index: Int,
+                 _ word: Int) -> UInt64 {
+    let words = UnsafeMutablePointer<UInt64>(bitPattern: UInt(frame))!
+    return words[index * 2 + word]
+}
+
+@inline(__always)
+func netSetDescWord(_ frame: UInt64, _ index: Int, _ word: Int,
+                    _ value: UInt64) {
+    let words = UnsafeMutablePointer<UInt64>(bitPattern: UInt(frame))!
+    words[index * 2 + word] = value
+}
+
+/// The address of the buffer behind the receive descriptor of
+/// the given place: it stands in the keeping frame's word of that
+/// place, where the taking laid it.
+@inline(__always)
+func netRxBufferAddress(_ index: Int) -> UInt64 {
+    let keeping = UnsafeMutablePointer<UInt64>(
+        bitPattern: UInt(netRxKeepingFrame))!
+    return keeping[index]
+}
+
+/// The buffer behind the receive descriptor of the given place,
+/// as the pointer the judging reads the arrived frame through.
+@inline(__always)
+func netRxBuffer(_ index: Int) -> UnsafeMutablePointer<UInt8> {
+    UnsafeMutablePointer<UInt8>(bitPattern: UInt(netRxBufferAddress(index)))!
+}
+
+/// Finds the card: walks the bus the way milestone 8's raising
+/// walks it — every function of every device on bus 0 — asking for
+/// Intel's vendor mark (0x8086) wearing the network class and the
+/// Ethernet subclass: the e1000 family honestly named by vendor
+/// and class, with the device's own number kept for the report.
+/// The first that answers with a memory base register is taken:
+/// its memory door and its bus mastery are switched on in its
+/// command word, and its registers' pages are mapped through the
+/// kernel's tables as the disc controller's were.
+func netFindCard() -> Bool {
+    if netCardFound { return true }
+    var device: UInt32 = 0
+    while device < 32 {
+        var function: UInt32 = 0
+        while function < 8 {
+            let id = pciConfigRead32(device, function, 0)
+            if id & 0xFFFF == 0x8086 {
+                let classes = pciConfigRead32(device, function, 0x08)
+                if classes >> 24 == 0x02
+                    && (classes >> 16) & 0xFF == 0x00 {
+                    let bar = pciConfigRead32(device, function, 0x10)
+                    if bar & 1 == 0 && bar & 0xFFFFFFF0 != 0 {
+                        netDevice = device
+                        netFunction = function
+                        netDeviceID = id >> 16
+                        netBase = UInt64(bar & 0xFFFFFFF0)
+                        let commandWord = pciConfigRead32(
+                            device, function, 0x04)
+                        pciConfigWrite32(device, function, 0x04,
+                                         commandWord | 0x06)
+                        netCardFound = true
+                        return true
+                    }
+                }
+            }
+            function += 1
+        }
+        device += 1
+    }
+    return false
+}
+
+/// Maps the card's register pages into the kernel's tables — the
+/// pages the named registers stand on — as the disc driver maps
+/// its controller's: present, writable, never executable, each
+/// translation forgotten-and-retold so the processor looks again.
+/// On the floor's borrowed map (paging not standing) there is
+/// nothing to map: the floor's wide identity already covers the
+/// ground, and the raising goes on, poorer but honest.
+func netMapRegisters() -> Bool {
+    if !pagingReady { return true }
+    let flags = ptePresent | pteWritable | pteNoExecute
+    if !mapRange(netBase, netRegisterSpan, flags) { return false }
+    var page: UInt64 = 0
+    while page < netRegisterSpan {
+        cardnullInvlpg(netBase + page)
+        page += pageSize
+    }
+    return true
+}
+
+/// Takes the driver's fields from the allocator, once, and proves
+/// each one fit for the card's hands: a DMA engine of this era
+/// names 32 bits of address, so every frame the card will ever be
+/// told — rings and buffers alike — must stand below 4 GiB. The
+/// allocator's own estate ends at that very line (its bitmap
+/// speaks for exactly 4 GiB of frames), so the proof should never
+/// fail; it is made anyway, address by address, because a card
+/// told an address it cannot reach does not complain — it writes
+/// somewhere else, and silence about that would be a lie.
+func netTakeFrames() -> Bool {
+    if netFramesReady { return true }
+    netRxDescFrame = allocFrame()
+    netTxDescFrame = allocFrame()
+    netTxBufferFrame = allocFrame()
+    netRxKeepingFrame = allocFrame()
+    if netRxDescFrame == 0 || netTxDescFrame == 0
+        || netTxBufferFrame == 0 || netRxKeepingFrame == 0 {
+        return false
+    }
+    let keeping = UnsafeMutablePointer<UInt64>(
+        bitPattern: UInt(netRxKeepingFrame))!
+    var index = 0
+    while index < netRingCount {
+        keeping[index] = 0
+        index += 1
+    }
+    index = 0
+    while index < netRingCount {
+        let frame = allocFrame()
+        if frame == 0 { return false }
+        keeping[index] = frame
+        index += 1
+    }
+    let reach: UInt64 = 0x1_0000_0000
+    if netRxDescFrame >= reach || netTxDescFrame >= reach
+        || netTxBufferFrame >= reach || netRxKeepingFrame >= reach {
+        return false
+    }
+    index = 0
+    while index < netRingCount {
+        if keeping[index] >= reach { return false }
+        index += 1
+    }
+    netFramesReady = true
+    return true
+}
+
+/// Raises the card for one conversation, from silence every time:
+/// its interrupts masked, both engines stopped, the reset the
+/// datasheet prescribes, and the wait for the card's own word
+/// that the reset is done. Then the honest minimum of state: the
+/// multicast table cleared word by word; the hardware address
+/// read from the card — and written back into its first filter
+/// with the valid mark standing, so answers addressed to us are
+/// let in; the link asked up, with auto-negotiation as the card
+/// presents it; and both rings built fresh in their frames — the
+/// receive descriptors each naming their buffer, the tails laid
+/// where a fresh ring's tails belong — before either engine is
+/// switched on. Because the whole raising runs at every `net`,
+/// the rings stand reset between conversations by construction,
+/// not by anyone's memory of the last one.
+func netRaise() -> Bool {
+    netWrite32(netRegIMC, 0xFFFFFFFF)
+    netWrite32(netRegRCTL, 0)
+    netWrite32(netRegTCTL, 0)
+    netWrite32(netRegCTRL, netRead32(netRegCTRL) | 0x04000000)
+    var waited = 0
+    while netRead32(netRegCTRL) & 0x04000000 != 0 {
+        waited += 1
+        if waited >= discWaitLimit { return false }
+    }
+    netWrite32(netRegIMC, 0xFFFFFFFF)
+    _ = netRead32(netRegICR)
+    var slot = 0
+    while slot < 128 {
+        netWrite32(netRegMTA + UInt64(slot) * 4, 0)
+        slot += 1
+    }
+    let ral = netRead32(netRegRAL0)
+    let rah = netRead32(netRegRAH0)
+    netMacPacked = UInt64(ral) | (UInt64(rah & 0xFFFF) << 32)
+    if netMacPacked == 0 { return false }
+    netWrite32(netRegRAL0, ral)
+    netWrite32(netRegRAH0, (rah & 0xFFFF) | 0x80000000)
+    netWrite32(netRegCTRL, netRead32(netRegCTRL) | 0x60)
+    // The receive ring: its frame wiped, each descriptor naming
+    // its buffer, the card's head at the ring's start and ours
+    // one short of the end — the whole ring offered but one
+    // descriptor, the ring law the card's format asks.
+    let rxBytes = UnsafeMutablePointer<UInt8>(
+        bitPattern: UInt(netRxDescFrame))!
+    var index = 0
+    while index < 4096 {
+        rxBytes[index] = 0
+        index += 1
+    }
+    index = 0
+    while index < netRingCount {
+        netSetDescWord(netRxDescFrame, index, 0,
+                       netRxBufferAddress(index))
+        netSetDescWord(netRxDescFrame, index, 1, 0)
+        index += 1
+    }
+    netWrite32(netRegRDBAL, UInt32(netRxDescFrame & 0xFFFFFFFF))
+    netWrite32(netRegRDBAH, UInt32(netRxDescFrame >> 32))
+    netWrite32(netRegRDLEN, UInt32(netRingCount * 16))
+    netWrite32(netRegRDH, 0)
+    netWrite32(netRegRDT, UInt32(netRingCount - 1))
+    netRxNext = 0
+    // The transmit ring: wiped, empty, its head and tail together
+    // at the start, and the gaps between packets at the values
+    // the datasheet commends for this card — ten, ten, and ten
+    // bit-times and their kin.
+    let txBytes = UnsafeMutablePointer<UInt8>(
+        bitPattern: UInt(netTxDescFrame))!
+    index = 0
+    while index < 4096 {
+        txBytes[index] = 0
+        index += 1
+    }
+    netWrite32(netRegTDBAL, UInt32(netTxDescFrame & 0xFFFFFFFF))
+    netWrite32(netRegTDBAH, UInt32(netTxDescFrame >> 32))
+    netWrite32(netRegTDLEN, UInt32(netRingCount * 16))
+    netWrite32(netRegTDH, 0)
+    netWrite32(netRegTDT, 0)
+    netWrite32(netRegTIPG, 0x00A0280A)
+    // The engines on: receive under its filter law — our own
+    // address let in, the broadcast let in, the frame's checksum
+    // tail stripped so a received length is the frame's own —
+    // and transmit, padding short frames as the standard asks.
+    netWrite32(netRegRCTL, 0x0400800A)
+    netWrite32(netRegTCTL, 0x0000000A)
+    return true
+}
+
+/// The link's truth, waited for a little: the card takes a breath
+/// after its reset to agree the wire's terms, so the asking rests
+/// on the heartbeat for up to three seconds before it believes
+/// either answer. What the status register says then is spoken
+/// as found — up, or not up — and no longer a wait than that is
+/// pretended.
+func netLinkUp() -> Bool {
+    var waited: UInt64 = 0
+    while waited < 300 {
+        if netRead32(netRegSTATUS) & 0x2 != 0 { return true }
+        waitTicks(1)
+        waited += 1
+    }
+    return netRead32(netRegSTATUS) & 0x2 != 0
+}
+
+/// The packet builders' small hands: wide values written into the
+/// frame big-end first, as the wire's formats lay them — the
+/// mirror of the disc reader's little-endian hands, and for the
+/// same reason: the format, not the machine, chooses the order.
+@inline(__always)
+func netPut16(_ buffer: UnsafeMutablePointer<UInt8>, _ offset: Int,
+              _ value: UInt16) {
+    buffer[offset] = UInt8(value >> 8)
+    buffer[offset + 1] = UInt8(value & 0xFF)
+}
+
+@inline(__always)
+func netPut32(_ buffer: UnsafeMutablePointer<UInt8>, _ offset: Int,
+              _ value: UInt32) {
+    netPut16(buffer, offset, UInt16(value >> 16))
+    netPut16(buffer, offset + 2, UInt16(value & 0xFFFF))
+}
+
+@inline(__always)
+func netGet16(_ buffer: UnsafeMutablePointer<UInt8>,
+              _ offset: Int) -> UInt16 {
+    UInt16(buffer[offset]) << 8 | UInt16(buffer[offset + 1])
+}
+
+@inline(__always)
+func netGet32(_ buffer: UnsafeMutablePointer<UInt8>,
+              _ offset: Int) -> UInt32 {
+    UInt32(netGet16(buffer, offset)) << 16
+        | UInt32(netGet16(buffer, offset + 2))
+}
+
+/// The IPv4 header checksum: the one's-complement sum of the
+/// header's sixteen-bit words, folded until the carries come
+/// home. The header's own checksum field stands zero while it is
+/// reckoned, as the standard prescribes.
+func netIPChecksum(_ buffer: UnsafeMutablePointer<UInt8>,
+                   _ offset: Int, _ length: Int) -> UInt16 {
+    var sum: UInt32 = 0
+    var index = 0
+    while index + 1 < length {
+        sum += UInt32(netGet16(buffer, offset + index))
+        index += 2
+    }
+    while sum >> 16 != 0 {
+        sum = (sum & 0xFFFF) + (sum >> 16)
+    }
+    return UInt16(~sum & 0xFFFF)
+}
+
+/// Builds the asking in the transmit buffer and returns its true
+/// length: one DHCP discover, laid down format by format.
+/// Ethernet: the broadcast's address, ours, and IPv4's number.
+/// IPv4: no options, the broadcast again, a time to live of 64,
+/// UDP's number, the header's checksum honestly reckoned — and
+/// no address of our own, because having none is the whole point
+/// of the asking. UDP: the DHCP ports, client to server, and no
+/// checksum, which IPv4 expressly allows. BOOTP: a request, our
+/// transaction number fresh from the heartbeat's count, the
+/// broadcast flag standing (we hold no address a unicast answer
+/// could reach), our hardware address in the asking's own field,
+/// and the DHCP options behind the format's magic word: message
+/// type discover, and the short list of answers we would value.
+/// Nothing is padded but the option list's own end mark; the
+/// card appends the frame's checksum tail itself, and the count
+/// returned is the frame as built, tail aside — the card's four
+/// bytes are the card's, and the report counts ours.
+func netBuildDiscover() -> Int {
+    let buffer = UnsafeMutablePointer<UInt8>(
+        bitPattern: UInt(netTxBufferFrame))!
+    var index = 0
+    while index < netBufferBytes {
+        buffer[index] = 0
+        index += 1
+    }
+    netXid = 0x43415244 ^ UInt32(truncatingIfNeeded: ticks)
+    // Ethernet.
+    index = 0
+    while index < 6 {
+        buffer[index] = 0xFF
+        buffer[6 + index] = netMacByte(index)
+        index += 1
+    }
+    netPut16(buffer, 12, 0x0800)
+    // IPv4. The lengths are laid once the whole is known; the
+    // checksum closes the header, reckoned last over the rest.
+    let ip = 14
+    buffer[ip] = 0x45
+    netPut16(buffer, ip + 4, UInt16(truncatingIfNeeded: ticks))
+    buffer[ip + 8] = 64
+    buffer[ip + 9] = 17
+    netPut32(buffer, ip + 16, 0xFFFFFFFF)
+    // UDP.
+    let udp = ip + 20
+    netPut16(buffer, udp, 68)
+    netPut16(buffer, udp + 2, 67)
+    // BOOTP, behind the UDP header.
+    let bootp = udp + 8
+    buffer[bootp] = 1
+    buffer[bootp + 1] = 1
+    buffer[bootp + 2] = 6
+    netPut32(buffer, bootp + 4, netXid)
+    netPut16(buffer, bootp + 10, 0x8000)
+    index = 0
+    while index < 6 {
+        buffer[bootp + 28 + index] = netMacByte(index)
+        index += 1
+    }
+    netPut32(buffer, bootp + 236, 0x63825363)
+    // The options: discover, the valued answers' list, the end.
+    var at = bootp + 240
+    buffer[at] = 53
+    buffer[at + 1] = 1
+    buffer[at + 2] = 1
+    buffer[at + 3] = 55
+    buffer[at + 4] = 3
+    buffer[at + 5] = 1
+    buffer[at + 6] = 3
+    buffer[at + 7] = 6
+    buffer[at + 8] = 255
+    at += 9
+    // The lengths, now that the whole stands.
+    let total = at
+    netPut16(buffer, ip + 2, UInt16(total - ip))
+    netPut16(buffer, udp + 4, UInt16(total - udp))
+    netPut16(buffer, ip + 10, netIPChecksum(buffer, ip, 20))
+    return total
+}
+
+/// Sends the built frame: one descriptor at the transmit ring's
+/// head — its buffer, its true length, the orders to end the
+/// packet, append its checksum tail, and report back — the tail
+/// moved past it, and the wait, on the heartbeat, for the card's
+/// own word in the descriptor that the sending is done. Two
+/// seconds is the patience; a card that has not answered by then
+/// is reported as not having sent, and the shell is never left
+/// waiting on the wire's machinery.
+func netSend(length: Int) -> Bool {
+    netSetDescWord(netTxDescFrame, 0, 0, netTxBufferFrame)
+    netSetDescWord(netTxDescFrame, 0, 1,
+                   UInt64(length) | (0x0B << 24))
+    netWrite32(netRegTDT, 1)
+    var waited: UInt64 = 0
+    while waited < 200 {
+        if netDescWord(netTxDescFrame, 0, 1) >> 32 & 1 != 0 {
+            return true
+        }
+        waitTicks(1)
+        waited += 1
+    }
+    return false
+}
+
+/// Judges one received frame: is it the answer to this asking?
+/// Every test is made in the frame's own terms, and no field is
+/// read until the frame's proven length covers it — the length
+/// the card reported, no longer believed than that. Ethernet
+/// first: IPv4's number, and an address that is the broadcast's
+/// or our own (the receive filter has already kept that law, and
+/// the judging keeps it again rather than trusting it). Then
+/// IPv4 carrying UDP, the answer's port at the destination, and
+/// BOOTP's shape: a reply, this asking's transaction number, our
+/// own hardware address named in the reply's field. Last, the
+/// DHCP options are walked — pad marks stepped over, the end
+/// mark honoured, nothing read past the frame — for the message
+/// type that says offer. A frame that passes everything is the
+/// answer: the address it offers and the address it came from
+/// are kept for the report, out of the frame's own fields.
+func netParseOffer(_ buffer: UnsafeMutablePointer<UInt8>,
+                   _ length: Int) -> Bool {
+    let fixed = 14 + 20 + 8 + 240
+    if length < fixed { return false }
+    if netGet16(buffer, 12) != 0x0800 { return false }
+    var broadcast = true
+    var ours = true
+    var index = 0
+    while index < 6 {
+        if buffer[index] != 0xFF { broadcast = false }
+        if buffer[index] != netMacByte(index) { ours = false }
+        index += 1
+    }
+    if !broadcast && !ours { return false }
+    let ip = 14
+    if buffer[ip] >> 4 != 4 { return false }
+    let ipLength = Int(buffer[ip] & 0x0F) * 4
+    if ipLength < 20 || length < ip + ipLength + 8 + 240 {
+        return false
+    }
+    if buffer[ip + 9] != 17 { return false }
+    let udp = ip + ipLength
+    if netGet16(buffer, udp + 2) != 68 { return false }
+    let bootp = udp + 8
+    if buffer[bootp] != 2 { return false }
+    if netGet32(buffer, bootp + 4) != netXid { return false }
+    index = 0
+    while index < 6 {
+        if buffer[bootp + 28 + index] != netMacByte(index) {
+            return false
+        }
+        index += 1
+    }
+    if netGet32(buffer, bootp + 236) != 0x63825363 { return false }
+    var at = bootp + 240
+    var isOffer = false
+    while at < length {
+        let code = buffer[at]
+        if code == 255 { break }
+        if code == 0 {
+            at += 1
+            continue
+        }
+        if at + 1 >= length { break }
+        let optionLength = Int(buffer[at + 1])
+        if code == 53 && optionLength >= 1 && at + 2 < length
+            && buffer[at + 2] == 2 {
+            isOffer = true
+        }
+        at += 2 + optionLength
+    }
+    if !isOffer { return false }
+    netOfferAddress = netGet32(buffer, bootp + 16)
+    netOfferServer = netGet32(buffer, bootp + 20)
+    return true
+}
+
+/// Listens on the receive ring until the deadline — five seconds
+/// of heartbeat — for the answer. Each descriptor the card has
+/// filled is judged by the offer's tests; judged or not, its
+/// frame is stepped over and the descriptor handed back to the
+/// card (its standing cleared, the tail written to its place),
+/// so the ring never fills behind a frame nobody wanted. Frames
+/// that are not the answer are counted, and the count comes home
+/// with the verdict. Between looks the kernel rests in `hlt`:
+/// the heartbeat wakes it a hundred times a second, and no wire
+/// is ever waited on by spinning. When the deadline passes with
+/// no answer, the listening simply ends — nothing hangs.
+func netListen() -> (answered: Bool, others: Int) {
+    netOfferAddress = 0
+    netOfferServer = 0
+    var others = 0
+    let start = ticks
+    while ticks - start < 500 {
+        let standing = netDescWord(netRxDescFrame, netRxNext, 1)
+        if standing >> 32 & 1 == 0 {
+            cardnullHltOnce()
+            continue
+        }
+        let length = Int(standing & 0xFFFF)
+        let answer = length <= netBufferBytes
+            && netParseOffer(netRxBuffer(netRxNext), length)
+        netSetDescWord(netRxDescFrame, netRxNext, 1, 0)
+        netWrite32(netRegRDT, UInt32(netRxNext))
+        netRxNext = (netRxNext + 1) % netRingCount
+        if answer { return (true, others) }
+        others += 1
+    }
+    return (false, others)
+}
+
+/// net's vocabulary: the account's lines, in the plain words the
+/// spec of the stone prescribes — what was found, the address the
+/// card itself reported, the link's truth, the asking and its
+/// count, the answer or its absence — with the numbers spoken
+/// between them by the small hands below.
+let netNoneLine: StaticString =
+    "No network card was found on the PCI bus."
+let netSilentLine: StaticString =
+    "The network card was found, but it did not come up."
+let netCardLabel: StaticString = "Network card: "
+let netCard82540Line: StaticString =
+    "Intel e1000 (82540EM), on the PCI bus."
+let netCardFamilyLine: StaticString =
+    "Intel e1000 family card, on the PCI bus."
+let netMacLabel: StaticString = "Hardware address: "
+let netLinkUpLine: StaticString = "Link: up."
+let netLinkDownLine: StaticString = "Link: not up."
+let netSentLabel: StaticString =
+    "Sent: one packet asking the network for an address (DHCP discover, "
+let netSentClose: StaticString = " bytes)."
+let netSendFailedLine: StaticString =
+    "The packet could not be sent."
+let netAnswerLabel: StaticString = "Answer: the network offers us "
+let netAnswerMiddle: StaticString = "; the offer comes from "
+let netPeriod: StaticString = "."
+let netNotTakenLine: StaticString =
+    "We did not take the address - asking was this stone's whole errand."
+let netNoAnswerLine: StaticString =
+    "No answer came back on the wire."
+let netOneOtherLine: StaticString =
+    "One other packet passed by; it was not the answer."
+let netOthersLabel: StaticString = " other packets passed by; "
+let netOthersClose: StaticString = "none was the answer."
+let netHexDigits: StaticString = "0123456789ABCDEF"
+
+/// Writes one byte as two hexadecimal digits, through the one
+/// output door — the hardware address's own spelling.
+func writeHexByte(_ value: UInt8) {
+    writeChar(netHexDigits.utf8Start[Int(value >> 4)])
+    writeChar(netHexDigits.utf8Start[Int(value & 0x0F)])
+}
+
+/// Writes the card's hardware address the way the world writes
+/// it: six hex bytes, colon between.
+func writeMacAddress() {
+    var index = 0
+    while index < 6 {
+        if index > 0 { writeChar(0x3A) }   // :
+        writeHexByte(netMacByte(index))
+        index += 1
+    }
+}
+
+/// Writes a packed IPv4 address — the highest byte first, as the
+/// wire carries it — in the dotted words people read.
+func writeIPAddress(_ value: UInt32) {
+    writeNumber(UInt64((value >> 24) & 0xFF))
+    writeChar(0x2E)   // .
+    writeNumber(UInt64((value >> 16) & 0xFF))
+    writeChar(0x2E)
+    writeNumber(UInt64((value >> 8) & 0xFF))
+    writeChar(0x2E)
+    writeNumber(UInt64(value & 0xFF))
+}
+
+/// net's work: the whole account, in order. The finding first —
+/// and if the bus holds no card, the absence is the whole answer.
+/// Then the raising, whose failure is likewise spoken plainly and
+/// ends the command. Then the account proper: the card's name as
+/// found (the 82540EM named outright; another of the family named
+/// as family), the hardware address out of the card's own mouth,
+/// the link's truth waited for and spoken. If the link stands,
+/// the asking is built and sent — its true count in the telling —
+/// and the listening runs its five seconds: the offer reported
+/// with its addresses, the other traffic counted in a line of its
+/// own when there was any, and the plain word when the wire kept
+/// its silence. And whether answered or not, one truth closes the
+/// stone's errand when an offer came: the address was not taken.
+/// No lease is kept; nothing of this conversation survives it but
+/// the report.
+func runNet() {
+    if !netFindCard() {
+        writeLine(netNoneLine)
+        return
+    }
+    if !netMapRegisters() || !netTakeFrames() || !netRaise() {
+        writeLine(netSilentLine)
+        return
+    }
+    writeStatic(netCardLabel)
+    writeLine(netDeviceID == 0x100E ? netCard82540Line
+                                    : netCardFamilyLine)
+    writeStatic(netMacLabel)
+    writeMacAddress()
+    writeLine(netPeriod)
+    if !netLinkUp() {
+        writeLine(netLinkDownLine)
+        writeLine(netNoAnswerLine)
+        return
+    }
+    writeLine(netLinkUpLine)
+    let length = netBuildDiscover()
+    if !netSend(length: length) {
+        writeLine(netSendFailedLine)
+        return
+    }
+    writeStatic(netSentLabel)
+    writeNumber(UInt64(length))
+    writeLine(netSentClose)
+    let result = netListen()
+    if result.others == 1 {
+        writeLine(netOneOtherLine)
+    } else if result.others > 1 {
+        writeNumber(UInt64(result.others))
+        writeStatic(netOthersLabel)
+        writeLine(netOthersClose)
+    }
+    if !result.answered {
+        writeLine(netNoAnswerLine)
+        return
+    }
+    writeStatic(netAnswerLabel)
+    writeIPAddress(netOfferAddress)
+    writeStatic(netAnswerMiddle)
+    writeIPAddress(netOfferServer)
+    writeLine(netPeriod)
+    writeLine(netNotTakenLine)
+}
+
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -9096,6 +9876,11 @@ func runSound() {
 //           the PC speaker — the timer's second channel behind
 //           its gate — each note printed as it sounds, and the
 //           speaker left silent at the phrase's end (milestone 17)
+//   net     the first conversation on the wire: the Intel
+//           network card found on the PCI bus, raised behind its
+//           descriptor rings, and a DHCP discover asked of the
+//           network — the offer reported with its addresses,
+//           and the address not taken (milestone 20)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -9122,6 +9907,7 @@ let filesCommand: StaticString = "files"
 let guiCommand: StaticString = "gui"
 let mouseCommand: StaticString = "mouse"
 let soundCommand: StaticString = "sound"
+let netCommand: StaticString = "net"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -9148,6 +9934,8 @@ let helpMouseLine: StaticString =
     "  mouse   the mouse's report: its waking and its answers"
 let helpSoundLine: StaticString =
     "  sound   play a short melody on the speaker"
+let helpNetLine: StaticString =
+    "  net     ask the network for an address (DHCP discover)"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -9445,6 +10233,7 @@ func submitLine() {
     let isGui = commandMatches(guiCommand)
     let isMouse = commandMatches(mouseCommand)
     let isSound = commandMatches(soundCommand)
+    let isNet = commandMatches(netCommand)
 
     writeNewline()
     if !blank {
@@ -9467,6 +10256,7 @@ func submitLine() {
             writeLine(helpGuiLine)
             writeLine(helpMouseLine)
             writeLine(helpSoundLine)
+            writeLine(helpNetLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -9508,6 +10298,8 @@ func submitLine() {
             printMouseStanding()
         } else if isSound {
             runSound()
+        } else if isNet {
+            runNet()
         } else {
             writeLine(unknownLine)
         }

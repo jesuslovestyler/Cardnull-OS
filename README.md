@@ -79,6 +79,93 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
+Milestone 20 stands (November 10, 2026): **first network
+packet — the e1000 driver, and one honest conversation.**
+A new command, `net` (the shell now answers nineteen),
+finds the machine's network card the way milestone 8
+found its disc controller: walking the PCI bus, asking
+every function of every device — and on this bench, as
+in UTM, the answer is Intel's e1000, the 82540EM
+(8086:100e), at bus 0, device 2, its register base at
+0x80840000, comfortably below the 4 GiB line. The driver
+maps the first 0x6000 bytes of that ground through the
+kernel's tables, as the disc driver maps its own, and
+raises the card from silence at every asking: its
+interrupts masked (the stone polls; it takes no
+interrupt), a reset waited out on the card's own word,
+the multicast table cleared word by word, and the
+hardware address read out of the card's own filter
+registers — 52:54:00:12:34:56 on this bench, the card
+QEMU provides, never a number invented here — and
+written back with its valid mark, so answers addressed
+to us are let in. The link is asked up, and its truth
+spoken ("Link: up."). Two descriptor rings stand in
+frames the allocator hands over — sixteen receive
+descriptors, each naming its own 2048-byte buffer
+frame, and a transmit ring of sixteen with one buffer,
+twenty frames in all — and every address the card is
+told is proven below 4 GiB before the rings stand, the
+card being a DMA engine of 32-bit reach: the taking
+asserts the line address by address, though the
+allocator's own estate ends exactly there. The
+conversation is one question: a DHCP discover built by
+hand in the transmit buffer — Ethernet broadcast, IPv4
+with its checksum honestly reckoned, UDP, BOOTP
+carrying our address and a transaction number fresh
+from the heartbeat, the broadcast flag standing — 291
+bytes, sent through the ring, the card's own completion
+word waited for. Then the listening, five seconds of
+heartbeat at most: each arrived frame length-checked
+before any field is read, and judged — the answer's
+port, a reply, this asking's transaction number, our
+own address named in it, the offer mark in its options.
+On this bench the network's built-in server answers at
+once, and the account closes: "Answer: the network
+offers us 10.0.2.15; the offer comes from 10.0.2.2." —
+followed by the stone's own confession, spoken on
+screen: "We did not take the address - asking was this
+stone's whole errand." No lease is kept. A second `net`
+in the same session runs the whole raising again —
+rings rebuilt fresh in the same frames — and is
+answered the same. The accounting stays truthful:
+`mem` at the bench's 512 MB reads 1,543 frames used
+before the first asking and 1,563 after it (the twenty
+frames are the driver's keeping, taken once), and the
+standing count at 4096 MB is 1,285 — milestone 19's
+1,283 and two frames of grown kernel (193,040 bytes).
+The wire itself is the second witness: QEMU's capture
+of it stands in the evidence beside the screenshots —
+four packets for the main session's two askings, two
+for the BIOS door's one, each discover ours byte for
+byte and each offer carrying the asking's own
+transaction number. (The offer arrived addressed to
+the broadcast, as a machine holding no address should
+expect: the filter law's broadcast half earned its
+keep.) The bounds are stated, not hidden: one exchange
+only — no DHCP request, no lease, no ARP, no ping, no
+address of our own; reception polled on the heartbeat,
+not interrupt-driven; guests gain no network service,
+and the packet fields never stand where a guest can
+reach. The receive discipline's other-traffic count
+stood ready and never printed: this bench's wire
+carried nothing but the conversation itself. Absence
+is proven as the house proves it — the same ISO on a
+machine with no network device answers "No network
+card was found on the PCI bus." and the shell stands.
+Proven in QEMU (TCG, the UTM shape) on both firmware
+doors: the exchange twice on the UEFI door and once
+behind SeaBIOS, the absence, and the regressions
+whole — the desktop with its three launchers, `ls` and
+the Files list agreeing, FACE from the Terminal, the
+classic pair with milestone 15's own account (9 by the
+door, 0 by the timer), the tampered feather refused,
+the song's note list, faulttest's halt. In UTM the
+counterpart network is Shared, and its server will
+offer different addresses than the bench's 10.0.2.15 —
+the conversation is the same, and the difference is
+expected. Tyler's witness of the day's stones together
+stands at the run's end, as he chose this morning.
+
 Milestone 19 stands (November 10, 2026): **the desktop
 file manager — the disc gets a face.** A third window
 stands on the desktop: **Files**, opened from a new

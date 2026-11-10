@@ -69,7 +69,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Eighteen commands, for now:
+Press Enter and the prompt answers. Nineteen commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -92,6 +92,8 @@ Press Enter and the prompt answers. Eighteen commands, for now:
 - `mouse` — the mouse's report: its waking transcript, and what
   the face has taken from it since
 - `sound` — play a short melody on the PC speaker
+- `net` — the network card: ask the wire for an address
+  (a DHCP discover; the offer is reported, not taken)
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -295,6 +297,36 @@ captured to a file and measured, note by note, at
 exactly the frequencies the screen prints. Guests
 cannot sing yet: the interrupt-0x80 door has no sound
 service, and a feather's voice is a later stone.
+
+And since milestone 20 the machine can speak to a
+neighbour — try `net`. The shell finds the network card
+on the PCI bus (an Intel e1000 — the 82540EM in UTM's
+keeping), names it, and reads the hardware address out
+of the card itself: on the builders' bench it reads
+52:54:00:12:34:56, the address of the card QEMU
+provides; yours will read as your own card reports it.
+Then the link's word — "Link: up." — and the one
+conversation this stone holds: a DHCP discover, one
+packet built by the kernel and sent through the card,
+asking the network for an address, and the listening,
+five seconds at most. On the bench the answer reads
+"Answer: the network offers us 10.0.2.15; the offer
+comes from 10.0.2.2." — the built-in server of QEMU's
+user networking. In UTM, set the machine's network to
+**Shared Network**, that world's counterpart: the same
+conversation runs, and its server will offer different
+addresses than the bench's — the difference is
+expected, not a fault. Two honest bounds ride with the
+command. The address offered is reported, not taken —
+the shell confesses it in as many words ("We did not
+take the address - asking was this stone's whole
+errand."); keeping a lease is a later stone, and
+nothing of the conversation survives it but the
+report. And a machine with no network card at all is
+answered with the plain absence — "No network card was
+found on the PCI bus." — and the shell stands. Run
+`net` twice in one sitting: the second asking is made
+on rings rebuilt fresh, and answers the same.
 
 And the OS has a face — since milestone 12 a drawn one,
 and since milestone 13 the front door itself: when the
