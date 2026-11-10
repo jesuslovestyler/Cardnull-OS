@@ -69,7 +69,7 @@ keyboard answers: letters, digits, punctuation, Shift and Caps Lock
 for capitals, Backspace to take back what you typed (never the
 prompt). Fill the screen and it scrolls, like any terminal.
 
-Press Enter and the prompt answers. Sixteen commands, for now:
+Press Enter and the prompt answers. Seventeen commands, for now:
 
 - `help` — the list of commands
 - `about` — what Cardnull OS is
@@ -89,6 +89,7 @@ Press Enter and the prompt answers. Sixteen commands, for now:
 - `gui` — open the graphical desktop (Esc brings you home)
 - `mouse` — the mouse's report: its waking transcript, and what
   the face has taken from it since
+- `sound` — play a short melody on the PC speaker
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -261,6 +262,37 @@ mouse; run the command, move and click a while on the
 desktop, come home, and run it again. The desktop
 itself, meanwhile, keeps only the plain word of it, as
 the bar's walk below tells.
+
+And since milestone 17, the machine has a voice — try
+`sound`. The shell names the tune first (the Doxology's
+opening, on Old Hundredth, in G major), then plays it
+on the PC speaker: eight notes, each printed before it
+sounds with its name, its frequency, and its length —
+G4 392 Hz, B4 494, D5 587, D5 again, C5 523, B4 494,
+A4 440, and a last B4 held twice as long — some three
+and a half seconds in all, and the shell waits while
+it plays (it says so, in as many words). Then the
+closing line: "The speaker is silent again." — and it
+is; the speaker's gate is closed at every note's end
+and at the phrase's, and no tone is ever left standing.
+The playing is the timer's second channel singing
+behind its gate; the 100 Hz heartbeat is a different
+channel and is never touched — try `uptime` before and
+after, and the count has advanced by just the wait,
+the song inside it. One witness this walk cannot make
+for you: whether you *hear* it. UTM's sound device is
+an intel-hda chip, which Cardnull does not drive —
+this stone speaks only through the PC speaker, and the
+road from that speaker into UTM's audio is UTM's own
+business. If the phrase plays in silence on your
+machine, the printed account still stands — every note
+named as it sounds — and the silence itself is a
+finding worth reporting, not a failure of the walk:
+on the builders' bench the speaker's output was
+captured to a file and measured, note by note, at
+exactly the frequencies the screen prints. Guests
+cannot sing yet: the interrupt-0x80 door has no sound
+service, and a feather's voice is a later stone.
 
 And the OS has a face — since milestone 12 a drawn one,
 and since milestone 13 the front door itself: when the

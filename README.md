@@ -79,6 +79,82 @@ Freely you have received; freely give. (Matthew 10:8)
 
 ## Status
 
+Milestone 17 stands (November 10, 2026): **first sound —
+the PC speaker learns to sing.** Sixteen milestones the
+machine was silent; this stone gives it the smallest
+honest voice there is: the classic PC speaker, needing
+no sound chip and no driver stack — the programmable
+timer's second channel, gated to the speaker through
+the two low bits of port 0x61. The kernel's tone is
+three moves: reckon the channel's divisor from the
+wanted frequency (the timer's clock, 1,193,182 Hz, over
+the frequency — the same division the heartbeat's own
+divisor 11932 came from), speak it to channel 2 under
+the command word 0xB6, and open the gate for a duration
+reckoned on the heartbeat itself, the kernel resting in
+`hlt` between ticks. Then close the gate — and that
+closing is the primitive's whole law: every note ends
+with it, the phrase ends with it again, and no road out
+of the playing leaves a tone standing. Channel 0, the
+100 Hz heartbeat, is never written by the singing:
+uptime, the scheduler's 100 ms slices, and the bar's
+clock keep their beat through a song and after it. The
+new command is `sound` (the help list grows to
+seventeen): it plays one short phrase — the Doxology's
+opening, "Praise God, from whom all blessings flow," on
+the tune Old Hundredth (Louis Bourgeois, 1551, the
+Genevan Psalter; public domain, as everything here is),
+in G major: G4, B4, D5, D5, C5, B4, A4, and B4 held —
+eight notes, some three and a half seconds — and prints
+each note before it sounds, its name, its frequency,
+and its length, so the playing is accountable on the
+screen exactly where it cannot be heard. The shell
+waits while the phrase plays; there is no background
+music machinery, and none is pretended. The command
+answers identically at the text console and in the
+desktop Terminal, behind both firmware doors. The proof
+on this bench is measured, not impressionistic: QEMU
+routed the speaker to WAV captures, and the captures
+were read sample by sample. Every note stands in the
+recording at the frequency the screen printed —
+392.0, 494.0, 587.0, 587.0, 523.0, 494.0, 440.0, and
+494.0 Hz, measured against the same numbers printed —
+each some 0.35 seconds long and the last some 0.70, in
+the tune's order. Silence after the phrase is proven
+two ways: the captures hold only the phrase's own
+~3.08 seconds of tone even in the session that ran a
+spin-pair of guests for a quarter of a minute after
+the song (a stuck gate would have filled the file),
+and a whole regression session's capture — feathers
+opened, a fault taken — came back an empty header:
+the speaker speaks only when `sound` asks it to. The
+beat kept: `uptime` read 28 seconds before the song
+and 45 after, the whole wall interval between the
+readings with the song inside it, and the bar's clock
+agreed at every screenshot. A spin pair run after the
+melody in the same Terminal interleaved, A left with
+its 5, Esc stopped the spinner, and the closing
+account was milestone 15's own — "Switches: 5 by the
+door, 5 by the timer." Feathers stand as ever (the
+good one ran; the tampered one was refused and not
+run), `faulttest` halts on 0xDEAD0000, and `mem` reads
+1,271 frames used at 4096 MB — unchanged from
+milestone 16: the kernel image grew 152 bytes
+(140,744 to 140,896) and the growth was absorbed
+inside frames already counted, so the honest delta
+is zero. Two absences are part of the stone, stated
+plainly: guests cannot sing — the door gains no sound
+service, and a feather's voice is future work — and
+no audio chip is driven; the intel-hda in the test
+machine sits silent still. The final witness is
+Tyler's, and for this stone it is his ears: his UTM
+configuration carries intel-hda for sound, and
+whether UTM sounds the PC speaker at all is itself
+part of what his run will tell us. If he hears
+nothing, that is a finding to record, not a failure
+to hide — the printed account and the bench's
+captures are what the stone claims, and no more.
+
 Milestone 16 stands (November 9, 2026): **desktop polish —
 the bar never crunches, the desktop speaks plain words,
 and the windows carry surely.** This stone is Tyler's own

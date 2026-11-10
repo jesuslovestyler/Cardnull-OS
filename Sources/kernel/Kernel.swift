@@ -3537,6 +3537,14 @@ func loadProgramImage(_ extent: UInt32, _ size: UInt32) -> Bool {
 ///      under the same drawing rules.
 ///   Anything else: not a service; the answer is all-ones.
 ///
+/// There is no sound service, and the absence is deliberate:
+/// the speaker is the kernel's own voice for now (milestone
+/// 17's `sound` command plays its phrase from ring 0), and a
+/// service that would let a guest — a feather — sing is
+/// future work. The door takes no number for it yet, and a
+/// guest asking for one hears the same all-ones no as any
+/// other unknown service.
+///
 /// Service 0, the leaving, never arrives here: the floor answers
 /// it, because coming home is stacks and table roots, not policy.
 /// Service 3, the yielding (milestone 10), never arrives either,
@@ -6516,6 +6524,216 @@ func runGui() {
     moveHardwareCursor()
 }
 
+// ---------------------------------------------------------------------------
+// First sound (milestone 17).
+//
+// The machine has been silent for sixteen milestones. This stone
+// gives it the smallest honest voice: the PC speaker, the beeper
+// every PC has carried since the first one — no sound chip, no
+// driver stack, just the programmable timer's second channel and
+// a gate.
+//
+// The timer (the PIT) has three channels dividing one clock of
+// 1,193,182 Hz. Channel 0 is the heartbeat: the floor programmed
+// it at the interrupts' raising (command 0x36, divisor 11932, in
+// support.c) and this stone never touches it — the uptime, the
+// scheduler's slices, and the bar's clock all read its count, and
+// they keep their beat through every note below and after them.
+// Channel 2 is the speaker's own: its output reaches the speaker
+// only while the gate stands open — bits 0 and 1 of port 0x61,
+// the first joining the channel's clock to its counter, the
+// second joining the counter's voice to the speaker itself.
+//
+// The tone primitive is three moves: reckon the channel's divisor
+// from the wanted frequency (the clock over the frequency, the
+// same division the floor's 11932 came from), speak the divisor
+// to channel 2 under the command word 0xB6 — channel 2, both
+// bytes, the square-wave manner — and open the gate. Silence is
+// the gate closed again, and it is the primitive's whole law:
+// every road out of the playing below passes through the closing,
+// so no tone is ever left standing — not at the phrase's end, and
+// not if anything above it ever grows a road away mid-note. A
+// note's length is reckoned on the heartbeat itself: the gate
+// stands open until the tick count has advanced by the length,
+// the kernel resting in `hlt` between looks, exactly as the
+// mouse's waits rest — the interrupts live throughout, the
+// keyboard's answers queue in their ring and are answered when
+// the phrase ends, and the heartbeat never stops for the music.
+//
+// The command is `sound`: it plays one short phrase — the
+// Doxology's opening, "Praise God, from whom all blessings
+// flow," on the tune Old Hundredth (Louis Bourgeois, 1551, the
+// Genevan Psalter; public domain, as everything here is) — and
+// prints each note before it sounds: its name, its frequency,
+// and its length, so the playing is accountable on the screen in
+// exactly the places it cannot be heard. The shell waits while
+// the phrase plays — some three and a half seconds; there is no
+// background music machinery, and none is pretended. What this
+// stone is not: a voice for guests. The door (interrupt 0x80)
+// gains no service — a feather cannot yet sing; a guest sound
+// service is future work, named where the door's services are
+// published, beside them. And no audio chip is driven: the
+// intel-hda in the test machine sits silent, as it has sat for
+// every milestone; the speaker is the whole of this stone.
+// ---------------------------------------------------------------------------
+
+/// The PIT's command port — the floor writes channel 0's
+/// programming through it at the raising of the interrupts; the
+/// speaker's programming goes through the same door, addressed to
+/// channel 2 alone.
+let pitCommandPort: UInt16 = 0x43
+
+/// Channel 2's data port: the divisor's two bytes land here, the
+/// low byte first, as the command word promises.
+let pitChannel2Port: UInt16 = 0x42
+
+/// The speaker gate's port. Bit 0 is channel 2's gate — the
+/// channel counts only while it stands — and bit 1 joins the
+/// channel's output to the speaker. The rest of the byte is not
+/// this stone's business and is preserved, read and written back,
+/// every time the gate is moved.
+let speakerGatePort: UInt16 = 0x61
+
+/// The PIT's own clock, which every channel divides: a tone's
+/// divisor is this number over the tone's frequency. The floor's
+/// heartbeat came from the same division — this clock over 11932
+/// is the 100 Hz the whole machine keeps time by.
+let pitClockRate: UInt64 = 1_193_182
+
+/// The command word for channel 2: the channel's name in its top
+/// two bits, both divisor bytes to follow, the square-wave manner
+/// (mode 3), counted in binary — 0xB6, written once per note.
+let pitChannel2Command: UInt8 = 0xB6
+
+/// Opens the speaker's gate on a frequency: reckons channel 2's
+/// divisor from the frequency, speaks it to the channel, and sets
+/// the gate's two bits, preserving the rest of the gate byte. The
+/// channel sings from this moment until speakerOff is called —
+/// every caller owes that call, and the playing below makes it
+/// between every two notes and at the phrase's end.
+func speakerOn(_ frequency: UInt64) {
+    var divisor = pitClockRate / frequency
+    if divisor < 1 { divisor = 1 }
+    if divisor > 0xFFFF { divisor = 0xFFFF }
+    cardnullOutb(pitCommandPort, pitChannel2Command)
+    cardnullOutb(pitChannel2Port, UInt8(divisor & 0xFF))
+    cardnullOutb(pitChannel2Port, UInt8((divisor >> 8) & 0xFF))
+    let gate = cardnullInb(speakerGatePort)
+    cardnullOutb(speakerGatePort, gate | 0x03)
+}
+
+/// Closes the speaker's gate: both of its bits cleared, the rest
+/// of the byte preserved. The speaker is silent from this moment,
+/// whatever the channel's counter still holds — the gate, not the
+/// counter, is what the speaker hears.
+func speakerOff() {
+    let gate = cardnullInb(speakerGatePort)
+    cardnullOutb(speakerGatePort, gate & 0xFC)
+}
+
+/// Rests until the heartbeat has advanced by the given count of
+/// ticks — the note lengths below are spoken in ticks, a
+/// hundredth of a second each, the same coin the mouse's waits
+/// are paid in. The resting is `hlt`, so the machine sleeps
+/// between heartbeats rather than spinning, and the interrupts —
+/// the heartbeat itself, the keyboard, the mouse — live
+/// throughout: time passes honestly while a note sounds.
+func waitTicks(_ count: UInt64) {
+    let deadline = ticks &+ count
+    while ticks < deadline {
+        cardnullHltOnce()
+    }
+}
+
+/// The phrase's shape: eight notes — the Doxology's first line.
+let soundNoteCount = 8
+
+/// The breath between two notes, in ticks: four hundredths of a
+/// second of silence, so the notes stand as notes and not as one
+/// sliding tone. Between the print and the playing it is also the
+/// reader's beat.
+let soundGapTicks: UInt64 = 4
+
+/// One note of the phrase, by its place in it: its name as the
+/// screen speaks it, its frequency in hertz (the equal-tempered
+/// reckoning, A4 at 440 — the divisor's own division of the PIT's
+/// clock lands within a fraction of a percent of each), and its
+/// length in ticks. The tune is Old Hundredth in G major: three
+/// rising steps to the fifth, the fifth again, and the walk back
+/// down — the last note held twice as long, as a first line ends.
+func soundNote(_ index: Int)
+    -> (name: StaticString, frequency: UInt64, length: UInt64) {
+    switch index {
+    case 0: return ("G4", 392, 35)
+    case 1: return ("B4", 494, 35)
+    case 2: return ("D5", 587, 35)
+    case 3: return ("D5", 587, 35)
+    case 4: return ("C5", 523, 35)
+    case 5: return ("B4", 494, 35)
+    case 6: return ("A4", 440, 35)
+    default: return ("B4", 494, 70)
+    }
+}
+
+/// sound's spoken frame: the naming of the tune before it plays,
+/// the plain word that the shell waits, and the closing word that
+/// the speaker rests — spoken only after the gate stands shut.
+let soundTitleLine: StaticString =
+    "The Doxology's opening - Old Hundredth, in G major:"
+let soundWaitLine: StaticString =
+    "  (the shell waits while the phrase plays)"
+let soundRestLine: StaticString =
+    "The speaker is silent again."
+let soundHzWord: StaticString = " Hz, "
+let soundDashWord: StaticString = " - "
+let soundSecondWord: StaticString = " s"
+
+/// Writes a note's length the way a person reads time: the ticks
+/// are hundredths of a second exactly, so 35 is "0.35 s" and the
+/// held last note is "0.70 s" — the whole, a point, and the two
+/// hundredths, with the leading zero the fraction owes.
+func writeSoundLength(_ length: UInt64) {
+    writeNumber(length / 100)
+    writeChar(0x2E)   // .
+    let fraction = length % 100
+    if fraction < 10 { writeChar(0x30) }   // 0
+    writeNumber(fraction)
+    writeStatic(soundSecondWord)
+}
+
+/// sound's work: speak the tune's name, then play the phrase note
+/// by note — each note printed before it sounds (name, frequency,
+/// length), the gate opened for exactly its length, closed, and a
+/// breath of silence before the next. The closing word is spoken
+/// only once the gate stands shut for good: the function's every
+/// road ends at the final speakerOff, so the speaker is never
+/// left singing by anything this function does.
+func runSound() {
+    writeLine(soundTitleLine)
+    writeLine(soundWaitLine)
+    var index = 0
+    while index < soundNoteCount {
+        let note = soundNote(index)
+        writeChar(0x20)
+        writeChar(0x20)
+        writeStatic(note.name)
+        writeStatic(soundDashWord)
+        writeNumber(note.frequency)
+        writeStatic(soundHzWord)
+        writeSoundLength(note.length)
+        writeNewline()
+        speakerOn(note.frequency)
+        waitTicks(note.length)
+        speakerOff()
+        if index + 1 < soundNoteCount {
+            waitTicks(soundGapTicks)
+        }
+        index += 1
+    }
+    speakerOff()
+    writeLine(soundRestLine)
+}
+
 //
 // Milestone 3's heart: the prompt stops merely echoing and begins to
 // answer. When Enter closes a line, the kernel reads the typed bytes
@@ -6568,6 +6786,10 @@ func runGui() {
 //           the face's tallies of the mouse's answers beneath —
 //           the desktop's codes, at home in the Terminal
 //           (milestone 16)
+//   sound   the machine's first voice: a short melody played on
+//           the PC speaker — the timer's second channel behind
+//           its gate — each note printed as it sounds, and the
+//           speaker left silent at the phrase's end (milestone 17)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -6592,6 +6814,7 @@ let bothCommand: StaticString = "both"
 let featherCommand: StaticString = "feather"
 let guiCommand: StaticString = "gui"
 let mouseCommand: StaticString = "mouse"
+let soundCommand: StaticString = "sound"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -6614,6 +6837,8 @@ let helpGuiLine: StaticString =
     "  gui     open the graphical desktop (Esc brings you home)"
 let helpMouseLine: StaticString =
     "  mouse   the mouse's report: its waking and its answers"
+let helpSoundLine: StaticString =
+    "  sound   play a short melody on the speaker"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -6909,6 +7134,7 @@ func submitLine() {
     let isFeather = firstWordMatches(featherCommand)
     let isGui = commandMatches(guiCommand)
     let isMouse = commandMatches(mouseCommand)
+    let isSound = commandMatches(soundCommand)
 
     writeNewline()
     if !blank {
@@ -6929,6 +7155,7 @@ func submitLine() {
             writeLine(helpFeatherLine)
             writeLine(helpGuiLine)
             writeLine(helpMouseLine)
+            writeLine(helpSoundLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -6966,6 +7193,8 @@ func submitLine() {
             }
         } else if isMouse {
             printMouseStanding()
+        } else if isSound {
+            runSound()
         } else {
             writeLine(unknownLine)
         }

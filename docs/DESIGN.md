@@ -260,7 +260,38 @@ it bends.*
    double-click on the Terminal's title bar trading
    maximize for restore, the convention people already
    know. Fit and feel, not a new face: the look is
-   milestone 14's, kept.)*
+   milestone 14's, kept. Milestone 17 — November 10,
+   2026 — opened another of the later doors: the
+   machine's voice. The speaker is the classic PC
+   speaker, the one sound-maker every PC carries:
+   the timer's second channel, its output joined to
+   the speaker through a gate (the two low bits of
+   port 0x61). A tone is a divisor reckoned from a
+   frequency — the timer's clock of 1,193,182 Hz
+   divided by the tone, the same division the
+   heartbeat's own 11932 came from — and a duration
+   reckoned on the heartbeat itself, the kernel
+   resting in `hlt` while the gate stands open.
+   Channel 0 is never written by the singing: the
+   heartbeat, and everything that reads it (uptime,
+   the scheduler's slices, the bar's clock), keeps
+   its beat through a song and after it. The gate's
+   law is silence at every ending — each note closes
+   it, the phrase's end closes it again — so no tone
+   is ever left standing. A `sound` command plays one
+   phrase, the Doxology's opening on the tune Old
+   Hundredth, and prints each note before it sounds
+   (name, frequency, length), so the playing is
+   accountable on the screen in the places it cannot
+   be heard; the shell waits while the phrase plays,
+   and no background machinery is pretended. Two
+   absences are stated as design, not oversight:
+   guests cannot sing — the door (interrupt 0x80)
+   gains no sound service this stone, and a feather
+   with a voice is future work; and no audio chip is
+   driven — the intel-hda in the test machine sits as
+   silent as it has sat for sixteen milestones, and
+   a driver for it is future work too.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles
