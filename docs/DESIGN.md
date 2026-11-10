@@ -434,7 +434,27 @@ it bends.*
    teaches the kernel to carry its files in memory,
    so a stick, which is not a CD, can be a home too.
    The Files window keeps its disc face at this stone;
-   a face for the hard disk rides a later one.)*
+   a face for the hard disk rides a later one. And the
+   bundle landed as milestone 23, the same day: the
+   system's own files — the welcome, every program,
+   every feather — packed by the build from the very
+   staging the disc is built from into one bundle file
+   (docs/BUNDLE.md), carried behind both doors (GRUB's
+   module on the standard image; our loader reading
+   \BOOT\FILES.BUNDLE into claimed pages and naming
+   the span in a module tag), proven by the kernel at
+   boot — signature, sums, and the payload's checksum
+   — before a byte of it serves, and then serving the
+   whole file world from memory: the shell's roads,
+   the Files window and its Reader, and install's
+   copies, while the hard disk's own world never reads
+   it and the disc path stands unchanged beneath, the
+   fallback whenever no sound bundle rides. The bench
+   witnessed the decisive shape: the ownboot image
+   riding as a USB stick's shape with no CD device in
+   the machine at all, and the whole system living off
+   the cargo in memory — the stick road's second half
+   standing beside its bootloader.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

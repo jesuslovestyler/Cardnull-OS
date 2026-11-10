@@ -7,7 +7,7 @@
 #   3. Compile the Swift kernel          (swiftc, Embedded Swift)
 #   4. Link kernel.bin                   (ld.lld, linker.ld)
 #   5. Pack the first feather            (tools/pack-feather.py)
-#   6. Pack a bootable ISO               (grub-mkrescue)
+#   6. Pack the bundle and a bootable ISO (pack-bundle.py, grub-mkrescue)
 #
 # Usage:  tools/build-iso.sh
 # Output: dist/cardnull.iso   (kept local; the ISO does not live in git)
@@ -179,6 +179,18 @@ cp "$BUILD/HELLO.FEATHER" "$ISO_DIR/HELLO.FEATHER"
 cp "$BUILD/TAMPERED.FEATHER" "$ISO_DIR/TAMPERED.FEATHER"
 cp "$BUILD/FACE.FEATHER" "$ISO_DIR/FACE.FEATHER"
 cp "$BUILD/TERM.FEATHER" "$ISO_DIR/TERM.FEATHER"
+# The bundle (milestone 23, docs/BUNDLE.md): the same thirteen
+# files the staging just gathered, packed into one file — the
+# welcome, every guest, every feather — and laid in /boot, where
+# GRUB loads it as a module beside the kernel. The packer
+# assembles it from this very staging and refuses to pack when
+# the staging and the manifest disagree either way, so the
+# bundle and the disc can never hold different contents. The
+# kernel serves its files out of the bundle in memory when the
+# module rides; the loose files stay on the disc as the
+# fall-back, exactly as the milestones left them.
+python3 "$ROOT/tools/pack-bundle.py" "$ISO_DIR" "$BUILD/files.bundle"
+cp "$BUILD/files.bundle" "$ISO_DIR/boot/files.bundle"
 cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
 # Behind the UEFI door, GRUB speaks through the firmware's text
 # console until it is told otherwise — and a console is not a video
@@ -196,6 +208,7 @@ set default=0
 
 menuentry "Cardnull OS" {
     multiboot2 /boot/kernel.bin
+    module2 /boot/files.bundle
     boot
 }
 EOF

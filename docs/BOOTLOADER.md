@@ -89,14 +89,33 @@ stop has no business starting anything.
 
 ## The information it builds
 
-The kernel reads exactly two Multiboot2 tags, so the
-loader builds exactly two — no more, no less:
+The kernel read exactly two Multiboot2 tags when this
+loader was first written, so the loader built exactly
+two. Milestone 23 taught the kernel a third — the
+module tag — and the loader grew the one errand with
+it, no more:
 
 - **Tag 8, the framebuffer** (40 bytes): the chosen
   mode's address, pitch *in bytes*, width, height,
   bits per pixel, direct-color type, and the red,
   green, and blue channel positions and sizes reckoned
   from the mode's own masks.
+- **Tag 3, the module** (32 bytes, since milestone
+  23): the file bundle's span — its start and end as
+  the loader claimed and filled them — and the naming
+  string `FILES.BUNDLE`, the same shape GRUB's
+  `module2` leaves behind on the doors GRUB keeps. It
+  stands between the framebuffer tag and the memory
+  map tag when a bundle rode, and is absent when none
+  did: the loader reads `\BOOT\FILES.BUNDLE` from
+  beside the kernel into pages it claims as its own
+  data, and each failure on that road — the file not
+  on the volume, no room for it, a reading cut short —
+  is spoken plainly ("The file bundle did not ride:
+  ...") and the boot goes on without one. The bundle
+  is cargo, not a condition; the kernel proves it
+  before serving a byte of it, and falls back to the
+  disc when it does not prove (docs/BUNDLE.md).
 - **Tag 6, the memory map**: 24-byte entries translated
   one by one from the firmware's descriptors —
   conventional, loader, boot-services, and persistent
@@ -140,9 +159,12 @@ first (it must always stand), then builds a second,
 exactly these places —
 
 - `/efi.img` is an EFI system image packed by mtools
-  holding two files and nothing else: our loader at
-  `\EFI\BOOT\BOOTX64.EFI`, and `\BOOT\KERNEL.BIN`, the
-  same kernel bytes the disc's own copy carries.
+  holding three files and nothing else: our loader at
+  `\EFI\BOOT\BOOTX64.EFI`, `\BOOT\KERNEL.BIN`, the
+  same kernel bytes the disc's own copy carries, and
+  — since milestone 23 — `\BOOT\FILES.BUNDLE`, the
+  file bundle, the same bytes the standard image lays
+  in its `/boot` for GRUB's `module2`.
 - `/efi/boot/bootx64.efi` and the Mac-blessed
   `/System/Library/CoreServices/boot.efi` — the two
   places GRUB's binary also stands in the tree — are
@@ -177,7 +199,13 @@ image's HFS+ blessing for old Macs, and its
 GRUB-stamped hybrid MBR boot code. The ownboot image
 is a CD image; a stick that boots by partition tables
 rides the stick stones, when the whole road — loader
-included — is ours.
+included — is ours. (Since milestone 23 the image's
+ISO tree also carries `/boot/files.bundle` and its
+GRUB configuration a `module2` line, because the
+ownboot image's BIOS door is GRUB's and GRUB carries
+the bundle there the same way it does on the standard
+image; the UEFI door's copy of the bundle rides in
+the ESP, as the section above tells.)
 
 **The doors, stated plainly.** Standard image: GRUB
 behind both doors, unchanged. Ownboot image: the UEFI
@@ -206,11 +234,33 @@ search. The standard image, rebuilt in the same run,
 boots as ever. Tyler's UTM run is, as always, the
 final witness; it rides his word.
 
+Milestone 23 grew the loader by the one errand: the
+bundle. The loader stands at 12,800 bytes now; its
+sign-on speaks the new line — "The file bundle rides
+in memory: 7147 bytes." — and the ESP's inventory is
+three files (loader 12,800 bytes; kernel 242,552;
+bundle 7,147). The bench witnessed the bundle riding
+behind this door (the kernel's `about` naming memory
+as the files' home, a feather painting from it), and
+then the same image attached the way a stick
+attaches — USB mass storage on the bench's xHCI
+controller, one hard disk beside it, no CD device in
+the machine at all — and the whole system lived off
+the bundle this loader carried in: files listed and
+read, feathers running, and the bundle itself copied
+onto the hard disk by `install`. The loader's part in
+that boot is exactly the module tag; the kernel's
+proving and serving are docs/BUNDLE.md's story.
+
 ## The next stone
 
 The BIOS door: a small public-domain loader of our
 own behind it too, so that one day neither door of
-any Cardnull image owes anything to GRUB — and after
-it, in Tyler's settled order, the kernel learning to
-carry the disc's files in memory, so a stick, which
-is not a CD, can boot the whole thing natively.
+any Cardnull image owes anything to GRUB. The stone
+this section once pointed at next — the kernel
+learning to carry its files in memory — has since
+landed as milestone 23: the bundle rides behind both
+doors now (docs/BUNDLE.md), and with the loader and
+the bundle together, the pair the stick road needs
+stands ready: a stick, which is not a CD, can be a
+home when its own stone comes.

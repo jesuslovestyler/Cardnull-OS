@@ -30,6 +30,13 @@
 #      file at \BOOT\KERNEL.BIN (copied from the same
 #      build/kernel.bin the standard image packs at
 #      /boot/kernel.bin — identical by construction).
+#      Since milestone 23 the bundle rides beside the
+#      kernel at \BOOT\FILES.BUNDLE (the same
+#      build/files.bundle step 1 packed into the
+#      standard image's /boot) — our loader reads it
+#      into memory and names its span in a Multiboot2
+#      module tag, the way GRUB's module2 does behind
+#      the other doors.
 #   4. The image: xorriso rewrites the standard ISO with
 #      the boot images replayed, /efi.img replaced by our
 #      ESP, the blessed boot.efi replaced by our loader,
@@ -86,6 +93,10 @@ mmd -i "$ESP" ::/EFI/BOOT
 mmd -i "$ESP" ::/BOOT
 mcopy -i "$ESP" "$BUILD/BOOTX64.EFI" ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i "$ESP" "$BUILD/kernel.bin" ::/BOOT/KERNEL.BIN
+# The bundle (milestone 23): beside the kernel, where our
+# loader looks for it — the same bytes step 1 laid in the
+# standard image's /boot as files.bundle.
+mcopy -i "$ESP" "$BUILD/files.bundle" ::/BOOT/FILES.BUNDLE
 
 echo "==> [4/4] Rewriting the image: the UEFI door is ours"
 # The image is rebuilt from the standard image's own

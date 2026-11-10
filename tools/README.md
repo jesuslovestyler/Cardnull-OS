@@ -47,8 +47,11 @@ here.
   (clang and lld-link as a freestanding PE/COFF EFI
   application — no gnu-efi, the EFI header is hand-written in
   the tree), packs an EFI system image with mtools holding the
-  loader at `\EFI\BOOT\BOOTX64.EFI` and the same kernel at
-  `\BOOT\KERNEL.BIN`, then rebuilds the disc from the standard
+  loader at `\EFI\BOOT\BOOTX64.EFI`, the same kernel at
+  `\BOOT\KERNEL.BIN`, and the file bundle at
+  `\BOOT\FILES.BUNDLE` (milestone 23 — our loader reads it
+  into memory and names its span in a Multiboot2 module tag),
+  then rebuilds the disc from the standard
   image's own tree with that ESP standing as the El Torito
   UEFI image, GRUB's places in the tree taken by the loader,
   and its UEFI module tree struck. The BIOS door of the
@@ -65,6 +68,18 @@ here.
   feather, leaving the card's checksum stale, so the kernel's
   refusal can be witnessed. The format it packs to is defined in
   `docs/FEATHER.md`.
+
+- **`pack-bundle.py`** — the bundle packer (milestone 23):
+  assembles the system's own files — the welcome, every guest
+  program, every feather, the very set the ISO staging just
+  gathered at the disc's root — into one bundle file
+  (`build/files.bundle`), reckoning the payload's count,
+  byte total and FNV-1a 64 checksum into its plain-text
+  header. It packs from the staging itself and refuses when
+  the staging and its manifest disagree either way, so the
+  bundle and the disc cannot silently hold different
+  contents. The format it packs to is defined in
+  `docs/BUNDLE.md`.
 
 - **`run-utm.md`** — how the ISO is attached to a UTM virtual machine
   (emulated x86-64 PC) for the daily drill: boot, watch, shut down.

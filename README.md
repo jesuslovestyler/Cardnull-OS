@@ -87,6 +87,41 @@ still GRUB's; that door is the next stone.
 
 ## Status
 
+Milestone 23 stands (November 10, 2026): **the bundle —
+the kernel carries its files in memory.** The system's
+own files — the welcome, every guest program, every
+feather, thirteen today — now also ride the boot as one
+bundle file (`docs/BUNDLE.md`): a plain-text header
+naming each file and its length, the payload's byte
+count, and its FNV-1a 64 checksum, then the files'
+bytes in order. GRUB carries it as a module on the
+standard image (both doors); our own loader reads
+`\BOOT\FILES.BUNDLE` from beside the kernel and names
+its span in a Multiboot2 module tag of the same shape.
+The kernel keeps the bundle's span out of the frame
+allocator's yard, proves the bundle at boot — the
+signature line, the table's sums, the checksum over
+the payload — and only then lets it serve: `ls`,
+`cat`, `run`, `both`, `feather`, the Files window and
+its Reader, and `install`'s copies all read from
+memory when a sound bundle rides, and from the disc,
+unchanged in every behavior, when none does or one
+proves unsound. `about` says which world the machine
+is in, in one sentence. The hard-disk world never
+reads the bundle. The QEMU bench proved the whole
+chain, and one boot above the rest: the ownboot image
+attached as a USB stick's shape — the firmware's boot
+volume and nothing else, one hard disk beside it, **no
+CD device in the machine at all** — and the desktop
+rose, the files listed and read from memory, FACE and
+TERM ran from memory, and `install` copied the bundle
+onto the hard disk, its note saying so. A bench bundle
+with one byte flipped was refused at boot and the disc
+served the true file; an image built without the
+module behaved exactly as the system did before this
+stone. With the loader of milestone 22, the pair the
+stick road needs stands complete.
+
 Milestone 22 stands (November 10, 2026): **our own
 bootloader — the UEFI door is ours.** A second image
 now stands beside the daily one: `dist/cardnull.iso`

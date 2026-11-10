@@ -637,7 +637,8 @@ plain text —
 
     Cardnull Bootloader
     Cardnull OS behind the UEFI door, loaded by our own hand.
-    The kernel is in hand: 228384 bytes, read from the boot volume.
+    The kernel is in hand: 242552 bytes, read from the boot volume.
+    The file bundle rides in memory: 7147 bytes.
     The kernel stands at 1 MiB, ELF segments laid, the unwritten zeroed.
     Screen: 1280 by 800, 32 bits to a pixel.
     Memory map: ... regions, translated from the firmware's own.
@@ -649,3 +650,24 @@ change by a line. If the loader cannot do its work it
 says so on that screen and rests, rather than handing
 over a broken world. The design is kept in
 `docs/BOOTLOADER.md`.
+
+## The bundle: the files ride in memory
+
+Since milestone 23, both images carry the system's
+own files a second way: as one **bundle** that rides
+the boot into memory (the format is `docs/BUNDLE.md`).
+The standard image still boots from the disc exactly
+as before — GRUB, the CD, all of it — but its files
+now ride in memory too, and the ownboot image's
+loader carries the bundle in from beside the kernel.
+What the witness should see, on either image: type
+`about` in the Terminal and the last line names the
+files' home — "Files: carried in memory - 13 files in
+the bundle." `ls` heads its list "Bundle /:", the
+Files window's foot says the files are carried in
+memory, and `install` copies from the bundle and its
+note on the disk says so. If a bundle ever failed to
+prove itself at boot, the same places would say the
+files are read from the disc, and the disc would
+serve them exactly as it always has — nothing about
+the drill changes either way.

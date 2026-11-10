@@ -11,7 +11,15 @@
  *      BIOS door's GRUB loads, present on the boot volume
  *      at \BOOT\KERNEL.BIN — through the firmware's own
  *      file protocol, from the very volume the firmware
- *      booted this loader from.
+ *      booted this loader from. Since milestone 23 it then
+ *      reads the file bundle from beside the kernel,
+ *      \BOOT\FILES.BUNDLE — the system's own files, carried
+ *      in memory — into a span of pages it claims, so the
+ *      kernel can serve its files on a machine whose boot
+ *      medium is not a CD. A bundle that is not on the
+ *      volume, or cannot be read, is spoken of plainly and
+ *      the boot goes on without one: the bundle is cargo,
+ *      not a condition.
  *   2. It lays the kernel's ELF segments at their physical
  *      addresses (the kernel stands at 1 MiB, where its
  *      linker script put it) and zeroes what the file
@@ -22,11 +30,13 @@
  *      pixel when the machine offers it, exactly what the
  *      desktop has always drawn on — and builds the
  *      Multiboot2 information structure THE KERNEL ALREADY
- *      READS: a framebuffer tag from the chosen mode, and
- *      a memory map tag translated, region for region,
- *      from the firmware's own map. No more, no less: two
- *      tags and the end tag, the whole of the kernel's
- *      diet since milestones 5 and 6.
+ *      READS: a framebuffer tag from the chosen mode, a
+ *      memory map tag translated, region for region, from
+ *      the firmware's own map — and, since milestone 23, a
+ *      module tag naming the bundle's span when one rode,
+ *      the same shape GRUB's module2 leaves behind. No
+ *      more, no less: those tags and the end tag, the
+ *      whole of the kernel's diet.
  *   4. It leaves the firmware's keeping (ExitBootServices)
  *      and steps the processor down to the doorstep
  *      Multiboot2 promises — 32-bit protected mode, paging
@@ -198,13 +208,17 @@ typedef struct {
 #define ELF_MACHINE_X86_64 0x3E
 
 /* ---------------------------------------------------------------- */
-/* The Multiboot2 information the kernel reads — two tags.
+/* The Multiboot2 information the kernel reads — the
+ * framebuffer and memory map tags, and the module tag when
+ * a bundle rides.
  *
  * The layout is the specification's, and the kernel's
  * reader is the measure: the framebuffer tag must be at
  * least 38 bytes with its channels at offsets 32..37, and
  * the memory map tag's entries must be at least 24 bytes
- * each, standing at the tag's byte 16. */
+ * each, standing at the tag's byte 16. The module tag
+ * (type 3) carries its span at its bytes 8 and 12, and a
+ * naming string after; the kernel reads the span alone. */
 
 /* Where a mask's channel stands, and how wide it is: the
  * place of its lowest set bit, and the count of its bits. */
@@ -267,6 +281,13 @@ static void put_u64(uint8_t *base, UINTN offset, uint64_t value) {
     put_u32(base, offset + 4, (uint32_t)(value >> 32));
 }
 
+/* The bundle's span, when one rides (milestone 23): the
+ * pages claimed for it and the byte count read into them —
+ * the end is start plus size, as the module tag confesses
+ * it. Both zero when no bundle rode. */
+static uint64_t gBundleStart;
+static uint64_t gBundleEnd;
+
 /* The framebuffer's facts, chosen before the leaving. */
 static uint64_t gFbAddress;
 static uint32_t gFbPitch;
@@ -284,7 +305,7 @@ static uint8_t gFbBluePos, gFbBlueSize;
  * because a trimmed map is a lie about the machine. */
 #define INFO_BYTES 16384
 #define INFO_MAX_REGIONS \
-    ((INFO_BYTES - 8 - 40 - 16 - 8) / 24)
+    ((INFO_BYTES - 8 - 40 - 32 - 16 - 8) / 24)
 
 static UINTN build_information(uint8_t *info,
                                const uint8_t *mapBytes,
@@ -311,6 +332,26 @@ static UINTN build_information(uint8_t *info,
     info[off + 36] = gFbBluePos;
     info[off + 37] = gFbBlueSize;
     off += 40;
+
+    /* The module tag (type 3), when a bundle rides
+     * (milestone 23): the bundle's span, and the naming
+     * string the volume knows it by. Thirty-two bytes —
+     * the tag's sixteen of body, twelve of name and its
+     * NUL, and the padding to the eight-byte measure
+     * every tag keeps. */
+    if (gBundleStart != 0) {
+        static const char naming[] = "FILES.BUNDLE";
+        put_u32(info, off + 0, 3);
+        put_u32(info, off + 4, 32);
+        put_u32(info, off + 8, (uint32_t)gBundleStart);
+        put_u32(info, off + 12, (uint32_t)gBundleEnd);
+        for (int i = 0; i < 13; i++)
+            info[off + 16 + i] = (uint8_t)naming[i];
+        info[off + 29] = 0;
+        info[off + 30] = 0;
+        info[off + 31] = 0;
+        off += 32;
+    }
 
     /* The memory map tag (type 6): its header, then one
      * 24-byte entry per region of the firmware's map. */
@@ -467,11 +508,102 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systemTable) {
     if (EFI_ERROR(status) || readWanted != kernelSize)
         stop("reading the kernel", status);
     kernelFile->Close(kernelFile);
-    root->Close(root);
 
     speak("The kernel is in hand: ");
     speak_dec(kernelSize);
     speak(" bytes, read from the boot volume.\r\n");
+
+    /* ---- The bundle, read off the same volume (milestone
+     * 23): the system's own files, carried in memory. Its
+     * pages are claimed as loader data, so the firmware's
+     * map will call the span usable memory the kernel's
+     * allocator would hand out — and the kernel, told the
+     * span by the module tag this loader adds below,
+     * reserves it out of that pool before anything is
+     * served from it. The bundle is cargo, not a condition:
+     * each failure on this road is spoken plainly and the
+     * boot goes on without one, the kernel falling back to
+     * the disc it has always read. ---- */
+    {
+        EFI_FILE_PROTOCOL *bundleFile = NULL;
+        CHAR16 bundleName[] = u"\\BOOT\\FILES.BUNDLE";
+        status = root->Open(root, &bundleFile, bundleName,
+                            EFI_FILE_MODE_READ, 0);
+        if (EFI_ERROR(status)) {
+            speak("The file bundle did not ride: it is not "
+                  "on the boot volume.\r\n");
+        } else {
+            status = bundleFile->SetPosition(
+                bundleFile, EFI_FILE_POSITION_END);
+            if (EFI_ERROR(status))
+                stop("standing at the bundle's end", status);
+            uint64_t bundleSize = 0;
+            status = bundleFile->GetPosition(bundleFile,
+                                             &bundleSize);
+            if (EFI_ERROR(status))
+                stop("measuring the bundle", status);
+            status = bundleFile->SetPosition(bundleFile, 0);
+            if (EFI_ERROR(status))
+                stop("returning to the bundle's start", status);
+            if (bundleSize == 0 ||
+                bundleSize > 0xFFFFFFFFULL) {
+                speak("The file bundle did not ride: its "
+                      "size is past what the handover can "
+                      "name.\r\n");
+                bundleFile->Close(bundleFile);
+            } else {
+                UINTN bundlePages =
+                    (UINTN)((bundleSize + 0xFFFULL) / 4096);
+                EFI_PHYSICAL_ADDRESS bundleBase = 0;
+                status = gBS->AllocatePages(AllocateAnyPages,
+                                            EfiLoaderData,
+                                            bundlePages,
+                                            &bundleBase);
+                if (EFI_ERROR(status)) {
+                    speak("The file bundle did not ride: no "
+                          "room was found for it.\r\n");
+                    bundleFile->Close(bundleFile);
+                } else if (bundleBase + bundleSize
+                           > 0x100000000ULL) {
+                    gBS->FreePages(bundleBase, bundlePages);
+                    speak("The file bundle did not ride: it "
+                          "landed past the kernel's "
+                          "reach.\r\n");
+                    bundleFile->Close(bundleFile);
+                } else {
+                    uint8_t *cursor =
+                        (uint8_t *)(UINTN)bundleBase;
+                    uint64_t remaining = bundleSize;
+                    int complete = 1;
+                    while (remaining > 0) {
+                        UINTN want = remaining;
+                        status = bundleFile->Read(bundleFile,
+                                                  &want, cursor);
+                        if (EFI_ERROR(status) || want == 0) {
+                            complete = 0;
+                            break;
+                        }
+                        cursor += want;
+                        remaining -= want;
+                    }
+                    bundleFile->Close(bundleFile);
+                    if (!complete) {
+                        gBS->FreePages(bundleBase, bundlePages);
+                        speak("The file bundle did not ride: "
+                              "the reading of it failed.\r\n");
+                    } else {
+                        gBundleStart = bundleBase;
+                        gBundleEnd = bundleBase + bundleSize;
+                        speak("The file bundle rides in "
+                              "memory: ");
+                        speak_dec(bundleSize);
+                        speak(" bytes.\r\n");
+                    }
+                }
+            }
+        }
+    }
+    root->Close(root);
 
     /* ---- Lay the kernel at its own addresses. ---- */
     Elf64Header *elf = (Elf64Header *)kernelBytes;
