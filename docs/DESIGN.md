@@ -454,7 +454,25 @@ it bends.*
    riding as a USB stick's shape with no CD device in
    the machine at all, and the whole system living off
    the cargo in memory — the stick road's second half
-   standing beside its bootloader.)*
+   standing beside its bootloader. And the road's
+   first half finished the same day: milestone 24
+   (November 10, 2026) replaced GRUB behind the BIOS
+   door with a boot chain of our own
+   (docs/BOOTLOADER.md) — a 512-byte boot sector that
+   lives twice in each image, as the El Torito boot
+   file and, laid into the MBR by the build's own
+   patcher, as the master boot record itself, and a
+   16-bit second stage that gathers E820, walks the
+   disc's tree, lays the kernel and the bundle,
+   chooses the screen by VESA VBE, and hands over the
+   same Multiboot2 word the kernel already reads, the
+   kernel unchanged by a line — so neither door of
+   either image carries GRUB code anywhere, a byte
+   search finds none, and the stick shape was proven
+   behind SeaBIOS as well: the standard image on USB
+   mass storage, booted through the sector's MBR copy,
+   living off the bundle, installing from it, with no
+   CD in the machine.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

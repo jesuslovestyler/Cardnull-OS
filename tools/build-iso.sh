@@ -7,14 +7,23 @@
 #   3. Compile the Swift kernel          (swiftc, Embedded Swift)
 #   4. Link kernel.bin                   (ld.lld, linker.ld)
 #   5. Pack the first feather            (tools/pack-feather.py)
-#   6. Pack the bundle and a bootable ISO (pack-bundle.py, grub-mkrescue)
+#   6. Build the BIOS boot chain         (Sources/bootloader/bios*)
+#   7. Build our UEFI loader and the ESP (Sources/bootloader/)
+#   8. Pack the bundle and write the ISO (pack-bundle.py, xorriso)
+#
+# Both doors are ours since milestone 24: the BIOS door
+# boots our own boot sector and second stage (step 6),
+# and the UEFI door boots our own loader (step 7) — no
+# GRUB code stands anywhere in the image, and the image's
+# MBR carries our boot sector too (tools/patch-mbr.py),
+# so a stick carrying the image boots the same chain.
 #
 # Usage:  tools/build-iso.sh
 # Output: dist/cardnull.iso   (kept local; the ISO does not live in git)
 #
 # Toolchain needs: swiftc (Swift 6+, for Embedded Swift), clang, ld.lld,
-# grub-mkrescue (with xorriso and mtools under it). Set SWIFTC to point
-# at a swiftc that is not on PATH.
+# lld-link, xorriso, mtools, python3. Set SWIFTC to point at a swiftc
+# that is not on PATH.
 
 set -euo pipefail
 
@@ -48,16 +57,16 @@ else
     exit 1
 fi
 
-for tool in clang grub-mkrescue python3; do
+for tool in clang lld-link xorriso mformat mmd mcopy python3; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "error: missing tool: $tool" >&2; exit 1; }
 done
 
 TARGET="x86_64-unknown-none-elf"
 
-mkdir -p "$BUILD" "$DIST" "$ISO_DIR/boot/grub"
+mkdir -p "$BUILD" "$DIST" "$ISO_DIR/boot"
 
-echo "==> [1/6] Assembling the boot floor"
+echo "==> [1/8] Assembling the boot floor"
 clang --target="$TARGET" -ffreestanding -c \
     "$ROOT/Sources/boot/boot.S" -o "$BUILD/boot.o"
 # -mno-red-zone, on both C files, is load-bearing (milestone 15):
@@ -74,7 +83,7 @@ clang --target="$TARGET" -ffreestanding -fno-stack-protector -mno-red-zone -c \
 clang --target="$TARGET" -ffreestanding -fno-stack-protector -mno-red-zone -c \
     "$ROOT/Sources/boot/font8x8.c" -o "$BUILD/font8x8.o"
 
-echo "==> [2/6] Assembling the guest programs (milestones 9 and 10)"
+echo "==> [2/8] Assembling the guest programs (milestones 9 and 10)"
 # The guests: standalone assembly in programs/, linked at the
 # address the kernel will lay them down at (0x40000000, the base
 # of a guest's estate) and flattened to raw binaries. They are
@@ -108,7 +117,7 @@ for feather in greet face term; do
         -o "$BUILD/$feather.bin" "$BUILD/$feather.o"
 done
 
-echo "==> [3/6] Compiling the Swift kernel (Embedded Swift, $TARGET)"
+echo "==> [3/8] Compiling the Swift kernel (Embedded Swift, $TARGET)"
 "$SWIFTC" \
     -target "$TARGET" \
     -enable-experimental-feature Embedded \
@@ -119,13 +128,13 @@ echo "==> [3/6] Compiling the Swift kernel (Embedded Swift, $TARGET)"
     -c "$ROOT/Sources/kernel/Kernel.swift" \
     -o "$BUILD/Kernel.o"
 
-echo "==> [4/6] Linking kernel.bin"
+echo "==> [4/8] Linking kernel.bin"
 "$LD" -nostdlib -static \
     -T "$ROOT/Sources/boot/linker.ld" \
     -o "$BUILD/kernel.bin" \
     "$BUILD/boot.o" "$BUILD/Kernel.o" "$BUILD/support.o" "$BUILD/font8x8.o"
 
-echo "==> [5/6] Packing the feathers (milestones 11 and 18)"
+echo "==> [5/8] Packing the feathers (milestones 11 and 18)"
 # The feather (docs/FEATHER.md): the card source in feathers/
 # and the greeting guest built in step 2, joined by the
 # packer, which reckons the program's size and FNV-1a checksum
@@ -147,7 +156,12 @@ python3 "$ROOT/tools/pack-feather.py" pack \
     "$ROOT/feathers/term.card" "$BUILD/term.bin" \
     "$BUILD/TERM.FEATHER"
 
-echo "==> [6/6] Packing dist/cardnull.iso"
+echo "==> [6/8] Staging the disc"
+# A clean staging every time: the tree is rebuilt whole
+# below, and a stale corner of an earlier build — the old
+# GRUB tree above all — must never ride into the image.
+rm -rf "$ISO_DIR"
+mkdir -p "$ISO_DIR/boot"
 cp "$BUILD/kernel.bin" "$ISO_DIR/boot/kernel.bin"
 # The welcome file (milestone 8): a plain text file at the disc's
 # root, its source kept in disc/ beside the kernel's sources. It
@@ -182,7 +196,8 @@ cp "$BUILD/TERM.FEATHER" "$ISO_DIR/TERM.FEATHER"
 # The bundle (milestone 23, docs/BUNDLE.md): the same thirteen
 # files the staging just gathered, packed into one file — the
 # welcome, every guest, every feather — and laid in /boot, where
-# GRUB loads it as a module beside the kernel. The packer
+# both bootloaders carry it into memory beside the kernel,
+# each naming its span in a Multiboot2 module tag. The packer
 # assembles it from this very staging and refuses to pack when
 # the staging and the manifest disagree either way, so the
 # bundle and the disc can never hold different contents. The
@@ -191,45 +206,108 @@ cp "$BUILD/TERM.FEATHER" "$ISO_DIR/TERM.FEATHER"
 # fall-back, exactly as the milestones left them.
 python3 "$ROOT/tools/pack-bundle.py" "$ISO_DIR" "$BUILD/files.bundle"
 cp "$BUILD/files.bundle" "$ISO_DIR/boot/files.bundle"
-cat > "$ISO_DIR/boot/grub/grub.cfg" <<'EOF'
-# Behind the UEFI door, GRUB speaks through the firmware's text
-# console until it is told otherwise — and a console is not a video
-# mode, so multiboot2's framebuffer request finds nothing to give.
-# Wake the graphics stack first, there only; the BIOS door's GRUB
-# already stands on its VBE driver and is left exactly as it was.
-if [ "$grub_platform" = "efi" ]; then
-    insmod efi_gop
-    insmod gfxterm
-    terminal_output gfxterm
-fi
+echo "==> [7/8] Building the boot chains (milestone 24: both doors ours)"
+# The BIOS chain: a 512-byte boot sector of our own
+# (Sources/bootloader/biosboot.S) and a second stage
+# (biosentry.S's skin, biosmain.c's mind, compiled for
+# the 16-bit world it wakes in), joined into one boot
+# image. The sector must be exactly 512 bytes, and the
+# stage must end below 0x10000 — its buffers are offsets
+# under segment zero, and the chain is honest about the
+# line it cannot cross.
+clang --target="$TARGET" -ffreestanding -c \
+    "$ROOT/Sources/bootloader/biosboot.S" -o "$BUILD/biosboot.o"
+"$LD" -Ttext=0x7C00 --oformat binary \
+    -o "$BUILD/biosboot-sector.bin" "$BUILD/biosboot.o"
+[ "$(stat -c%s "$BUILD/biosboot-sector.bin")" = "512" ] || {
+    echo "error: the boot sector is not 512 bytes" >&2; exit 1; }
+clang --target=i686-pc-none-elf -m16 -ffreestanding \
+    -c "$ROOT/Sources/bootloader/biosentry.S" \
+    -o "$BUILD/biosentry.o"
+clang --target=i686-pc-none-elf -m16 -ffreestanding \
+    -fno-stack-protector -O2 -Wall \
+    -c "$ROOT/Sources/bootloader/biosmain.c" \
+    -o "$BUILD/biosmain.o"
+"$LD" -nostdlib -static -T "$ROOT/Sources/bootloader/bios.ld" \
+    -o "$BUILD/bios-stage2.elf" \
+    "$BUILD/biosentry.o" "$BUILD/biosmain.o"
+"$LD" -nostdlib -static -T "$ROOT/Sources/bootloader/bios.ld" \
+    --oformat binary \
+    -o "$BUILD/bios-stage2.bin" \
+    "$BUILD/biosentry.o" "$BUILD/biosmain.o"
+stage2_bytes="$(stat -c%s "$BUILD/bios-stage2.bin")"
+[ $((0x7E00 + stage2_bytes)) -le 65536 ] || {
+    echo "error: the second stage ends past 0x10000" >&2; exit 1; }
+cat "$BUILD/biosboot-sector.bin" "$BUILD/bios-stage2.bin" \
+    > "$BUILD/biosboot.img"
+cp "$BUILD/biosboot.img" "$ISO_DIR/boot/biosboot.img"
 
-set timeout=0
-set default=0
+# The UEFI chain (milestones 22 and 23): our loader as a
+# PE/COFF application, and the ESP it stands on — the
+# loader at \EFI\BOOT\BOOTX64.EFI, the same kernel at
+# \BOOT\KERNEL.BIN, the bundle beside it at
+# \BOOT\FILES.BUNDLE. The ESP keeps the 2880 KiB size
+# the disc has always carried.
+clang -target x86_64-unknown-windows \
+    -ffreestanding -fno-stack-protector -mno-red-zone -O2 -Wall \
+    -c "$ROOT/Sources/bootloader/bootloader.c" \
+    -o "$BUILD/bootloader.o"
+clang -target x86_64-unknown-windows \
+    -ffreestanding \
+    -c "$ROOT/Sources/bootloader/trampoline.S" \
+    -o "$BUILD/trampoline.o"
+lld-link -subsystem:efi_application -entry:efi_main -nodefaultlib \
+    -out:"$BUILD/BOOTX64.EFI" \
+    "$BUILD/bootloader.o" "$BUILD/trampoline.o"
+ESP="$ISO_DIR/efi.img"
+rm -f "$ESP"
+mformat -C -i "$ESP" -f 2880 ::
+mmd -i "$ESP" ::/EFI
+mmd -i "$ESP" ::/EFI/BOOT
+mmd -i "$ESP" ::/BOOT
+mcopy -i "$ESP" "$BUILD/BOOTX64.EFI" ::/EFI/BOOT/BOOTX64.EFI
+mcopy -i "$ESP" "$BUILD/kernel.bin" ::/BOOT/KERNEL.BIN
+mcopy -i "$ESP" "$BUILD/files.bundle" ::/BOOT/FILES.BUNDLE
 
-menuentry "Cardnull OS" {
-    multiboot2 /boot/kernel.bin
-    module2 /boot/files.bundle
-    boot
-}
-EOF
-# One ISO, two doors (milestone 5): with both the i386-pc and the
-# x86_64-efi GRUB modules installed, grub-mkrescue packs the disc
-# with a BIOS El Torito boot image and an EFI system partition
-# image carrying the UEFI GRUB (BOOTX64.EFI) — which loads the
-# same /boot/grub/grub.cfg and the same kernel. Both modules sets
-# must be present, or a door silently goes missing.
+echo "==> [8/8] Writing dist/cardnull.iso (xorriso, then our MBR)"
+# One ISO, two doors, both ours. The El Torito pair is
+# written explicitly, the way milestone 22's ownboot
+# build learned to write it: the BIOS entry names our
+# boot image (-boot-info-table asks xorriso to patch
+# the image place into the boot sector's table, the
+# word the sector itself reads), the UEFI entry names
+# the ESP; a plain protective MBR and a true GPT stand
+# where GRUB's hybrid MBR once did, and the MBR's empty
+# code field is then given our boot sector by the
+# patcher — so the image boots the same chain from a
+# stick as from a disc.
 #
-# -iso-level 3 (milestone 11, passed through to xorriso): the
-# plain ISO9660 tree is written with names of up to thirty
-# characters standing whole, instead of cut down to 8.3 — a
-# feather's name is longer than 8.3 allows (HELLO.FEATHER,
-# TAMPERED.FEATHER), and cut to HELLO.FEA it would be a lie
-# about what the package is. Every older name on the disc is
-# within 8.3 already and keeps its exact shape, version suffix
-# and all; the kernel's reader, which forgives the suffix and
-# matches names of any length the records carry, reads both
-# kinds the same way.
-grub-mkrescue -o "$DIST/cardnull.iso" "$ISO_DIR" -iso-level 3 \
-    >/dev/null
+# What the fresh build does not re-create: the old
+# standard image's HFS+ blessing for old Macs and its
+# GRUB-stamped hybrid MBR boot code. The blessing was
+# furniture for pre-2012 Mac firmware; the ownboot
+# image has lived without it since milestone 22, and
+# GRUB's code is the very thing this milestone removes.
+#
+# -iso-level 3 (milestone 11): the plain ISO9660 tree is
+# written with names of up to thirty characters standing
+# whole, instead of cut down to 8.3 — a feather's name is
+# longer than 8.3 allows (HELLO.FEATHER, TAMPERED.FEATHER),
+# and cut to HELLO.FEA it would be a lie about what the
+# package is. The kernel's reader, and the BIOS stage's,
+# match those fields the same way.
+rm -f "$DIST/cardnull.iso"
+xorriso -as mkisofs -o "$DIST/cardnull.iso" \
+    -V ISOIMAGE \
+    -iso-level 3 \
+    -c /boot.catalog \
+    -b /boot/biosboot.img \
+    -no-emul-boot -boot-load-size 4 -boot-info-table \
+    -eltorito-alt-boot \
+    -e /efi.img -no-emul-boot \
+    --protective-msdos-label \
+    -efi-boot-part --efi-boot-image \
+    "$ISO_DIR"
+python3 "$ROOT/tools/patch-mbr.py" "$DIST/cardnull.iso"
 
 echo "Done: $DIST/cardnull.iso"

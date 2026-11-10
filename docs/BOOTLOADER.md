@@ -1,7 +1,7 @@
 # The Cardnull Bootloader
 
-Milestone 22 (November 10, 2026). Public domain, like
-everything in this tree.
+Milestones 22 and 24 (November 10, 2026). Public
+domain, like everything in this tree.
 
 ## Why
 
@@ -207,10 +207,13 @@ the bundle there the same way it does on the standard
 image; the UEFI door's copy of the bundle rides in
 the ESP, as the section above tells.)
 
-**The doors, stated plainly.** Standard image: GRUB
-behind both doors, unchanged. Ownboot image: the UEFI
-door is ours; the BIOS door is still GRUB's. Mixed
-doors are a waypoint, not a claim.
+**The doors, stated plainly** (as milestone 22 left
+them). Standard image: GRUB behind both doors,
+unchanged. Ownboot image: the UEFI door is ours; the
+BIOS door is still GRUB's. Mixed doors are a waypoint,
+not a claim. Milestone 24, below, finished the road:
+both doors of both images are ours now, and this
+section stands as the waypoint's record.
 
 ## Proof
 
@@ -252,15 +255,189 @@ onto the hard disk by `install`. The loader's part in
 that boot is exactly the module tag; the kernel's
 proving and serving are docs/BUNDLE.md's story.
 
+## The BIOS door (milestone 24)
+
+The other half of the road, laid the same day: behind
+the BIOS door, GRUB is replaced by a boot chain of
+our own, in both images. It is three pieces in
+`Sources/bootloader/`, beside the UEFI loader:
+
+- **`biosboot.S`** (222 lines) — the boot sector:
+  exactly 512 bytes of hand assembly, and it lives
+  twice in every image. As the El Torito boot image
+  file `/BOOT/BIOSBOOT.IMG`, its first 2 KiB are what
+  the BIOS loads at 0x7C00 from a CD; xorriso's
+  `-boot-info-table` patches the El Torito boot
+  information table at its bytes 8..63 with the file's
+  place on the disc. And as the image's master boot
+  record, written there after the burn by
+  `tools/patch-mbr.py` — the same sector, the same
+  patched table, over the protective MBR xorriso lays
+  down, its partition table and the GPT untouched —
+  so a stick carrying the image boots the identical
+  bytes through the MBR door. The sector learns the
+  boot drive from DL, learns the drive's sector size
+  from the drive itself (EDD's parameter word), reads
+  the whole boot image — itself and the second stage
+  behind it — off the disc in 16 KiB packet reads,
+  and steps into the stage at 0x7E00. The sector-size
+  word is the chain's one piece of diplomacy: every
+  later read is reckoned in ISO sectors and translated
+  through that multiplier, so a CD's 2048-byte sector
+  and a stick's 512 are the same road at two widths.
+- **`biosentry.S`** (354 lines) — the second stage's
+  skin: its entry hand, the BIOS thunks (teletype,
+  EDD read, one E820 step, one VESA call — each taking
+  its errand from globals and leaving its answer
+  there), the two protected-mode hands that copy and
+  zero anywhere in the first 4 GiB, and `go_kernel`,
+  the handoff.
+- **`biosmain.c`** (766 lines) — the stage's mind, in
+  C compiled for the 16-bit world (`-m16`): the
+  memory map by E820, the ISO9660 walk, the ELF
+  laying, the VESA choosing, the information's
+  building, in that signed order.
+
+The compiled boot image is 11,558 bytes: the sector
+and an 11,046-byte second stage, which must end below
+0x10000 — its buffers are offsets under segment zero,
+and the build holds it to that line.
+
+### What it does, in order
+
+It signs its work, as the other door's loader does:
+
+    Cardnull Bootloader
+    Cardnull OS behind the BIOS door, loaded by our own hand.
+    Memory map: 9 regions, by the machine's own E820 word.
+    The kernel is in hand: 242552 bytes, read from the boot disc, laid at 1 MiB.
+    The file bundle rides in memory: 7147 bytes.
+    Screen: 1280 by 800, 32 bits to a pixel.
+
+1. **The memory map first** (int 15h, EAX=E820), while
+   the text screen still stands to confess a failure:
+   the whole walk gathered into the stage's keeping,
+   the types to be translated when the information is
+   built. The sector-size multiplier from the boot
+   sector rides along in a byte the entry hand gathers.
+2. **The disc's tree** (int 13h AH=42h): the primary
+   volume descriptor at sector 16, the root, the BOOT
+   directory, and the two files the stage exists for —
+   `KERNEL.BIN`, and `FILES.BUNDLE` beside it when the
+   disc carries one. The names are matched in the
+   plain ISO9660 fields, the `;1` forgiven, exactly
+   the kernel's own reading of the same tree.
+3. **The laying**: the kernel file is staged below a
+   mebibyte, its ELF program headers read, and each
+   segment copied to its physical address and its
+   unwritten tail zeroed — the copies and zeroings
+   past a mebibyte done by the protected-mode hands,
+   which step up alone (interrupts off, a small GDT of
+   our own, one `rep movsb`) and step back down to the
+   same real-mode room. The bundle, when one rides, is
+   laid right behind the kernel's span. The BIOS is
+   only ever spoken to as a plain real-mode caller:
+   segments zero, buffers it can reckon.
+4. **The screen** through VESA VBE: the mode list
+   walked, a direct-color flat-field mode of at least
+   640 by 200 at 24 or 32 bits required, and 1280 by
+   800 at 32 preferred by name — the desktop's own
+   shape, and the mode GRUB chose on this door before
+   us. The chosen mode is then asked its facts once,
+   and the tag keeps exactly what it answered.
+5. **The information** — the same three tags the UEFI
+   loader builds, no more: the framebuffer tag from
+   the chosen mode, the module tag naming the bundle's
+   span when one rode, the memory map tag translated
+   region for region from E820 (available stays
+   available; the ACPI kinds keep their numbers; all
+   else is reserved), and the end tag.
+6. **The handoff**, through `go_kernel`: a flat 32-bit
+   GDT, protected mode entered, data segments seated,
+   a scratch stack, EAX the Multiboot2 magic, EBX the
+   information's address, and a jump to the kernel's
+   entry — the doorstep `boot.S` was written for, the
+   same one GRUB and the UEFI trampoline deliver.
+
+**The contract held: the kernel did not change by one
+line.** `boot.S` reads EBX, builds its own tables,
+and wakes; nothing in the floor moved either.
+
+### Failure, spoken
+
+A road that fails stops the chain where it stands,
+with the reason in plain words on the text screen and
+the machine resting: no packet reads on the drive,
+an empty boot table, a failed read (the sector's
+three); no memory map, an unreadable or unconfessed
+disc, a missing or misshapen kernel, no screen the
+kernel can draw on (the stage's). A missing bundle is
+not among them: the stage says the bundle did not
+ride, and the boot goes on without one — cargo, not
+a condition, as behind the other door.
+
+### The images, now
+
+Both images are written by `tools/build-iso.sh`'s
+explicit El Torito pair (xorriso): our boot image
+behind the BIOS entry, our ESP behind the UEFI entry,
+a plain protective MBR and a true GPT — and then the
+patcher lays our sector in the MBR. The ownboot image
+is a second pressing of the same staging
+(`tools/build-ownboot-iso.sh`). What the new standard
+build no longer carries, stated plainly: the old
+image's HFS+ blessing for pre-2012 Mac firmware and
+the in-tree `/EFI/BOOT` copy of the loader — furniture
+the ownboot image has lived without since milestone
+22. A byte search of both finished images for GRUB —
+the name, its error strings, its module trees, its
+signatures — finds nothing at all. The images stand
+at 3,651,584 bytes each; most of the old 12 MB bulk
+was GRUB's furniture.
+
+### Proof
+
+QEMU with SeaBIOS, the bench's shapes, November 10,
+2026. The standard image behind the BIOS door, the
+full walk: the loader's sign-on caught in the text
+memory it flashes through ("Memory map: 9 regions");
+the desktop at 1280 by 800; `about` — "Files:
+carried in memory - 13 files in the bundle"; `mem` —
+130,942 frames total, 129,387 free, 1,555 used at
+512 MB, the allocator's self-test passed; `ls` and
+`cat` served from memory; TERM.FEATHER run from
+memory and exited clean; `net` — the filter-dump
+holds exactly one DISCOVER and its OFFER, xid
+matched; `sound` — the Doxology measured in the
+captured audio, all eight notes at their true
+frequencies; `disk` — the milestone-21 disk read,
+its 14 files standing. The ownboot image behind the
+BIOS door — its first BIOS boot ever — the same
+desktop, bundle, and TERM. The stick shape behind
+SeaBIOS: the standard image as USB mass storage, a
+fresh hard disk, no CD device anywhere — booted
+through the MBR copy of the sector, the whole system
+living off the bundle in memory, FACE and TERM run
+from it, the Files window listing it, and `install`
+copying the bundle onto the disk: 14 files, `dls`
+whole (`mem` on that door: 130,941 total, 1,555
+used — the stick's map differs from the disc's by a
+frame, and the figure says so). And the regression
+spot-checks: both images behind the UEFI door,
+desktops rising and `about` naming the bundle, the
+wiring change having broken nothing. Tyler's UTM run
+is, as always, the final witness.
+
 ## The next stone
 
-The BIOS door: a small public-domain loader of our
-own behind it too, so that one day neither door of
-any Cardnull image owes anything to GRUB. The stone
-this section once pointed at next — the kernel
-learning to carry its files in memory — has since
-landed as milestone 23: the bundle rides behind both
-doors now (docs/BUNDLE.md), and with the loader and
-the bundle together, the pair the stick road needs
-stands ready: a stick, which is not a CD, can be a
-home when its own stone comes.
+Neither door of any Cardnull image owes anything to
+GRUB now; the bootloader pair is complete, and the
+bundle rides behind both doors (docs/BUNDLE.md).
+What the pair makes possible is the stick road
+itself: an image a stick can carry that boots
+natively, and — the installer's own confession,
+still true as it stands on an installed disk —
+booting from an installed hard disk, which waits
+for the installer to learn to lay this same chain
+on the disk it prepares. Those are the stick stones,
+and they ride on this one.

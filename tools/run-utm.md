@@ -36,8 +36,10 @@ down. Nothing on the real machine is touched.
 
 ## What you should see
 
-GRUB flashes past (its timeout is zero), and then a black screen with
-one word at the top left:
+Our own bootloader signs its work first — quickly; on the BIOS door
+the lines read "Cardnull Bootloader — Cardnull OS behind the BIOS
+door, loaded by our own hand" (the UEFI door names itself so) — and
+then a black screen with one word at the top left:
 
 ```
 CARDNULL
@@ -127,8 +129,9 @@ milestone 4 is that it speaks by IRQ1, not by being asked. And
 since milestone 5 the disc boots behind either firmware: **UEFI
 Boot** off is the BIOS door, on is the UEFI door — same shell,
 same commands. Behind the UEFI door there is no text grid,
-so the kernel draws its letters as pixels, and GRUB now sets a
-graphics mode behind the BIOS door too, so the letters are drawn
+so the kernel draws its letters as pixels, and our own BIOS
+bootloader sets a graphics mode behind the BIOS door too
+(milestone 24; GRUB set it before), so the letters are drawn
 there as well — possibly larger than before, depending on the
 mode offered. The words are the same.)
 
@@ -137,13 +140,15 @@ the banner as the machine boots — "Disc: QEMU DVD-ROM, AHCI
 port 2." (the drive's name and port will read as UTM's drive
 reports them). That is the kernel finding the very disc it
 booted from and reading its table of contents. `ls` shows the
-disc's root — BOOT, the EFI machinery, and WELCOME.TXT, a
-greeting that lives only on the disc. `cat /welcome.txt` reads
-it back, sector by sector: a welcome from Cardnull and John 1:1
-in the Douay-Rheims. `cat /boot/grub/grub.cfg` reads GRUB's own
-config off the same disc. Paths do not care about capitals, and
-asking for what is not there is answered plainly. Reading is
-all the disc gets — nothing is written, ever.
+disc's root — BOOT, EFI.IMG, and the system's own files,
+WELCOME.TXT among them, a greeting that lives only on the
+disc. `cat /welcome.txt` reads it back, sector by sector: a
+welcome from Cardnull and John 1:1 in the Douay-Rheims. (The
+disc once carried GRUB's own config to read the same way;
+since milestone 24 there is no GRUB on it to read.) Paths do
+not care about capitals, and asking for what is not there is
+answered plainly. Reading is all the disc gets — nothing is
+written, ever.
 
 And since milestone 9, the disc carries three small programs
 beside the welcome — HELLO.BIN, COUNT.BIN, BAD.BIN, which exist
@@ -616,18 +621,19 @@ it ever was — nothing on it persists or can break — and
 now the hard disk keeps what you saved on it, exactly as
 long as you keep the disk.
 
-## The ownboot image: our own bootloader (experimental)
+## The ownboot image: the second pressing
 
 Since milestone 22 there is a second image to try:
 `dist/cardnull-ownboot.iso`, built by
-`tools/build-ownboot-iso.sh`. It carries the same disc
-as the standard image, with one difference at the
-door: **behind UEFI, it boots through Cardnull's own
-bootloader** — a small public-domain loader of ours —
-instead of GRUB. Behind the BIOS door it is still
-GRUB's road in; the mixed doors are a waypoint, stated
-plainly. The standard image is unchanged and remains
-the daily one.
+`tools/build-ownboot-iso.sh`. It began as the
+experimental disc whose UEFI door was rebuilt around
+our own bootloader while its BIOS door was still
+GRUB's. Since milestone 24 the standard build writes
+both doors with our own chains, and the ownboot image
+is simply the second pressing of the same disc — a
+separately built twin, kept because the stick
+experiments ride it. The standard image remains the
+daily one; either witnesses the same system.
 
 The drill is the same: point the machine's CD drive at
 `cardnull-ownboot.iso`, leave **UEFI Boot** checked,
@@ -656,10 +662,13 @@ over a broken world. The design is kept in
 Since milestone 23, both images carry the system's
 own files a second way: as one **bundle** that rides
 the boot into memory (the format is `docs/BUNDLE.md`).
-The standard image still boots from the disc exactly
-as before — GRUB, the CD, all of it — but its files
-now ride in memory too, and the ownboot image's
-loader carries the bundle in from beside the kernel.
+Both images boot from the disc through our own
+bootloaders — the BIOS chain (milestone 24) behind
+the legacy door, our loader (milestone 22) behind
+UEFI — and each carries the bundle in its own way:
+the BIOS stage lays it behind the kernel, the UEFI
+loader reads it from beside the kernel; both name
+its span in the same module tag.
 What the witness should see, on either image: type
 `about` in the Terminal and the last line names the
 files' home — "Files: carried in memory - 13 files in

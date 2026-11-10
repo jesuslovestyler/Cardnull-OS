@@ -77,15 +77,69 @@ script in `tools/`, linked with a custom linker script, and tested in UTM
 Public domain. See [LICENSE](LICENSE) — the Unlicense.
 Freely you have received; freely give. (Matthew 10:8)
 
-One accounting, kept honest: the standard image still
-boots through GRUB (GPL) on both of its doors, for now.
-On the UEFI door, the experimental ownboot image
-(`tools/build-ownboot-iso.sh`, milestone 22) contains
-no GRUB code at all — its loader is our own, public
-domain like everything else here. Its BIOS door is
-still GRUB's; that door is the next stone.
+One accounting, kept honest: since milestone 24, no
+image Cardnull ships contains any GRUB code on either
+door. Both images boot behind the BIOS door through
+our own public-domain boot sector and second stage,
+and behind the UEFI door through our own loader
+(milestone 22) — and each image's master boot record
+carries our boot sector too, so a stick carrying the
+image boots the same chain. The last borrowed piece
+has left; everything that boots Cardnull is public
+domain, like everything else here.
 
 ## Status
+
+Milestone 24 stands (November 10, 2026): **our own
+BIOS-door bootloader — the last borrowed piece
+leaves.** Behind the BIOS door, GRUB has loaded our
+kernel since the first milestone; a boot chain of our
+own now stands there in both images. It is two pieces
+in `Sources/bootloader/`: a 512-byte boot sector
+(`biosboot.S`) that learns the boot drive and its
+sector size from the drive itself — one road for a CD's
+2048-byte sectors and a stick's 512 — reads the whole
+boot image off the disc by EDD packet reads, and steps
+aside; and a second stage (`biosentry.S`'s skin,
+`biosmain.c`'s mind, 766 lines of C for the 16-bit
+world) that gathers the memory map by E820, walks the
+disc's ISO9660 tree to `KERNEL.BIN` and `FILES.BUNDLE`,
+lays the kernel's ELF segments at 1 MiB and the bundle
+right behind them, chooses the screen through VESA VBE
+(1280 by 800 at 32 bits, the desktop's own shape), and
+builds the same Multiboot2 information the kernel
+already reads — framebuffer, memory map, module —
+before handing over in exactly the state `boot.S` was
+born expecting. The kernel did not change by a line.
+The sector lives twice in each image: as the El Torito
+boot file, and as the master boot record itself (laid
+there by `tools/patch-mbr.py` over xorriso's protective
+MBR, its partition table and the GPT untouched), so
+the image boots the same chain from a stick as from a
+disc. Byte search of both finished images finds no
+GRUB anywhere — no code, no strings, no module trees;
+the images stand at 3,651,584 bytes each, most of the
+old bulk having been GRUB's own furniture. The bench
+proved the whole road: the standard image behind
+SeaBIOS, the full walk — `about` naming the bundle,
+`mem` (130,942 frames total, 1,555 used at 512 MB),
+`ls` and `cat` and TERM.FEATHER from memory, `net`
+answering (the pcap holds exactly the DHCP pair), the
+Doxology measured note-exact in the captured audio,
+`disk` reading the milestone-21 disk's 14 files; the
+ownboot image's first BIOS boot ever, the same; the
+stick shape behind SeaBIOS — the standard image as USB
+mass storage, a fresh hard disk, no CD in the machine
+— booting through the MBR copy of the sector, living
+off the bundle, and `install` planting the bundle's
+files on the disk (14 files standing after); and both
+images spot-checked behind the UEFI door, desktops and
+bundle sentences whole. What the build no longer
+carries, stated plainly: the old Mac HFS+ blessing and
+the in-tree `/EFI/BOOT` copy — furniture the ownboot
+image has lived without since milestone 22. Booting
+from an *installed* disk rides the stick stones that
+follow; the chain it will ride is this one.
 
 Milestone 23 stands (November 10, 2026): **the bundle —
 the kernel carries its files in memory.** The system's
