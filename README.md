@@ -90,6 +90,106 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 25 stands (November 10, 2026): **windowed
+feathers — a feather's face opens as a window on the
+desktop.** Tyler's word, given with the desktop design
+law standing: feathers should open as windows he can
+use the mouse on. A graphical feather launched while
+the desktop stands — typed in the Terminal
+(`feather /NAME`), or double-clicked in the Files
+window, which types through the same Terminal — now
+opens a window instead of taking the screen: titled
+with its card's own title in plain words, wearing the
+desktop's chrome (shadow, border, title bar, close
+box), draggable by its title, focused by click. The
+window's size is **fixed at the opening** (800 by 560
+at this screen, its canvas 796 by 522): a feather
+reckons its face from the door's answer once, and a
+size that moved under it would make its reckoning a
+lie — a different size means closing and reopening the
+feather; there is no resize furniture and no maximize
+box. The door's services keep their numbers and take
+the window's meanings (the contract is written out in
+`docs/FEATHER.md`): size answers the canvas; fill and
+draw text are offset by the canvas's origin and
+clipped to it, and never into the bottom bar; the
+mouse poll answers the desktop's own pointer relative
+to the canvas, signed, with the buttons the guest's
+only while the pointer stands over the canvas; read
+key delivers keys only while the feather's window
+holds the room — while another window holds it, the
+gathered keys are let go, the way the desktop's own
+faces let go of keys that are not theirs. One service
+is new: **9, the window standing**, whose first bit
+answers "a repaint is owed." The kernel paints its
+side of the window — frame, title, and the canvas laid
+with its ground — at the opening, at every change of
+the room, and at every drag's end; that ground-laying
+is the invalidation, and a well-mannered feather
+paints its whole face again the moment the owing
+stands. TERM.FEATHER and FACE.FEATHER both keep the
+law, so a dragged or re-focused window wears its whole
+face again, and everything beneath comes back true
+from the desktop's own repaint disciplines. The
+session still runs with the shell standing inside the
+launch; the desktop is tended on the guest's own input
+knocks, its mouse bytes fed through the face's own
+hands, so clicks, drags and the close box all answer
+while the guest stands. The feather's window stands
+**over** the desktop's own windows for its whole
+session — a guest's face has no launcher in the bar to
+raise it from burial, and the Terminal's ground would
+swallow it whole; its focus is told by its title bar's
+colour, as theirs is. The elders' furniture is still
+mid-session (their close boxes, buttons and lists wait
+for the feather to leave); the bar still answers —
+Home, and launchers that give the room to a window
+that already stands, never opening one. The close box
+ends a windowed session with Esc's own verdict: "The
+guest was stopped. The shell stands." Launched from
+the text shell, the same feather takes the whole
+screen exactly as milestone 18 left it, and bare
+guests keep the whole screen always: the face fits the
+room it was opened in. TERM.FEATHER reckons its text
+columns from the measure service 4 gives it and
+**wraps its lines** at that measure as they join its
+scrollback — its welcome prose, the blemish in
+Tyler's November 10 photograph, wraps inside the
+window and stands whole on the full screen; its input
+line takes the columns less the prompt's two.
+FACE.FEATHER's panel comes humbler and still centred
+at the canvas's measure, by the narrow road it already
+kept. One repair rode along, found by this stone's
+own probe on the milestone-24 build: the Welcome
+card's press hand lacked the standing check its
+younger siblings keep, and a click where its button
+had stood painted a ghost button on the bare desktop
+and counted the click — the guard stands now, and the
+re-probe paints nothing. The bench proved the whole
+stone: TERM windowed over the desktop with its banner
+and verse wrapped, typed to while focused and
+unanswered while the Welcome card held the room, its
+face let-go keys nowhere echoed; dragged across the
+Terminal and back, both windows true; ended by its
+close box; FACE windowed and dragged whole; a Files
+double-click opening TERM as a window; BADGFX stopped
+at the same wall; a pair's graphical knock refused
+with the reason spoken; the text shell's TERM
+full-screen with its lines standing whole; HELLO a
+text feather still; and the regressions whole — `net`
+offered and not taken, the Doxology captured
+note-exact, `disk` reading the milestone-21 disk's 14
+files, `about` naming the bundle's 13 files in memory,
+and `mem` reading **129,475 frames total, 1,558 used
+before and after the windowed sessions alike** — faces
+cost no frames and no heap; the card's reading is held
+for the session's title and handed back at its end.
+Both images were spot-checked with TERM windowed, the
+standard image behind the BIOS door as well as UEFI.
+The kernel stands at 13,749 lines; the images at
+3,657,728 bytes each, both doors still ours, byte
+search still finding no GRUB.
+
 Milestone 24 stands (November 10, 2026): **our own
 BIOS-door bootloader — the last borrowed piece
 leaves.** Behind the BIOS door, GRUB has loaded our

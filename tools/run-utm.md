@@ -680,3 +680,49 @@ prove itself at boot, the same places would say the
 files are read from the disc, and the disc would
 serve them exactly as it always has — nothing about
 the drill changes either way.
+
+## Feathers in windows
+
+Since milestone 25, a graphical feather launched from
+the desktop opens **in a window** instead of taking
+the screen. The drill, on either image: in the
+Terminal, type `feather /term.feather`. A window
+titled **Feather Terminal** — the card's own title —
+opens over the desktop, and the feather's welcome
+prose wraps inside it ("I stand on the service door
+alone: I / knock, and / the kernel draws; your keys
+reach me by / the door."). Type `verse` and John 1:1
+answers, wrapped the same way.
+
+The window keeps the desktop's manners. Drag it by
+its title bar: it travels, and where it stood, the
+Terminal's conversation stands whole again; the
+feather's own face is whole at the new place. Give
+the room away and take it back: open the Welcome card
+from the bar first if it is closed, launch TERM, then
+click **Welcome** in the bottom bar — the feather
+window's title bar dims, and words you type now go
+nowhere (they are let go, not saved up). Click the
+feather's window and its bar brightens; type `about`
+and it answers. End it three ways, each honest:
+`exit` typed inside it ("Program exited: 0"), Esc
+("The guest was stopped. The shell stands."), or the
+window's own close box — the same stopped verdict, by
+the mouse. `feather /face.feather` opens the greeting
+face in a window the same way, its panel centred in
+the smaller room; drag it and the cardinal travels
+whole.
+
+The Files window launches them too: scroll to
+TERM.FEATHER and double-click — the command is typed
+into the Terminal by the window's own road, the card
+is read aloud there, and the window opens.
+
+One contrast worth witnessing, because it is the
+rule: go Home to the text console and type the same
+`feather /term.feather` there. The feather takes the
+**whole screen**, as it always has, and its lines
+stand whole at the wider measure — "In the beginning
+was the Word, and the Word was with God, and" on one
+line. The face fits the room it was opened in;
+Esc brings the shell back.

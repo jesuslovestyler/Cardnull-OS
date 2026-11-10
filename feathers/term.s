@@ -28,18 +28,40 @@
 # feather and gives the screen back to the shell that
 # called it — no shame in it; that is the law of the door.
 #
+# Milestone 25: launched from the desktop, TERM no longer
+# takes the screen — it opens in a window, and service 4
+# answers the window's canvas measure instead. Everything
+# below is reckoned from that one answer, so the feather
+# narrows honestly: its text columns are reckoned from the
+# width it is given, and its lines WRAP at that measure at
+# the moment they join the scrollback (a long line is
+# broken at its last fitting space, or cut plainly when it
+# has none), never running off the canvas's edge. Its frame
+# fills are factored into paint_frame so the whole face can
+# be repainted on demand — and the demand is service 9, the
+# window standing: the keyloop knocks there first, and when
+# the kernel answers that a repaint is owed (the window
+# opened, moved, was covered or uncovered), TERM pays the
+# owing at once, frame and face together, before it goes
+# on. From the text shell it takes the whole screen as it
+# always has, and service 9's one owing there is paid the
+# same way.
+#
 # Its keeping, all in the one scratch page at 0x40010000:
 #   0x000  the screen's width      0x008  its height
 #   0x010  the visible text rows   0x018  the scrollback's count
 #   0x020  the input line's length 0x028  the lines last shown
+#   0x030  the text columns (from the width it was given)
 #   0x100  the input line (80)     0x200  the composed "> " line
 #   0x300  the scrollback's line lengths (28 bytes)
 #   0x400  the scrollback: 28 records of 72 bytes
-# Lines hold at most 72 letters; the input takes 66, leaving
-# room for the prompt's two. The guest's contract is the one
-# written out in programs/hello.s, widened by milestone 18's
-# suite and published in docs/FEATHER.md. Written by hand,
-# in the open, in the public domain.
+# Lines hold at most 72 letters — the full screen's own
+# measure; the columns reckoning narrows them in a window.
+# The input takes the columns less the prompt's two. The
+# guest's contract is the one written out in
+# programs/hello.s, widened by milestone 18's suite and
+# milestone 25's window, and published in docs/FEATHER.md.
+# Written by hand, in the open, in the public domain.
 
     .text
     .globl  _start
@@ -77,26 +99,30 @@ rows_low:
 rows_done:
     mov     %rax, 0x10(%r15)
 
-    # The field first: the whole screen laid with the
-    # desktop gradient's own foot colour, so the screen is
-    # wholly mine while I stand — the frame stands on it.
-    xor     %esi, %esi
-    xor     %edx, %edx
-    mov     0x00(%r15), %rcx
-    mov     0x08(%r15), %r8
-    mov     $0x100308, %r9          # near black, warm
-    call    fill
+    # The text columns: (width - 96) / 16 — the letters
+    # that stand between the frame's margins — held at 72,
+    # the measure the scrollback was written for, and never
+    # fewer than the twenty a line needs to breathe. At the
+    # whole screen's width this is the 72 it has always
+    # been; in a window it narrows, and every line wraps at
+    # the narrower measure (append_line keeps that law).
+    mov     0x00(%r15), %rax
+    sub     $96, %rax
+    shr     $4, %rax
+    cmp     $72, %rax
+    jbe     cols_low
+    mov     $72, %rax
+cols_low:
+    cmp     $20, %rax
+    jae     cols_done
+    mov     $20, %rax
+cols_done:
+    mov     %rax, 0x30(%r15)
 
-    # The frame's border, drawn once: render_all repaints
-    # only the ground within it.
-    mov     $28, %rsi
-    mov     $28, %rdx
-    mov     0x00(%r15), %rcx
-    sub     $56, %rcx
-    mov     0x08(%r15), %r8
-    sub     $56, %r8
-    mov     $0x2A1A12, %r9          # the border's dark brown
-    call    fill
+    # The frame stands first (paint_frame lays the field
+    # and the border); the opening lines then join the
+    # scrollback, wrapped at the columns reckoning.
+    call    paint_frame
 
     # The opening lines, into the scrollback.
     lea     boot1(%rip), %rsi
@@ -113,9 +139,18 @@ rows_done:
     call    append_line
     call    render_all
 
-    # The whole life: knock for a key; none waiting, yield
-    # and knock again.
+    # The whole life: knock at the window standing first —
+    # a repaint owed is paid before anything else, frame
+    # and face together — then knock for a key; none
+    # waiting, yield and knock again.
 keyloop:
+    mov     $9, %rax                # service 9: window standing
+    int     $0x80                   # the door
+    test    $1, %rax                # a repaint owed?
+    je      kl_key
+    call    paint_frame             # the kernel has painted over
+    call    render_all              # my ground: the whole face anew
+kl_key:
     mov     $7, %rax                # service 7: read a key
     int     $0x80                   # the door
     test    %rax, %rax
@@ -133,7 +168,9 @@ have_key:
     cmp     $0x7E, %rax             # past the last printable
     ja      keyloop
     mov     0x20(%r15), %rcx        # the input's length
-    cmp     $66, %rcx
+    mov     0x30(%r15), %rdx        # the line's whole room, less
+    sub     $2, %rdx                # the prompt's two letters
+    cmp     %rdx, %rcx
     jae     keyloop                 # a full line takes no more
     mov     %al, 0x100(%r15, %rcx)  # the letter joins the line
     inc     %rcx
@@ -192,11 +229,88 @@ cf_done:
     ret
 
 # ------------------------------------------------------------------
-# append_line: rsi a line's place, rdx its length (at most
+# append_line: rsi a line's place, rdx its length. The
+# wrapping hand (milestone 25): the line joins the
+# scrollback in pieces of at most the columns reckoning —
+# broken at the last space that fits, the space itself
+# spent in the breaking and any spaces at the new piece's
+# head skipped with it, or cut plainly at the measure
+# when the piece holds no space worth breaking at. At the
+# full screen's measure (72) every standing line fits
+# whole, and nothing changes; in a window the same words
+# wrap instead of running off the edge. A tail that fits
+# is appended only when it holds a letter — a line ending
+# exactly at a break leaves no empty record behind. The
+# raw hand below does the keeping; this hand keeps rbx,
+# rbp and r12 for its callers, and trusts the raw hand to
+# spend only its own registers.
+# ------------------------------------------------------------------
+append_line:
+    push    %rbx
+    push    %rbp
+    push    %r12
+    mov     %rsi, %rbp              # the line's place
+    mov     %rdx, %rbx              # and what remains of it
+aw_loop:
+    test    %rbx, %rbx
+    je      aw_done
+    mov     0x30(%r15), %r12        # the columns reckoning
+    cmp     %r12, %rbx
+    jbe     aw_tail                 # the rest stands whole
+    xor     %ecx, %ecx              # the last space's place:
+    dec     %rcx                    # none found yet (-1)
+    xor     %edx, %edx              # the walking finger
+aw_scan:
+    cmp     %r12, %rdx
+    jae     aw_found
+    cmpb    $0x20, (%rbp, %rdx)
+    jne     aw_next
+    mov     %rdx, %rcx
+aw_next:
+    inc     %rdx
+    jmp     aw_scan
+aw_found:
+    cmp     $1, %rcx
+    jge     aw_word                 # a space worth breaking at
+    mov     %rbp, %rsi              # none: the plain cut
+    mov     %r12, %rdx
+    call    append_raw
+    add     %r12, %rbp
+    sub     %r12, %rbx
+    jmp     aw_skip
+aw_word:
+    mov     %rbp, %rsi
+    mov     %rcx, %rdx
+    call    append_raw
+    lea     1(%rbp, %rcx), %rbp     # past the piece and its space
+    mov     %rbx, %rax
+    sub     %rcx, %rax
+    dec     %rax
+    mov     %rax, %rbx
+aw_skip:
+    test    %rbx, %rbx              # spaces at the new piece's
+    je      aw_done                 # head are the break's own:
+    cmpb    $0x20, (%rbp)           # skip them with it
+    jne     aw_loop
+    inc     %rbp
+    dec     %rbx
+    jmp     aw_skip
+aw_tail:
+    mov     %rbp, %rsi
+    mov     %rbx, %rdx
+    call    append_raw
+aw_done:
+    pop     %r12
+    pop     %rbp
+    pop     %rbx
+    ret
+
+# ------------------------------------------------------------------
+# append_raw: rsi a line's place, rdx its length (at most
 # 72). The line joins the scrollback; a full scrollback lets
 # its eldest go, records and lengths shifting up together.
 # ------------------------------------------------------------------
-append_line:
+append_raw:
     mov     %rsi, %r10
     mov     %rdx, %r11
     mov     0x18(%r15), %rax        # the count
@@ -296,6 +410,37 @@ render_prompt:
     mov     $16, %rcx
     mov     $3, %r8
     mov     $0xF4EDDE, %r9
+    call    fill
+    ret
+
+# ------------------------------------------------------------------
+# paint_frame: the field and the frame's border, laid
+# whole — at the opening, and again whenever the window
+# standing says a repaint is owed: the kernel's painting
+# covers the frame as well as the ground within it, so a
+# repaint that laid only render_all's ground would leave
+# the window wearing the desktop's colours where the
+# frame belongs. render_all repaints only the ground
+# within the frame.
+# ------------------------------------------------------------------
+paint_frame:
+    # The field: the whole of my ground laid with the
+    # desktop gradient's own foot colour, so the ground is
+    # wholly mine while I stand — the frame stands on it.
+    xor     %esi, %esi
+    xor     %edx, %edx
+    mov     0x00(%r15), %rcx
+    mov     0x08(%r15), %r8
+    mov     $0x100308, %r9          # near black, warm
+    call    fill
+    # The frame's border.
+    mov     $28, %rsi
+    mov     $28, %rdx
+    mov     0x00(%r15), %rcx
+    sub     $56, %rcx
+    mov     0x08(%r15), %r8
+    sub     $56, %r8
+    mov     $0x2A1A12, %r9          # the border's dark brown
     call    fill
     ret
 

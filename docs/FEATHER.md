@@ -124,7 +124,8 @@ guest names the service in `rax`; the words ride in `rsi`,
 home in `rax`. Every other register is kept across the door.
 Services 0–3 are the first suite (milestones 9, 10 and 15);
 services 4–8 are the graphical suite (milestone 18), which
-gives a guest a face.
+gives a guest a face; service 9 (milestone 25) is the
+window standing, the guest's news of its window.
 
 | # | service | the words | the answer |
 | --- | --- | --- | --- |
@@ -132,11 +133,12 @@ gives a guest a face.
 | 1 | write string | address, length | the count written, or all-ones when the reach leaves the guest's estate |
 | 2 | write character | the character in `rsi`'s low byte | 1 |
 | 3 | yield | — | — (the machine goes to the partner, or the guest simply resumes) |
-| 4 | screen size | — | the width in the low half, the height in the high half; 0 when no graphical screen is the guest's |
-| 5 | fill rectangle | x, y, width, height, colour (0x00RRGGBB) | 0 when drawn (clipped to the screen), 1 when refused whole — degenerate, or off the screen entirely — with nothing drawn |
+| 4 | screen size | — | the width in the low half, the height in the high half; 0 when no graphical screen is the guest's. Windowed, the answer is the window's canvas (below) |
+| 5 | fill rectangle | x, y, width, height, colour (0x00RRGGBB) | 0 when drawn (clipped to the screen — windowed, to the canvas), 1 when refused whole — degenerate, or off the ground entirely — with nothing drawn |
 | 6 | draw text | x, y, address, length, colour | the count drawn, at most 256 |
-| 7 | read key | — | the key as a character (Enter = 0x0A, Backspace = 0x08), or 0 when no key waits |
-| 8 | poll mouse | x, y, buttons | the pointer's place in the low words and its buttons above them (bit 0 left, 1 right, 2 middle); all-ones when it is not the guest's to ask |
+| 7 | read key | — | the key as a character (Enter = 0x0A, Backspace = 0x08), or 0 when no key waits — windowed, also 0 while another window holds the room |
+| 8 | poll mouse | x, y, buttons | the pointer's place in the low words and its buttons above them (bit 0 left, 1 right, 2 middle); all-ones when it is not the guest's to ask. Windowed, the place is the desktop pointer's, relative to the canvas and signed, and the buttons answer only while the pointer stands over the canvas |
+| 9 | window standing | — | bits of one word: bit 0 a repaint is owed, bit 1 your face holds the room, bit 2 the pointer stands over your ground; all-ones in a pair |
 
 The laws that bind the suite:
 
@@ -154,19 +156,72 @@ The laws that bind the suite:
   and colours, and the kernel's own hand draws — a wild
   rectangle is clipped, never written wide (WILDRECT.BIN
   is the witness).
-- **The screen is the guest's, whole.** A guest that uses
-  the graphical suite takes the whole screen for its
-  session; there is no windowing of guests yet. When the
-  session ends — by leaving, by a fault, by the user's
-  Esc — the world it covered is repainted exactly: the
+- **The face fits the room it was opened in.** Launched
+  from the text shell, a guest that uses the graphical
+  suite takes the whole screen for its session, as it
+  always has. Launched while the desktop stands — typed
+  in the Terminal window, or double-clicked in the Files
+  window, which types through the same Terminal — a
+  *feather's* face opens in a **window** on the desktop
+  (milestone 25): titled with the card's own title, with
+  the desktop's chrome, a close box, drag-by-title
+  movement and focus by click, standing over the desktop's
+  own windows for the whole session (a guest's face has
+  no launcher in the bar to raise it from burial, so it
+  is never buried; its focus is told by its title bar's
+  colour, as the other windows' is). Bare guests (`run`,
+  `both`) always keep the whole screen. The window's size
+  is **fixed at the opening** — a feather reckons its
+  face from service 4's answer once, and a size that
+  moved under it would make its own reckoning a lie; a
+  different size means closing and reopening the feather.
+  There is no resize furniture and no maximize box.
+  Inside the window, the door's words keep their numbers
+  and take the window's meanings: service 4 answers the
+  canvas's measure; services 5 and 6 are reckoned in
+  canvas coordinates, offset by the canvas's origin and
+  clipped to the canvas (and never into the bottom bar);
+  service 8 answers the desktop's own pointer relative
+  to the canvas — signed sixteen-bit words, so a pointer
+  outside answers honestly negative — with the buttons
+  the guest's only while the pointer stands over the
+  canvas; service 7 delivers keys only while the
+  feather's window holds the room (while another window
+  holds it, gathered keys are let go, the way the
+  desktop's own faces let go of keys that are not
+  theirs). The close box ends the session with the
+  mouse, with Esc's own verdict. When the session ends —
+  by leaving, by a fault, by the user's Esc, by the close
+  box — the world it stood on is repainted exactly: the
   desktop and the Terminal's conversation, or the text
   shell's grid, as they stood.
+- **The repaint duty (service 9).** The kernel paints
+  its side of a window — the frame, the title, and the
+  canvas laid with its ground — when the window opens,
+  when the room changes hands, and when the window is
+  set down from a drag. That ground-laying is the
+  kernel's invalidation of the guest's canvas, and the
+  guest learns of it by knocking on service 9: bit 0
+  answers "a repaint is owed" until the guest asks, and
+  a well-mannered feather paints its **whole face** again
+  the moment the owing stands, before it goes on — its
+  poll loop is where the knock belongs (TERM.FEATHER and
+  FACE.FEATHER both keep this law). Bits 1 and 2 answer
+  whether the guest's face holds the room and whether
+  the pointer stands over its ground. A full-screen
+  session answers bits 1 and 2 standing and bit 0 owed
+  once, at the claim — one contract for both roads. A
+  feather that never knocks on service 9 will simply
+  wear the kernel's ground where its face was painted
+  over; the owing is the contract, and keeping it is
+  the feather's part.
 - **One guest only.** Graphical services belong to a
-  session of one guest (`run` or `feather`). In a pair
-  session (`both`) a graphical knock is refused — the
-  reason spoken on the screen once, and the service's
-  nothing answered (0, or 1 for a rectangle, or all-ones
-  for the mouse) — because a face cannot be shared by
+  session of one guest (`run` or `feather`) — windowed or
+  full-screen alike. In a pair session (`both`) a
+  graphical knock is refused — the reason spoken on the
+  screen once, and the service's nothing answered (0, or
+  1 for a rectangle, or all-ones for the mouse and the
+  window standing) — because a face cannot be shared by
   turns.
 - **Esc is the user's key.** While any session stands,
   Esc ends it — the guest is stopped and the shell
@@ -176,13 +231,16 @@ The laws that bind the suite:
   until a key answers.
 - **Text is the kernel's font at twofold size** — the
   measure of the desktop's windows, 16 pixels a letter —
-  clipped at the screen's edge. Keys are read with the
-  kernel's own translation (Shift and Caps Lock as the
-  shell reads them), under typing state the guest keeps
-  for itself. The mouse answer is the session's own
-  reckoning — it opens at the screen's centre and is fed
-  by the guest's polls; the kernel draws no pointer for a
-  guest.
+  clipped at the screen's edge (windowed, at the canvas's
+  edge). Keys are read with the kernel's own translation
+  (Shift and Caps Lock as the shell reads them), under
+  typing state the guest keeps for itself. Full-screen,
+  the mouse answer is the session's own reckoning — it
+  opens at the screen's centre and is fed by the guest's
+  polls; the kernel draws no pointer for a guest.
+  Windowed, the pointer is the desktop's own and the
+  kernel does draw it — the guest reads its standing
+  through services 8 and 9 and paints nothing of it.
 - **There is no sound service.** The speaker is the
   kernel's own voice (milestone 17's `sound` command); a
   feather cannot yet sing, and a guest asking for a
@@ -195,7 +253,15 @@ TERM.FEATHER — a terminal that *is* a feather, with its
 own framed screen, prompt, scrollback and small command
 set (`help`, `verse`, `about`, `clear`, `exit`), the
 stone the kernel's Terminal window always said was
-coming.
+coming. Since milestone 25 both live the windowed life
+from the desktop: FACE's panel simply comes humbler and
+still centred at the canvas's measure, and TERM reckons
+its text columns from the width it is given and **wraps
+its lines** at that measure as they join its scrollback
+(a long line breaks at its last fitting space, or is cut
+plainly when it has none) — its welcome prose no longer
+runs off any edge. Both knock on service 9 in their wait
+loops and repaint whole when a repaint is owed.
 
 ## Foreign packages
 

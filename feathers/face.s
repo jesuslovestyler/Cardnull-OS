@@ -13,17 +13,28 @@
 # receives, for Esc is the user's key, and the kernel keeps
 # the session's stop armed while a face stands.
 #
-# The whole screen is FACE's for the session — there is no
-# windowing of guests — and when it leaves, the kernel
-# repaints the world it covered: the desktop and the
+# The whole screen is FACE's for the session when it is
+# launched from the text shell — and when it leaves, the
+# kernel repaints the world it covered: the desktop and the
 # Terminal's conversation, or the text shell's grid, exactly
-# as they stood. The guest's contract is the one written out
-# in programs/hello.s, widened by milestone 18's suite and
-# published in docs/FEATHER.md: service 4 the screen's size
-# (width in the answer's low half, height in the high), 5 a
-# filled rectangle, 6 drawn text, 7 a key (0 when none waits),
-# 3 a yield, 0 the leaving. Written by hand, in the open, in
-# the public domain.
+# as they stood. Milestone 25: launched from the desktop,
+# FACE opens in a window instead, and service 4 answers the
+# window's canvas measure — the reckoning below is from
+# that one answer either way, so the panel simply comes
+# humbler and still centred (the narrow road it already
+# kept), and the field it lays is the canvas, filled whole.
+# Its painting stands factored in paint_all so it can be
+# laid again whole whenever service 9 (the window standing)
+# answers that a repaint is owed — the window opened, moved,
+# was covered or uncovered — and the wait loop knocks there
+# before it knocks for a key. The guest's contract is the
+# one written out in programs/hello.s, widened by milestone
+# 18's suite and milestone 25's window, and published in
+# docs/FEATHER.md: service 4 the face's size (width in the
+# answer's low half, height in the high), 5 a filled
+# rectangle, 6 drawn text, 7 a key (0 when none waits),
+# 9 the window standing, 3 a yield, 0 the leaving. Written
+# by hand, in the open, in the public domain.
 
     .text
     .globl  _start
@@ -65,7 +76,22 @@ height_done:
     sub     %rbp, %r15
     shr     $1, %r15                # centred
 
-    # The field: the whole screen, deep cardinal.
+    call    paint_all               # the face, painted whole
+    jmp     wait
+
+# ------------------------------------------------------------------
+# paint_all: the whole face from the reckoned shape — the
+# field, the panel and its furniture, the words, the
+# cardinal, the invitation. Called at the opening, and
+# again whenever the window standing says a repaint is
+# owed, so a window that moved or was covered wears the
+# same true face as the one that never stirred.
+# ------------------------------------------------------------------
+paint_all:
+    # The field: the whole of my ground, deep cardinal —
+    # the screen from the text shell, the window's canvas
+    # from the desktop; service 4's answer named it either
+    # way, and the fill is that answer's measure.
     xor     %esi, %esi              # x = 0
     xor     %edx, %edx              # y = 0
     mov     %r12, %rcx              # the screen's own width
@@ -306,9 +332,18 @@ height_done:
     mov     $hint_end - hint, %r8
     mov     $0x241A12, %r9
     call    draw
+    ret
 
-    # Wait for a key: knock, hear nothing, yield, knock again.
+    # Wait for a key: knock at the window standing first —
+    # a repaint owed is paid at once — then knock for a
+    # key, hear nothing, yield, knock again.
 wait:
+    mov     $9, %rax                # service 9: window standing
+    int     $0x80                   # the door
+    test    $1, %rax                # a repaint owed?
+    je      wait_key
+    call    paint_all               # the whole face anew
+wait_key:
     mov     $7, %rax                # service 7: read a key
     int     $0x80                   # the door
     test    %rax, %rax

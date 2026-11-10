@@ -472,7 +472,47 @@ it bends.*
    behind SeaBIOS as well: the standard image on USB
    mass storage, booted through the sector's MBR copy,
    living off the bundle, installing from it, with no
-   CD in the machine.)*
+   CD in the machine. Milestone 25 — November 10,
+   2026 — gave feathers windows: a graphical feather
+   launched from the desktop opens in a window titled
+   with its card's own title, its size fixed at the
+   opening for the honest reason that a feather
+   reckons its face from the door's answer once, and a
+   size that moved under it would make the reckoning
+   a lie. The door kept its numbers and took the
+   window's meanings — the size is the canvas's, the
+   painting is offset and clipped to the canvas, the
+   mouse is the desktop's pointer answered relative
+   and signed, the keys are the guest's only while
+   its window holds the room — and gained one service,
+   the window standing, by which a guest learns that
+   the kernel has laid its ground over the canvas (at
+   the opening, at a change of the room, at a drag's
+   end) and a repaint is owed; TERM and FACE both pay
+   the owing whole, in frame and face together. The
+   session's shape did not change — the shell still
+   stands inside the launch — so the desktop is
+   tended on the guest's own input knocks, the mouse
+   bytes fed through the face's own hands, and clicks,
+   drags and the close box answer while the guest
+   stands. The feather's window stands over the
+   elders for its whole session, having no launcher
+   in the bar to raise it from burial; the elders'
+   furniture waits the session out, the bar still
+   answers, and the close box ends the session with
+   Esc's own verdict. TERM wraps at last: its columns
+   are reckoned from the measure it is given, and its
+   lines break at their last fitting space as they
+   join the scrollback, so its welcome prose stands
+   whole inside a window and whole on the full screen
+   alike. From the text shell the same feathers take
+   the whole screen exactly as they always have —
+   the face fits the room it was opened in. The
+   stone's probe also caught the Welcome card's press
+   hand answering for a card that did not stand — a
+   ghost button painted, and its click counted, on
+   the bare desktop; the standing check its younger
+   siblings always kept stands in it now.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

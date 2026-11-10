@@ -4238,7 +4238,22 @@ func loadProgramImage(_ fromBundle: Bool, _ extent: UInt32,
 ///   8  poll the mouse — the session's own reckoning of the
 ///      pointer: x, then y, then the buttons, packed into
 ///      the answer's words; all-ones when it is not the
-///      guest's to ask.
+///      guest's to ask. In a windowed session (milestone
+///      25) the reckoning is the desktop's own pointer, the
+///      words signed and relative to the window's canvas,
+///      and the buttons the guest's only while the pointer
+///      stands over that canvas.
+///   9  window standing (milestone 25) — the guest's news
+///      of its window: bit 0, a repaint is owed (the kernel
+///      has painted over the guest's canvas — the window
+///      opened, moved, was covered or uncovered — and the
+///      guest must paint its whole face again; asking
+///      clears the owing); bit 1, the guest's face holds
+///      the room (its keys are live); bit 2, the pointer
+///      stands over the guest's ground. A full-screen
+///      session answers bits 1 and 2 standing and bit 0
+///      owed once, at the claim — one contract for both
+///      roads. All-ones in a pair, like the mouse's no.
 ///   Anything else: not a service; the answer is all-ones.
 ///
 /// There is no sound service, and the absence is deliberate:
@@ -4281,7 +4296,7 @@ public func syscallHandler(_ service: UInt64, _ first: UInt64,
         printGuestByte(UInt8(truncatingIfNeeded: first))
         return 1
     }
-    if service >= 4 && service <= 8 {
+    if service >= 4 && service <= 9 {
         return graphicalService(service, first, second, third,
                                 fourth, fifth)
     }
@@ -5069,18 +5084,39 @@ func runFeather() {
     }
     loadProgramImageFromReading(base, featherProgramStart,
                                 UInt32(featherProgramLength))
-    heapFree(address)
+    // The reading is NOT handed back yet (milestone 25): a
+    // feather that claims the graphical suite at the desktop
+    // opens a window titled with its card's own title, and
+    // the title's letters live in this reading. The block is
+    // freed on the far side of the session instead — `heap`
+    // after a feather reads exactly as it did, the freeing
+    // merely having waited for the guest to leave.
     writeStatic(runRunningPrefix)
     writePathArgument(length)
     writeLine(runRunningSuffix)
     writeLine(sessionStopLine)
     resetGuestDoorState()
+    // The windowed road is armed (milestone 25): a feather
+    // launched while the desktop stands — typed in its
+    // Terminal, or launched from the Files window, which
+    // types through the same Terminal — will open its face
+    // in a window when it claims the suite. From the text
+    // shell the same feather takes the whole screen, as it
+    // always has: the face fits the room it was opened in.
+    if consoleInTerminal {
+        guestWindowArmed = true
+        featherWinTitleBase = base
+        featherWinTitleStart = featherTitleStart
+        featherWinTitleLength = featherTitleLength
+    }
     programRunning = true
     let verdict = cardnullLaunchProgram(root, programBase,
                                         programStackTop)
     programRunning = false
     teardownProgramSpace(root)
     restoreGuestScreen()
+    featherWinTitleBase = nil
+    heapFree(address)
     if verdict == programKilledVerdict {
         writeLine(programKilledLine)
     } else {
@@ -5156,15 +5192,24 @@ func runFeather() {
 // The face rules, stated as law and kept by the hands below:
 //
 //   - The suite is claimed whole. A single guest's first knock
-//     on any of services 4–8 takes the door's graphical side:
+//     on any of services 4–9 takes the door's graphical side:
 //     its own typing state, its own mouse reckoning, and —
-//     where the boot brought a framebuffer — the whole screen
-//     for the session. There is no windowing of guests: a
-//     graphical guest's face is the screen, edge to edge,
-//     until it leaves. (A text guest that never knocks is
-//     untouched by all of this — nothing is claimed, nothing
-//     is restored, and milestones 9–17 behave exactly as they
-//     did, which the milestone's regressions lean on.)
+//     where the boot brought a framebuffer — the guest's face
+//     for the session. (Milestone 25: a feather launched while
+//     the desktop stands opens that face in a desktop window
+//     instead — window 5, in the keeping below — and the
+//     suite's answers fit the window: the size is the canvas's,
+//     the painting is offset by the canvas's origin and
+//     clipped to it, the mouse is answered relative to it,
+//     the keys are the guest's only while its window holds
+//     the room, and service 9 tells the guest when its canvas
+//     has been painted over and a repaint is owed. From the
+//     text shell, and for bare guests always, the face is the
+//     screen edge to edge, exactly as milestone 18 left it.)
+//     A text guest that never knocks is untouched by all of
+//     this — nothing is claimed, nothing is restored, and
+//     milestones 9–17 behave exactly as they did, which the
+//     milestone's regressions lean on.
 //   - The way back is exact. When the session ends — by the
 //     guest's leaving, by the user's Esc, by a fault, by the
 //     door's own stop — the world it covered is repainted from
@@ -5184,7 +5229,8 @@ func runFeather() {
 //     on the suite is refused — the refusal spoken plainly on
 //     the screen, once per session, and answered with the
 //     service's nothing (0 for size, text and keys, 1 for a
-//     rectangle, all-ones for the mouse). `both` itself is
+//     rectangle, all-ones for the mouse and the window
+//     standing). `both` itself is
 //     not refused — the kernel cannot know a guest's mind
 //     before it knocks — but the knock is, with the reason.
 //
@@ -5263,6 +5309,83 @@ var guestMouseStage = 0
 var guestMouseFirst: UInt8 = 0
 var guestMouseSecond: UInt8 = 0
 
+// MARK: - Milestone 25: the guest's face in a window
+//
+// A feather launched while the desktop stands opens its
+// face in a window on that desktop (window 5) instead of
+// taking the screen. The window's size is FIXED at the
+// claim: the guest reckons its face from service 4's
+// answer once, at its start, and a size that moved under
+// it would make its own reckoning a lie — a different size
+// means closing and reopening the feather. There is no
+// resize furniture and no maximize box; the chrome is the
+// title bar and the close box the other windows keep.
+//
+// Repaint, honestly: the kernel paints its side of the
+// window — the frame, the title, and the canvas's ground —
+// whenever the window opens, moves, is raised, or is
+// covered and uncovered, and every such painting fills the
+// canvas with its ground. That filling IS the kernel's
+// invalidation: the guest learns of it by service 9 (the
+// window standing), whose bit 0 answers "a repaint is
+// owed" until the guest asks, and a well-mannered feather
+// paints its whole face again the moment the owing stands.
+// (The feather's window stands over the elders for its
+// whole session, so the owing is never a covering's debt:
+// it is the debt of the kernel's own ground-laying at the
+// opening, at a change of the room, and at a drag's end.)
+//
+// A windowed session still runs with the shell blocked in
+// the launch, as every session does: the desktop is tended
+// on the guest's own input knocks. Services 7, 8 and 9
+// first feed the drained mouse bytes through the desktop's
+// own hands, so clicks raise and cover windows, the title
+// bar drags, and the close box asks for the session's
+// stop — Esc's request by another road — all while the
+// guest stands. Keys are the guest's only while its window
+// holds the room (service 7 lets them go otherwise, the
+// way the desktop's own faces do).
+
+/// Armed by `runFeather` when the launch stands on the
+/// desktop: the guest's claim will open a window instead
+/// of taking the screen. Cleared with the rest of the
+/// door's state at every launch.
+var guestWindowArmed = false
+
+/// Whether the running graphical session is windowed. Set
+/// at the claim, cleared when the screen is restored.
+var guestWindowed = false
+
+/// A repaint is owed: the kernel has painted over the
+/// guest's canvas (at the claim, and whenever the window
+/// is painted again), and the guest has not yet asked
+/// service 9. Stands at every claim, windowed or
+/// full-screen, so one contract serves both roads:
+/// full-screen, bits 1 and 2 of the standing always stand
+/// and bit 0 stands once at the claim.
+var guestRepaintOwed = false
+
+/// The card reading's own letters for the window's title:
+/// the block's base and the title's place inside it. The
+/// reading stays alive for the session (see `runFeather`)
+/// and is handed back when the guest leaves.
+var featherWinTitleBase: UnsafeMutablePointer<UInt8>? = nil
+var featherWinTitleStart = 0
+var featherWinTitleLength = 0
+
+/// The feather window's rect on the framebuffer (window
+/// 5), reckoned at the claim and fixed until the session
+/// ends — only its place moves, when the title is dragged.
+var guiFeatherX = 0
+var guiFeatherY = 0
+var guiFeatherW = 0
+var guiFeatherH = 0
+
+/// Whether the feather window stands on the desktop, and
+/// whether it holds the room (the focus, in plain words).
+var featherWinOpen = false
+var guiFocusFeather = false
+
 /// Sets the suite's keepings back to their rest, at every
 /// launch — run, both and feather alike — so no session ever
 /// inherits the last session's face, keys or refusals.
@@ -5270,6 +5393,11 @@ func resetGuestDoorState() {
     guestGraphical = false
     guestDoorTaken = false
     guestPairRefusalSpoken = false
+    guestWindowArmed = false
+    guestWindowed = false
+    guestRepaintOwed = false
+    featherWinOpen = false
+    guiFocusFeather = false
 }
 
 /// The claim, taken at a single guest's first knock on the
@@ -5287,10 +5415,37 @@ func guestTakeDoor() {
     guestKeyExtended = false
     guestMouseStage = 0
     guestMouseButtons = 0
+    // The repaint owing stands at every claim (milestone
+    // 25): the guest's first service-9 ask hears that its
+    // ground has been laid and its face is owed — the same
+    // word whether the face is a window or the whole
+    // screen.
+    guestRepaintOwed = true
     if useFramebuffer {
         guestGraphical = true
         guestMouseX = framebufferWidth / 2
         guestMouseY = framebufferHeight / 2
+        if guestWindowArmed {
+            // The windowed claim: the window opens on the
+            // desktop, centred in the work area, as large
+            // as its measure allows with air around it, and
+            // holds the room — it was just opened, and its
+            // owner is waiting to be typed to. Its size is
+            // fixed here and never moves again this session.
+            guestWindowed = true
+            guiFeatherW = min(800, framebufferWidth - 48)
+            guiFeatherH = min(560, guiBarTop() - guiWorkTop - 32)
+            guiFeatherX = (framebufferWidth - guiFeatherW) / 2
+            guiFeatherY = guiWorkTop + 40
+            featherWinOpen = true
+            guiFocusFeather = true
+            guiFocusTerminal = false
+            guiFocusFiles = false
+            guiFocusReader = false
+            pointerHide()
+            guiPaintDesktop()
+            pointerShow()
+        }
     }
 }
 
@@ -5354,6 +5509,18 @@ func doorStopGuest(_ address: UInt64) -> Never {
 func restoreGuestScreen() {
     if !guestGraphical { return }
     guestGraphical = false
+    if guestWindowed {
+        // The windowed way home (milestone 25): the window
+        // closes, and the room returns to the Terminal —
+        // the conversation that launched the feather and
+        // the verdict line that follows it both live there.
+        // The desktop repaint below then paints the whole
+        // world true again, window and all trace of it gone.
+        guestWindowed = false
+        featherWinOpen = false
+        guiFocusFeather = false
+        guiFocusTerminal = true
+    }
     if consoleInTerminal {
         while nextMouseByte() != nil {}
         mouseStage = 0
@@ -5388,6 +5555,7 @@ func graphicalService(_ service: UInt64, _ first: UInt64,
         guestPairRefusal()
         if service == 5 { return 1 }
         if service == 8 { return UInt64.max }
+        if service == 9 { return UInt64.max }
         return 0
     }
     if service == 7 {
@@ -5397,10 +5565,20 @@ func graphicalService(_ service: UInt64, _ first: UInt64,
     if !useFramebuffer {
         if service == 5 { return 1 }
         if service == 8 { return UInt64.max }
+        if service == 9 { return UInt64.max }
         return 0
     }
     guestTakeDoor()
     if service == 4 {
+        // The face's measure, as one word: the width in
+        // the low half, the height in the high half.
+        // Windowed (milestone 25), the measure is the
+        // window's canvas — the guest reckons its face
+        // from this answer and no other, so the answer is
+        // the room it truly has.
+        if guestWindowed {
+            return guestCanvasAnswer()
+        }
         return UInt64(framebufferWidth)
             | UInt64(framebufferHeight) << 32
     }
@@ -5411,7 +5589,84 @@ func graphicalService(_ service: UInt64, _ first: UInt64,
     if service == 6 {
         return guestDrawText(first, second, third, fourth, fifth)
     }
+    if service == 9 {
+        return guestWindowStanding()
+    }
     return guestMousePoll()
+}
+
+/// The windowed session's canvas measure: service 4's
+/// answer in a window — the canvas's width in the low half
+/// of the word, its height in the high half, the same
+/// packing as the whole screen's.
+func guestCanvasAnswer() -> UInt64 {
+    return UInt64(guiFeatherW - 4)
+        | UInt64(guiFeatherH - 2 - 36) << 32
+}
+
+/// The canvas's place on the framebuffer: its origin, the
+/// window's frame inset by the border and the title bar —
+/// the milestone-14 chrome's own measure (2 to the side,
+/// 36 of title above, 2 of border below).
+func guestCanvasOriginX() -> Int { return guiFeatherX + 2 }
+func guestCanvasOriginY() -> Int { return guiFeatherY + 36 }
+
+/// Tending the desktop while a windowed session stands
+/// (milestone 25): the mouse bytes the interrupts have
+/// gathered are fed through the desktop's own hands —
+/// `guiTakeMouseByte`, the very hand the face feeds — so
+/// packets assemble, the pointer travels, a press raises
+/// or covers windows and may drag the feather's title or
+/// ask for the session's stop at its close box, and a
+/// release sets a carried window down, all by the
+/// desktop's ordinary manners. Called at the head of the
+/// input services (7, 8, 9) while the session is
+/// windowed; the byte after the feeding is the state the
+/// service then answers from.
+func guestWindowTend() {
+    while let byte = nextMouseByte() {
+        guiTakeMouseByte(byte)
+    }
+    _ = guiPollMousePort()
+}
+
+/// Service 9, the window standing: the guest's news of
+/// its window, as bits in one word — bit 0, a repaint is
+/// owed (the kernel has painted over the guest's canvas:
+/// at the opening, and whenever the window is painted
+/// again; asking clears the owing, and a well-mannered
+/// feather paints its whole face again at once); bit 1,
+/// the guest's face holds the room (its keys are live);
+/// bit 2, the pointer stands over the guest's ground.
+/// A full-screen session answers bits 1 and 2 standing —
+/// the whole screen is its ground and it always holds
+/// the room — and bit 0 owed once, at the claim: one
+/// contract for both roads.
+func guestWindowStanding() -> UInt64 {
+    if guestWindowed {
+        guestWindowTend()
+        var answer: UInt64 = 0
+        if guestRepaintOwed { answer |= 1 }
+        if guiFocusFeather { answer |= 2 }
+        if pointerOverGuestCanvas() { answer |= 4 }
+        guestRepaintOwed = false
+        return answer
+    }
+    let owed = guestRepaintOwed
+    guestRepaintOwed = false
+    return owed ? 7 : 6
+}
+
+/// Whether the desktop's pointer stands over the
+/// windowed guest's canvas — the standing's bit 2, and
+/// the mouse poll's rule for whether the buttons are the
+/// guest's to hear.
+func pointerOverGuestCanvas() -> Bool {
+    return pointerX >= guestCanvasOriginX()
+        && pointerX < guestCanvasOriginX() + (guiFeatherW - 4)
+        && pointerY >= guestCanvasOriginY()
+        && pointerY < guestCanvasOriginY()
+            + (guiFeatherH - 2 - 36)
 }
 
 /// Service 5, the rectangle: (x, y, width, height, colour) read
@@ -5446,6 +5701,14 @@ func guestFillRectangle(_ xWord: UInt64, _ yWord: UInt64,
     } else {
         bottom = sy + sh
     }
+    if guestWindowed {
+        // Windowed (milestone 25): the same asks, reckoned
+        // in the canvas's own coordinates — clipped to the
+        // canvas, offset by its origin, and never into the
+        // window that covers it or the bar below.
+        return guestFillWindowed(sx, sy, right, bottom,
+                                 colorWord)
+    }
     let width = Int64(framebufferWidth)
     let height = Int64(framebufferHeight)
     let x0 = sx < 0 ? Int64(0) : sx
@@ -5456,6 +5719,55 @@ func guestFillRectangle(_ xWord: UInt64, _ yWord: UInt64,
     guiFillRect(Int(x0), Int(y0), Int(x1 - x0), Int(y1 - y0),
                 UInt32(truncatingIfNeeded: colorWord))
     return 0
+}
+
+/// Service 5 in a window (milestone 25): the ask arrives
+/// in the canvas's own coordinates. The intersection with
+/// the canvas is taken in those coordinates with the same
+/// care as the screen's (an ask lying wholly outside is
+/// the refusal answer 1, never a stop), then painted
+/// through `guestPaintFill`, which offsets, screens and
+/// uncovers it. The pointer is hidden across the painting
+/// so its saved-under cushion never lays stale pixels over
+/// the guest's fresh ground, and shown again after.
+func guestFillWindowed(_ sx: Int64, _ sy: Int64,
+                       _ right: Int64, _ bottom: Int64,
+                       _ colorWord: UInt64) -> UInt64 {
+    let canvasW = Int64(guiFeatherW - 4)
+    let canvasH = Int64(guiFeatherH - 2 - 36)
+    let x0 = sx < 0 ? Int64(0) : sx
+    let y0 = sy < 0 ? Int64(0) : sy
+    let x1 = right < 0 ? Int64(0) : (right > canvasW ? canvasW : right)
+    let y1 = bottom < 0 ? Int64(0)
+        : (bottom > canvasH ? canvasH : bottom)
+    if x1 <= x0 || y1 <= y0 { return 1 }
+    pointerHide()
+    guestPaintFill(Int(x0), Int(y0), Int(x1 - x0), Int(y1 - y0),
+                   UInt32(truncatingIfNeeded: colorWord))
+    pointerShow()
+    return 0
+}
+
+/// Painting one rectangle of the guest's, in canvas
+/// coordinates, onto the screen truly: the rect is moved
+/// by the canvas's origin and cut off at the bottom bar
+/// (the bar is a band across the whole screen; a window
+/// may be dragged down over its head, and the bar must
+/// stay the bar). Nothing else can cover the canvas: the
+/// feather's window stands over the desktop's own windows
+/// for its whole session (guiPaintDesktop keeps that
+/// law), so no elder's rect is ever subtracted here — a
+/// painting clipped only by the canvas and the bar is a
+/// painting that lands exactly where the eye will find
+/// the window. What survives is painted by `guiFillRect`.
+func guestPaintFill(_ cx: Int, _ cy: Int, _ cw: Int, _ ch: Int,
+                    _ color: UInt32) {
+    let x = guestCanvasOriginX() + cx
+    let y = guestCanvasOriginY() + cy
+    var h = ch
+    if y + h > guiBarTop() { h = guiBarTop() - y }
+    if cw <= 0 || h <= 0 { return }
+    guiFillRect(x, y, cw, h, color)
 }
 
 /// Service 6, the guest's drawn words: (x, y, address, length,
@@ -5498,16 +5810,61 @@ func guestDrawText(_ xWord: UInt64, _ yWord: UInt64,
     if penY > framebufferHeight + 4096 { penY = framebufferHeight + 4096 }
     if penY < -4096 { penY = -4096 }
     var index: UInt64 = 0
+    if guestWindowed { pointerHide() }
     while index < count {
         let byte = UnsafePointer<UInt8>(
             bitPattern: UInt(pointer + index))!.pointee
         if byte >= 0x20 && byte != 0x7F {
-            guiDrawGlyph(penX, penY, guestTextScale, byte, color)
+            if guestWindowed {
+                guestDrawGlyphWindowed(penX, penY, byte, color)
+            } else {
+                guiDrawGlyph(penX, penY, guestTextScale, byte, color)
+            }
         }
         penX += 8 * guestTextScale
         index += 1
     }
+    if guestWindowed { pointerShow() }
     return count
+}
+
+/// One of the guest's letters in a window (milestone 25):
+/// the same kernel font at the same twofold measure as
+/// the whole screen's road, drawn square by square
+/// through `guestPaintFill`, so a letter straddling the
+/// canvas's edge — or a covering window — is clipped by
+/// the same discipline as a filled rectangle, never by
+/// trust. The pen stands in canvas coordinates.
+func guestDrawGlyphWindowed(_ penX: Int, _ penY: Int,
+                            _ byte: UInt8, _ color: UInt32) {
+    let glyph = Int(byte & 0x7F)
+    let font = cardnullFont8x8()
+    let cell = 8 * guestTextScale
+    if penX >= guiFeatherW - 4 || penY >= guiFeatherH - 2 - 36
+        || penX + cell <= 0 || penY + cell <= 0 {
+        return
+    }
+    var row = 0
+    while row < 8 {
+        let bits = font[glyph * 8 + row]
+        if bits != 0 {
+            var runStart = -1
+            var col = 0
+            while col <= 8 {
+                let on = col < 8 && bits & (UInt8(1) << UInt8(col)) != 0
+                if on && runStart < 0 { runStart = col }
+                if !on && runStart >= 0 {
+                    guestPaintFill(penX + runStart * guestTextScale,
+                                   penY + row * guestTextScale,
+                                   (col - runStart) * guestTextScale,
+                                   guestTextScale, color)
+                    runStart = -1
+                }
+                col += 1
+            }
+        }
+        row += 1
+    }
 }
 
 /// Service 7, the guest's keys: scancodes are taken from the
@@ -5530,6 +5887,32 @@ func guestDrawText(_ xWord: UInt64, _ yWord: UInt64,
 /// itself), asks for the stop and answers 0: the law holds by
 /// both roads, and a feather never receives Esc.
 func guestReadKey() -> UInt64 {
+    if guestWindowed {
+        // Windowed (milestone 25): tend the desktop first,
+        // then the focus law — keys are the guest's only
+        // while its window holds the room. While another
+        // window holds it, the gathered keys are let go
+        // (drained and dropped, the way the desktop's own
+        // faces let go of keys that are not theirs — they
+        // are not saved up to ambush the guest when the
+        // room comes back), and the answer is no key. Esc
+        // is the interrupt's own affair and has usually
+        // already asked for the stop before this knock;
+        // the drain keeps its word here too.
+        guestWindowTend()
+        if !guiFocusFeather {
+            while let code = nextScancode() {
+                if code == 0x01 {
+                    cardnullSetStopRequest(1)
+                } else if code == 0xE0 {
+                    guestKeyExtended = true
+                } else {
+                    guestKeyExtended = false
+                }
+            }
+            return 0
+        }
+    }
     while let code = nextScancode() {
         if code == 0x01 {
             cardnullSetStopRequest(1)
@@ -5585,6 +5968,32 @@ func guestReadKey() -> UInt64 {
 /// that never polls simply never hears them, and the ring's
 /// own fullness lets old news go, as it does for the face.
 func guestMousePoll() -> UInt64 {
+    if guestWindowed {
+        // Windowed (milestone 25): the reckoning answered
+        // is the desktop's own pointer — tended first, so
+        // the answer is the pointer as it stands now — in
+        // the canvas's own coordinates: the pointer minus
+        // the canvas's origin, each way packed as a signed
+        // sixteen-bit word, so a pointer left or above the
+        // window answers honestly negative rather than
+        // clamped into a lie. The buttons ride the third
+        // word only while the pointer stands over the
+        // canvas; outside it they answer 0 — a click out
+        // there belongs to the desktop, never to the
+        // guest. The session's own second reckoning (the
+        // keeping below) is the full-screen road's and is
+        // not touched here.
+        guestWindowTend()
+        let relX = pointerX - guestCanvasOriginX()
+        let relY = pointerY - guestCanvasOriginY()
+        var buttons: UInt64 = 0
+        if pointerOverGuestCanvas() {
+            buttons = UInt64(mouseFirstByte & 0x07)
+        }
+        return UInt64(UInt16(bitPattern: Int16(relX)))
+            | UInt64(UInt16(bitPattern: Int16(relY))) << 16
+            | buttons << 32
+    }
     while let byte = nextMouseByte() {
         if guestMouseStage == 0 {
             if byte & 0x08 == 0 { continue }
@@ -6060,7 +6469,11 @@ func guiPaintWindow() {
 /// in their fixed order (Welcome, Terminal, Files, Reader)
 /// and the room's holder is painted over them, last. Which
 /// window holds the room is guiRoomHolder's one reckoning,
-/// read by the painters and the press alike.
+/// read by the painters and the press alike. Milestone 25
+/// stands a fifth window in the same reckoning — the
+/// feather's, while its session stands — painted over the
+/// elders always (a guest's face has no bar launcher to
+/// raise it from burial), its focus told by its title bar.
 /// A whole paint answers any dirty marks the Terminal's
 /// writing hands left behind, so they are cleared as it ends.
 func guiPaintDesktop() {
@@ -6085,6 +6498,14 @@ func guiPaintDesktop() {
     if holder == 2 && termOpen { guiPaintTerminal() }
     if holder == 3 && filesOpen { guiPaintFilesWindow() }
     if holder == 4 && readerOpen { guiPaintReaderWindow() }
+    // The feather's window stands over the elders while its
+    // session stands (milestone 25): a guest's face has no
+    // launcher in the bar to raise it from burial, and the
+    // Terminal's ground would swallow it whole — so it is
+    // never buried. Its focus is told by its title bar's
+    // colour, exactly as the elders' is; among themselves
+    // the elders keep their holder-last law untouched.
+    if featherWinOpen { guiPaintFeatherWindow() }
     guiPaintBar()
     termDirtyTop = -1
     termDirtyBottom = -1
@@ -6693,6 +7114,8 @@ func dragClampY(_ y: Int) -> Int {
 /// Milestone 19: the keeping names four windows now — 1 the
 /// Welcome card, 2 the Terminal, 3 the Files window, 4 the
 /// Reader — and the drag serves each by the same rule.
+/// Milestone 25 names a fifth, the feather's window, served
+/// by the same rule while its session stands.
 func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
     dragWindow = window
     if window == 1 {
@@ -6716,6 +7139,13 @@ func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
         dragRectY = guiReaderY
         dragRectW = guiReaderW
         dragRectH = guiReaderH
+    } else if window == 5 {
+        dragOffsetX = px - guiFeatherX
+        dragOffsetY = py - guiFeatherY
+        dragRectX = guiFeatherX
+        dragRectY = guiFeatherY
+        dragRectW = guiFeatherW
+        dragRectH = guiFeatherH
     } else {
         dragOffsetX = px - guiTermX
         dragOffsetY = py - guiTermY
@@ -6731,6 +7161,8 @@ func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
         guiPaintFilesTitleBar(true)
     } else if window == 4 {
         guiPaintReaderTitleBar(true)
+    } else if window == 5 {
+        guiPaintFeatherTitleBar(true)
     } else {
         guiPaintTermTitleBar(true)
     }
@@ -6782,6 +7214,10 @@ func guiEndDrag() {
         moved = dragRectX != guiReaderX || dragRectY != guiReaderY
         guiReaderX = dragRectX
         guiReaderY = dragRectY
+    } else if carried == 5 {
+        moved = dragRectX != guiFeatherX || dragRectY != guiFeatherY
+        guiFeatherX = dragRectX
+        guiFeatherY = dragRectY
     } else {
         moved = dragRectX != guiTermX || dragRectY != guiTermY
         guiTermX = dragRectX
@@ -6796,6 +7232,8 @@ func guiEndDrag() {
         guiPaintFilesTitleBar(false)
     } else if carried == 4 {
         guiPaintReaderTitleBar(false)
+    } else if carried == 5 {
+        guiPaintFeatherTitleBar(false)
     } else {
         guiPaintTermTitleBar(false)
     }
@@ -7073,6 +7511,14 @@ func guiOpenWelcome() {
 /// hold for the drag; any other press gives the card the room.
 /// Returns false when the point is not the card's at all.
 func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
+    // A card that does not stand answers nothing (milestone
+    // 25): its rect outlives it in the keeping, and before
+    // this guard a press on the bare desktop where the card
+    // had stood pressed its ghost — the button painted and
+    // counted on empty ground. Its younger siblings (Files,
+    // Reader) always checked that they stand; the elder
+    // keeps the same law now.
+    if !welcomeOpen { return false }
     if !guiWinContains(x, y) { return false }
     if guiCloseBoxContains(x, y) {
         welcomeOpen = false
@@ -7166,6 +7612,14 @@ func guiPressTerminal(_ x: Int, _ y: Int) -> Bool {
 /// bar carries a third launcher, Files, asked between the
 /// Terminal's and the Welcome card's.
 func guiPressAt(_ x: Int, _ y: Int) {
+    // While a windowed feather session stands (milestone
+    // 25), a press is the session's affair, answered by its
+    // own walk below: the desktop's furniture is tended,
+    // but nothing opens, closes or counts mid-session.
+    if guestWindowed {
+        guiPressAtSession(x, y)
+        return
+    }
     // A press anywhere but a title bar's plain ground puts
     // that bar's double-click pairing down: the second half
     // of a pair must land where the first half did. The Files
@@ -7242,6 +7696,170 @@ func guiPressWindow(_ window: Int, _ x: Int, _ y: Int) -> Bool {
     if window == 2 { return guiPressTerminal(x, y) }
     if window == 3 { return guiPressFiles(x, y) }
     return guiPressReader(x, y)
+}
+
+/// One window's rect by its number in the standing order
+/// (milestone 25): the reckoning the session's press walk
+/// and the guest's covered-painting both read, so a window
+/// is measured the same way by every hand.
+func guiWindowRect(_ window: Int) -> (Int, Int, Int, Int) {
+    if window == 1 { return (guiWinX, guiWinY, guiWinW, guiWinH) }
+    if window == 2 { return (guiTermX, guiTermY, guiTermW, guiTermH) }
+    if window == 3 {
+        return (guiFilesX, guiFilesY, guiFilesW, guiFilesH)
+    }
+    if window == 4 {
+        return (guiReaderX, guiReaderY, guiReaderW, guiReaderH)
+    }
+    return (guiFeatherX, guiFeatherY, guiFeatherW, guiFeatherH)
+}
+
+/// Whether a window stands open, by its number — the
+/// standing check the session's walk and the guest's
+/// covered-painting ask before trusting a rect.
+func guiWindowStands(_ window: Int) -> Bool {
+    if window == 1 { return welcomeOpen }
+    if window == 2 { return termOpen }
+    if window == 3 { return filesOpen }
+    if window == 4 { return readerOpen }
+    return featherWinOpen
+}
+
+/// The feather window's ground, by the elder windows'
+/// measures: the whole window, its title strip, its close
+/// box.
+func guiFeatherContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiFeatherX && x < guiFeatherX + guiFeatherW
+        && y >= guiFeatherY && y < guiFeatherY + guiFeatherH
+}
+
+func guiFeatherTitleContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiFeatherX && x < guiFeatherX + guiFeatherW
+        && y >= guiFeatherY && y < guiFeatherY + 36
+}
+
+func guiFeatherCloseContains(_ x: Int, _ y: Int) -> Bool {
+    x >= guiCloseBoxX(guiFeatherX, guiFeatherW)
+        && x < guiCloseBoxX(guiFeatherX, guiFeatherW) + guiBoxW
+        && y >= guiFeatherY + guiBoxTop
+        && y < guiFeatherY + guiBoxTop + guiBoxH
+}
+
+/// Gives the room during a windowed session (milestone
+/// 25): exactly one of the five standings is set — the
+/// feather's window (5), the Terminal (2), the Files
+/// window (3), the Reader (4), or the Welcome side, which
+/// is no window holding it (1) — and the desktop is
+/// repainted whole in its new standing, the holder
+/// painted last and on top, exactly the face's own rule.
+/// A call that changes nothing paints nothing.
+func guiSessionFocus(_ window: Int) {
+    let feather = window == 5
+    let terminal = window == 2
+    let files = window == 3
+    let reader = window == 4
+    if guiFocusFeather == feather && guiFocusTerminal == terminal
+        && guiFocusFiles == files && guiFocusReader == reader {
+        return
+    }
+    guiFocusFeather = feather
+    guiFocusTerminal = terminal
+    guiFocusFiles = files
+    guiFocusReader = reader
+    pointerHide()
+    guiPaintDesktop()
+    pointerShow()
+}
+
+/// A press while a windowed feather session stands
+/// (milestone 25): the session's own seniority walk — the
+/// bar first, then the feather's window (it stands over
+/// the elders, so its ground is asked before theirs),
+/// then the elders from the room's holder down — but with
+/// the session's manners. The bar's Home still asks
+/// for the way home (no one is ever trapped; the face
+/// goes home when the session unwinds), and its launchers
+/// give the room to a window that already stands — none
+/// opens mid-session. The feather's window answers fully:
+/// its close box asks for the session's stop (Esc's
+/// request by the mouse's road — the session ends and its
+/// verdict is the stopped verdict, as Esc's is), its
+/// title takes the room and takes hold for the drag, its
+/// body takes the room. The other windows answer with the
+/// room only: their furniture — close boxes, buttons,
+/// lists — is still until the feather leaves, because
+/// their hands would speak into a shell that is standing
+/// inside the session. A press on bare desktop gives the
+/// room to the Welcome side, as the face's own walk does.
+func guiPressAtSession(_ x: Int, _ y: Int) {
+    if y >= guiBarTop() {
+        if guiBarHomeContains(x, y) {
+            guiWantsHome = true
+            return
+        }
+        if guiBarTermContains(x, y) {
+            if termOpen { guiSessionFocus(2) }
+            return
+        }
+        if guiBarFilesContains(x, y) {
+            if filesOpen { guiSessionFocus(3) }
+            return
+        }
+        if guiBarWelcomeContains(x, y) {
+            if welcomeOpen { guiSessionFocus(1) }
+            return
+        }
+        return
+    }
+    // The feather's window is asked first: it stands over
+    // the elders (see guiPaintDesktop), so a point the eye
+    // sees as the feather's is the feather's, whoever holds
+    // the room. The elders then answer in their order.
+    if guiPressWindowSession(5, x, y) { return }
+    let holder = guiRoomHolder()
+    if holder != 5 && guiPressWindowSession(holder, x, y) {
+        return
+    }
+    var candidate = 4
+    while candidate >= 1 {
+        if candidate != holder
+            && guiPressWindowSession(candidate, x, y) { return }
+        candidate -= 1
+    }
+    guiSessionFocus(1)
+}
+
+/// One window's answer to a press during a windowed
+/// session, by its number: the feather's window (5)
+/// answers with its close box, its title and its room;
+/// the elder four answer with the room alone, and only
+/// where they stand.
+func guiPressWindowSession(_ window: Int, _ x: Int,
+                           _ y: Int) -> Bool {
+    if window == 5 {
+        if !featherWinOpen || !guiFeatherContains(x, y) {
+            return false
+        }
+        if guiFeatherCloseContains(x, y) {
+            cardnullSetStopRequest(1)
+            return true
+        }
+        if guiFeatherTitleContains(x, y) {
+            guiSessionFocus(5)
+            guiBeginDrag(5, x, y)
+            return true
+        }
+        guiSessionFocus(5)
+        return true
+    }
+    if !guiWindowStands(window) { return false }
+    let rect = guiWindowRect(window)
+    if x < rect.0 || x >= rect.0 + rect.2
+        || y < rect.1 || y >= rect.1 + rect.3 {
+        return false
+    }
+    guiSessionFocus(window)
+    return true
 }
 
 /// A release: if the button stood pressed, it takes its resting
@@ -8149,6 +8767,7 @@ let readerTruncatedLine: StaticString =
 /// younger standings ever stands; every hand that gives the
 /// room clears the others as it takes it.
 func guiRoomHolder() -> Int {
+    if guiFocusFeather { return 5 }
     if guiFocusReader { return 4 }
     if guiFocusFiles { return 3 }
     if guiFocusTerminal { return 2 }
@@ -9178,6 +9797,60 @@ func guiPaintReaderWindow() {
                          readerScroll > 0)
     guiPaintScrollButton(readerRailX(), readerBottom() - 28,
                          false, readerScroll < maxScroll)
+}
+
+/// Paints the feather window's title strip alone, in the
+/// colour of its standing: its name is the feather's own,
+/// read out of the card's keeping the session holds open —
+/// the Reader's road, a title that is not a standing word.
+/// The name is cut at the room the strip leaves it, short
+/// of the close box: furniture never crunches (the desktop
+/// design law), and a long name is shortened, never spilt.
+func guiPaintFeatherTitleBar(_ held: Bool) {
+    guiFillRect(guiFeatherX, guiFeatherY, guiFeatherW, 36,
+                held ? guiHeldBarColor
+                    : (guiFocusFeather ? guiCardinalColor
+                                       : guiDimBarColor))
+    if let base = featherWinTitleBase {
+        let room = (guiFeatherW - 8 - guiBoxW - 16) / (8 * 2)
+        let count = min(featherWinTitleLength, max(room, 0))
+        guiDrawBytes(guiFeatherX + 16, guiFeatherY + 10, 2,
+                     base, featherWinTitleStart, count,
+                     guiWhiteColor)
+    }
+    guiPaintXBox(guiCloseBoxX(guiFeatherX, guiFeatherW),
+                 guiFeatherY + guiBoxTop)
+}
+
+/// Paints the feather window whole (milestone 25): shadow,
+/// body and border, the title strip, and the canvas laid
+/// with its ground — the Terminal's own dark earth, the
+/// ground a face expects before it paints. Laying the
+/// ground IS the kernel's invalidation of the guest's
+/// canvas, so this painter sets the repaint owing: the
+/// guest's next service-9 ask hears that its face is owed
+/// and paints it whole again. A whole paint happens when
+/// the window opens, when the room changes hands, or when
+/// it is set down from a drag — exactly the moments the
+/// canvas must be owed.
+func guiPaintFeatherWindow() {
+    guiFillRect(guiFeatherX + 10, guiFeatherY + 12, guiFeatherW,
+                guiFeatherH, guiShadowColor)
+    guiFillRect(guiFeatherX, guiFeatherY, guiFeatherW,
+                guiFeatherH, guiParchmentColor)
+    guiFillRect(guiFeatherX, guiFeatherY, guiFeatherW, 2,
+                guiBorderColor)
+    guiFillRect(guiFeatherX, guiFeatherY + guiFeatherH - 2,
+                guiFeatherW, 2, guiBorderColor)
+    guiFillRect(guiFeatherX, guiFeatherY, 2, guiFeatherH,
+                guiBorderColor)
+    guiFillRect(guiFeatherX + guiFeatherW - 2, guiFeatherY, 2,
+                guiFeatherH, guiBorderColor)
+    guiPaintFeatherTitleBar(false)
+    guiFillRect(guestCanvasOriginX(), guestCanvasOriginY(),
+                guiFeatherW - 4, guiFeatherH - 2 - 36,
+                guiTermBgColor)
+    guestRepaintOwed = true
 }
 
 /// Scrolls the page by whole lines, clamped and repainted,
