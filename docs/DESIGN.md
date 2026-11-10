@@ -53,10 +53,12 @@ it bends.*
    paints it through whichever screen the door provided — the
    VGA text grid, or pixels drawn from an embedded public-domain
    8x8 font — so the shell above neither knows nor cares which
-   firmware let it in. Behind the UEFI door stands GRUB's own
-   EFI build loading the same Multiboot2 kernel; a native EFI
-   entry of our own, speaking to the firmware directly, remains
-   a later door.)*
+   firmware let it in. Behind the UEFI door the standard image
+   still walks in by GRUB's own EFI build; since milestone 22
+   (November 10, 2026) the ownboot image walks in by a native
+   EFI entry of our own, speaking to the firmware directly and
+   handing over the same Multiboot2 word — `docs/BOOTLOADER.md`
+   keeps its design.)*
 3. Memory management; a filesystem that remembers.
    *(Begun — November 9, 2026: milestone 6 taught the kernel to
    read the Multiboot2 memory map and keep a page-frame allocator
@@ -424,7 +426,11 @@ it bends.*
    from the disk waits for Cardnull's own bootloader.
    That bootloader — the last GPL-shaped passenger,
    GRUB, replaced by a small public-domain loader of
-   our own — is the next stone, and the one after it
+   our own — has since begun: milestone 22 (November
+   10, 2026) laid its UEFI half as the ownboot image,
+   whose UEFI door is ours end to end; its BIOS door
+   is the next stone, so that booting from an
+   installed disk can follow the pair. The stone after
    teaches the kernel to carry its files in memory,
    so a stick, which is not a CD, can be a home too.
    The Files window keeps its disc face at this stone;

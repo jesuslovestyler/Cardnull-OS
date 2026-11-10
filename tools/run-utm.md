@@ -615,3 +615,37 @@ Shut the VM down whenever you like. The CD's world is as
 it ever was — nothing on it persists or can break — and
 now the hard disk keeps what you saved on it, exactly as
 long as you keep the disk.
+
+## The ownboot image: our own bootloader (experimental)
+
+Since milestone 22 there is a second image to try:
+`dist/cardnull-ownboot.iso`, built by
+`tools/build-ownboot-iso.sh`. It carries the same disc
+as the standard image, with one difference at the
+door: **behind UEFI, it boots through Cardnull's own
+bootloader** — a small public-domain loader of ours —
+instead of GRUB. Behind the BIOS door it is still
+GRUB's road in; the mixed doors are a waypoint, stated
+plainly. The standard image is unchanged and remains
+the daily one.
+
+The drill is the same: point the machine's CD drive at
+`cardnull-ownboot.iso`, leave **UEFI Boot** checked,
+and start it. What differs is the first screen: instead
+of GRUB flashing past, the loader signs its work in
+plain text —
+
+    Cardnull Bootloader
+    Cardnull OS behind the UEFI door, loaded by our own hand.
+    The kernel is in hand: 228384 bytes, read from the boot volume.
+    The kernel stands at 1 MiB, ELF segments laid, the unwritten zeroed.
+    Screen: 1280 by 800, 32 bits to a pixel.
+    Memory map: ... regions, translated from the firmware's own.
+    Handing the machine to Cardnull OS...
+
+— and hands over quickly; the desktop that follows is
+the same desktop, by the same kernel, which did not
+change by a line. If the loader cannot do its work it
+says so on that screen and rests, rather than handing
+over a broken world. The design is kept in
+`docs/BOOTLOADER.md`.

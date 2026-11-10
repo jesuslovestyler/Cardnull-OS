@@ -1,8 +1,8 @@
 # Cardnull OS
 
-A Catholic operating system, written from scratch in **Swift** — public domain.
+A Christian operating system, written from scratch in **Swift** — public domain.
 
-Cardnull OS is the operating system of [Cardnull](https://cardnull.com), a Catholic
+Cardnull OS is the operating system of [Cardnull](https://cardnull.com), a Christian
 computer and software company founded by Tyler Austin James Kovalevich on
 November 4, 2026, in Washington, North Carolina. It is being built with
 Billy Miecuna.
@@ -77,7 +77,83 @@ script in `tools/`, linked with a custom linker script, and tested in UTM
 Public domain. See [LICENSE](LICENSE) — the Unlicense.
 Freely you have received; freely give. (Matthew 10:8)
 
+One accounting, kept honest: the standard image still
+boots through GRUB (GPL) on both of its doors, for now.
+On the UEFI door, the experimental ownboot image
+(`tools/build-ownboot-iso.sh`, milestone 22) contains
+no GRUB code at all — its loader is our own, public
+domain like everything else here. Its BIOS door is
+still GRUB's; that door is the next stone.
+
 ## Status
+
+Milestone 22 stands (November 10, 2026): **our own
+bootloader — the UEFI door is ours.** A second image
+now stands beside the daily one: `dist/cardnull.iso`
+is unchanged in behavior, GRUB-booted on both doors as
+ever; `dist/cardnull-ownboot.iso` carries the same
+disc, but its UEFI boot path is a small public-domain
+loader of our own (`Sources/bootloader/`), standing at the
+fallback path in an EFI system image that holds
+nothing else but the kernel itself. The loader signs
+its work on screen ("Cardnull Bootloader — Cardnull OS
+behind the UEFI door, loaded by our own hand"), opens
+its own boot volume by the firmware's file protocol,
+reads `/boot/kernel.bin` — the very file GRUB loads —
+lays its ELF segments at their addresses and zeroes
+the unwritten honestly, chooses the screen through the
+Graphics Output Protocol, builds the Multiboot2
+information the kernel already reads (two tags, no
+more: the framebuffer tag from the chosen mode, and
+the memory map translated region by region from the
+firmware's own), leaves by ExitBootServices, and drops
+through a small trampoline into the processor state
+`boot.S` has always expected — paging off, the magic
+in EAX, the word in EBX. (The loader's C is 670 lines;
+with its hand-written EFI header and the trampoline
+the whole door-keeper is 1,096 lines.) **The kernel
+did not change by one line: the Multiboot2 agreement
+is the whole point — our loader speaks what GRUB
+spoke.** The QEMU
+bench (OVMF, UTM's own shape, 512 MB) witnessed the
+whole regression chain through the new door: the
+desktop whole at the true 1280×800, `verse`, `sound`
+(the Doxology phrase, measured in the captured audio),
+TERM.FEATHER standing on the door's services alone,
+`net` answered, and `disk` reading the disk milestone
+21 installed. `mem` tells the handoff's truth: 129,475
+frames total and **1,552 used** behind our loader
+against the standard image's **1,551** in the same
+session — one frame of loader keeping, the memory map
+otherwise the same in kind. GRUB's EFI binary appears
+nowhere in the ownboot image (proven by byte search,
+not by trust), and its UEFI module tree is struck;
+what the fresh build does not re-create is the
+standard image's HFS+ blessing for old Macs and its
+GRUB-stamped hybrid MBR — a plain protective MBR and
+a true GPT stand in their place. The BIOS door of the
+ownboot image is still GRUB's eltorito image: mixed
+doors are a waypoint, stated plainly, not a claim.
+Two faults were found and fixed on the way, and are
+recorded here because they are the kind that teach:
+the loader first reckoned a pixel's size from its
+color channels alone and read this firmware's
+BlueGreenRedReserved screen — 32 bits by definition,
+reserved byte and all — as 24, handing the kernel a
+pitch of 3840 against the screen's true 5120; the
+desktop came up squeezed and tiled until the loader's
+own sign-on ("1280 by 800, 24 bits to a pixel") named
+the error, and the reckoning now counts the whole
+pixel. And the first ownboot tree was written at
+strict ISO 9660 naming, which truncates TERM.FEATHER
+to TERM.FEA — the kernel answered "Not on the disc" to
+a feather standing right there; the image is now
+written at ISO level 3, the standard image's own
+naming, entry for entry. The design, the tags, and the
+lessons are kept in `docs/BOOTLOADER.md`. Tyler
+witnesses the whole of today's building at his own
+checking; the UTM run of the ownboot image rides his
+word like every stone's last proof.
 
 Milestone 21 stands (November 10, 2026): **the writable
 disk, and the installer — a visiting stick becomes a

@@ -41,6 +41,22 @@ here.
   clang, ld.lld, python3, grub-mkrescue (xorriso and mtools under it).
   Set `SWIFTC=/path/to/swiftc` if swiftc is not on the PATH.
 
+- **`build-ownboot-iso.sh`** — the second image (milestone 22):
+  runs `build-iso.sh` first (the standard image must always
+  stand), compiles the bootloader in `Sources/bootloader/`
+  (clang and lld-link as a freestanding PE/COFF EFI
+  application — no gnu-efi, the EFI header is hand-written in
+  the tree), packs an EFI system image with mtools holding the
+  loader at `\EFI\BOOT\BOOTX64.EFI` and the same kernel at
+  `\BOOT\KERNEL.BIN`, then rebuilds the disc from the standard
+  image's own tree with that ESP standing as the El Torito
+  UEFI image, GRUB's places in the tree taken by the loader,
+  and its UEFI module tree struck. The BIOS door of the
+  result is still GRUB's; the UEFI door is ours. Output:
+  `dist/cardnull-ownboot.iso`. The design and the lessons
+  (why a fresh build, why ISO level 3) are kept in
+  `docs/BOOTLOADER.md` and in the script's own comments.
+
 - **`pack-feather.py`** — the feather packer (milestone 11): joins a
   card source (the magic line and the maker's keys: title, maker,
   version, support) to a flat guest binary, reckoning the program's
@@ -58,3 +74,6 @@ here.
 - `build/` — objects, `kernel.bin`, the ISO staging tree. Gitignored.
 - `dist/cardnull.iso` — the bootable image. **The ISO does not live in
   the repo**; it is built locally and carried to the test machine.
+- `dist/cardnull-ownboot.iso` — the experimental second image
+  (milestone 22): the same disc, its UEFI door ours. Built by
+  `build-ownboot-iso.sh`; it does not live in the repo either.
