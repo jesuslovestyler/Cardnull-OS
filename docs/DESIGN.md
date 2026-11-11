@@ -547,7 +547,64 @@ it bends.*
    as before; the bench proved that branch with a
    throwaway build whose waking asks without
    knocking, and the same mouse answered 0 and was
-   told of as having no wheel.)*
+   told of as having no wheel. Milestone 27 —
+   November 11, 2026 — taught the machine the sound
+   chip's language, and gave `sound` its routing
+   rule. The controller is found by class alone —
+   multimedia (04h), audio device (03h) — because a
+   driver that hunts one maker's numbers has learned
+   a machine, not a kind; its register ground is
+   mapped and its memory and bus-master doors opened
+   as the other drivers', and the raising is lazy —
+   at the first `sound`, never at boot — with its
+   verdict cached for the session either way, so a
+   chipless machine pays the asking once and sings
+   on the speaker thereafter. The conversation rides
+   two rings laid in allocator frames proven below
+   4 GiB, as the network rings were: the CORB, one
+   way out, carrying verb words to the codec, and
+   the RIRB carrying its answers back — interrupts
+   off, the RIRB's write pointer polled against the
+   kernel's kept reading with a deadline on the
+   heartbeat, because a codec that never answers
+   must cost fifty ticks, never the shell. The codec
+   is walked, never assumed: from its root, its
+   vendor and name; through its function groups to
+   the audio one; through that group's widgets to
+   the first converter and to a pin that can sound,
+   preferring the pin whose own connection list
+   names the converter — node numbers are whatever
+   the walk finds, and none is written down here
+   from any other machine's testimony. The path is
+   then configured verb by verb, and the phrase
+   itself is rendered once, at the raising, into
+   fresh frames — the same Doxology opening the
+   speaker sings, the same lengths on the same
+   heartbeat reckoning, now as samples at 48,000 a
+   second — and played whole through a
+   buffer-descriptor list; the speaker and the chip
+   sing one tune from one note table, which is why
+   their proofs can be read against each other. Two
+   defects stand as the stone's design lessons. A
+   format word is a spelling, and a wrong one does
+   not fail loudly: 0x0101 asked for 8-bit samples
+   at a doubled rate and the chip would have
+   honoured it exactly, so the word stands as one
+   named constant spelled from the phrase's own
+   facts — 48 kHz base rate, sixteen bits, two
+   channels, 0x0011 — and the converter and the
+   stream are taught that same word. And a watch
+   window is part of the music: the stream watch's
+   first margin stood thirty ticks past the phrase's
+   reckoning, wide enough for the phrase's first
+   note to begin again inside it, so the margin is
+   two ticks — wide enough to see the stream stop,
+   and no wider. The routing rule closes the stone:
+   the chip when one answers, the speaker when none
+   does, and one honest line in the Terminal saying
+   which road was taken — the fallback is not a
+   lesser silence but milestone 17's voice, kept
+   whole.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

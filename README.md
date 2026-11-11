@@ -90,6 +90,63 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 27 stands (November 11, 2026): **a voice
+with range — the sound chip sings.** Milestone 17
+gave the machine the PC speaker, one square wave,
+and the test machines have carried a real sound
+chip all along; this stone learns its language.
+The driver finds the controller on the PCI bus by
+its class alone — multimedia (04h), audio device
+(03h), any maker's chip, the way the disc and
+network drivers find theirs — and on the bench
+QEMU's chip answered as controller 8086:2668 with
+codec 1AF4:0022 behind it. Nothing is assumed
+about the codec: the walk asks the codec its own
+map, root to function group to widgets, and builds
+the path the codec itself declares — on the bench,
+converter node 2 sings through pin node 3.
+Commands travel two rings, CORB out and RIRB back,
+polled with a deadline so a silent codec costs
+fifty ticks, never the shell; the path is
+configured verb by verb; and the phrase — the same
+Doxology opening the speaker sings — is rendered
+once as a true stream of samples, 48,000 a second,
+sixteen bits, two channels, and played through a
+buffer-descriptor list. The routing is the stone's
+plain rule: `sound` sings through the chip when
+one answers, and through the PC speaker, exactly
+as it has since milestone 17, when none does — one
+honest line in the Terminal says which road was
+taken. The proof measured every note: the chip's
+stream stood at exactly 392, 494, 587, 587, 523,
+494, 440 and 494 Hz across its 3.437 seconds, with
+nothing sounding after the phrase's end, and the
+same account held behind all three doors — the
+standard image under UEFI, the ownboot image under
+UEFI, and the standard image under BIOS — while a
+machine with no chip on its bus sang the same
+notes, exact, on the speaker. The proof also
+caught two defects, and both were fixed: the
+stream's format word first spelled 8-bit samples
+at a doubled rate — 0x0101, where 0x0011 is the
+truth, the phrase's own facts (48 kHz base rate,
+sixteen bits, two channels) in the codec's
+spelling — and the stream's watch first kept a
+margin of thirty ticks past the phrase's
+reckoning, wide enough to let its first note begin
+again before the watching ended; the margin is two
+ticks now. `mem` reads 129,475 frames total, 1,566
+used at a fresh boot with the chip on the bus. The
+honest limit stands where it must: the bench
+proves the stream, every sample the chip was
+given, measured — but whether Tyler *hears* it in
+UTM is his witness, not yet given; UTM presents
+the same intel-hda device, and his speakers are
+the last leg no bench can walk for him. The kernel
+stands at 15,269 lines; the images at 3,676,160
+bytes each, both doors still ours, byte search
+still finding no GRUB.
+
 Milestone 26 stands (November 10, 2026): **the wheel
 turns — mouse-wheel scrolling.** Tyler asked for it
 the same day the feathers got their windows, after

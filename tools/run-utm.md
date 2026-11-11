@@ -279,36 +279,58 @@ run it again. The desktop itself, meanwhile, keeps
 only the plain word of it, as the bar's walk below
 tells.
 
-And since milestone 17, the machine has a voice — try
-`sound`. The shell names the tune first (the Doxology's
-opening, on Old Hundredth, in G major), then plays it
-on the PC speaker: eight notes, each printed before it
-sounds with its name, its frequency, and its length —
-G4 392 Hz, B4 494, D5 587, D5 again, C5 523, B4 494,
-A4 440, and a last B4 held twice as long — some three
-and a half seconds in all, and the shell waits while
-it plays (it says so, in as many words). Then the
-closing line: "The speaker is silent again." — and it
-is; the speaker's gate is closed at every note's end
-and at the phrase's, and no tone is ever left standing.
-The playing is the timer's second channel singing
-behind its gate; the 100 Hz heartbeat is a different
-channel and is never touched — try `uptime` before and
-after, and the count has advanced by just the wait,
-the song inside it. One witness this walk cannot make
-for you: whether you *hear* it. UTM's sound device is
-an intel-hda chip, which Cardnull does not drive —
-this stone speaks only through the PC speaker, and the
-road from that speaker into UTM's audio is UTM's own
-business. If the phrase plays in silence on your
-machine, the printed account still stands — every note
-named as it sounds — and the silence itself is a
-finding worth reporting, not a failure of the walk:
-on the builders' bench the speaker's output was
-captured to a file and measured, note by note, at
-exactly the frequencies the screen prints. Guests
-cannot sing yet: the interrupt-0x80 door has no sound
-service, and a feather's voice is a later stone.
+And since milestone 17, the machine has a voice — and
+since milestone 27 it has two roads to sing by. Boot
+this image, open the Terminal, and try `sound`. The
+machine looks first for a high-definition sound chip —
+UTM's sound device is an intel-hda chip, and Cardnull
+drives it now. If the chip answers, you should *hear*
+the tune: the Doxology's opening, on Old Hundredth, in
+G major, coming through UTM's intel-hda device as a
+true stream of sound — eight notes, G4 392 Hz, B4 494,
+D5 587, D5 again, C5 523, B4 494, A4 440, and a last B4
+held twice as long, some three and a half seconds in
+all. The Terminal tells the story as it goes: first
+the chip's own report — "Sound chip - controller
+8086:2668, codec 1AF4:0022." on the builders' bench,
+where QEMU's chip wears those numbers; yours will
+read as your own chip and codec report themselves —
+and the path the walk chose, "Path: converter node 2
+sings through pin node 3." on the bench, the numbers
+again being whatever your codec declares. Then the
+shell names the tune and prints each note with its
+name, its frequency, and its length, and waits while
+the phrase plays (it says so, in as many words). Then
+the closing line: "The sound chip is silent again." —
+and it is; the stream is stopped and reset, and no
+tone is ever left standing. On the bench the chip's
+stream was captured to a file and measured, note by
+note, at exactly the frequencies the screen prints,
+with nothing sounding after the phrase's end — the
+bench proves the stream; your ears are the witness
+for the last leg, through UTM's speakers, and whether
+you hear it is the finding this walk most wants back.
+Two honest fallbacks. If your UTM presents a different
+codec than the bench's, nothing above changes: the
+driver finds the controller by its class alone and
+asks the codec its own map, so the walk is generic —
+the report's numbers will simply be your machine's
+own. And if no high-definition chip answers at all,
+the Terminal says so in one line — "No high-definition
+sound chip answered; the speaker will sing." — and the
+machine sings the same phrase on the PC speaker, as it
+has since milestone 17: the speaker's gate closed at
+every note's end and at the phrase's, the playing the
+timer's second channel singing behind its gate, the
+100 Hz heartbeat a different channel and never touched
+(try `uptime` before and after, and the count has
+advanced by just the wait, the song inside it). UTM
+has no PC speaker, so on that road your machine may
+sing in silence — and then the Terminal's report is
+the finding: it tells us exactly what your machine
+answered, so tell us what it said. Guests cannot sing
+yet: the interrupt-0x80 door has no sound service, and
+a feather's voice is a later stone.
 
 And since milestone 20 the machine can speak to a
 neighbour — try `net`. The shell finds the network card
