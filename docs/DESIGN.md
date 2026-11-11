@@ -673,7 +673,132 @@ it bends.*
    guest's road, while the kernel Terminal's own
    scrollback round-trips by the wheel correctly,
    on the disk boot as elsewhere. It stands open
-   for a later stone to hunt, at Tyler's word.)*
+   for a later stone to hunt, at Tyler's word.
+   Milestone 29 — November 11, 2026 — finished the
+   conversation milestone 20 deliberately left at
+   one exchange: the network answers, the lease is
+   taken and held, and the machine answers back.
+   The design keeps milestone 20's shape and grows
+   it in four decisions. First, the card is raised
+   once: the e1000's rings and buffers are taken
+   at the first `net` — twenty frames, once, the
+   standing netTakeFrames keeping, proven by `mem`
+   reading 1,572 used of 129,475 total at a fresh
+   boot (512 MB) and the second `net` adding none
+   — and the raised card then serves the session,
+   rather than being rebuilt at every asking as
+   milestone 20 rebuilt it. Second, the lease is
+   kept in plain books: the address, its mask, the
+   server, the gateway, the DNS server, and the
+   lease's length and reckoning, all judged from
+   the ACK as the offer was judged before it —
+   every field read only within its frame's proven
+   length, the asking's own transaction number
+   required through DISCOVER (291 bytes), OFFER,
+   REQUEST (303 bytes) and ACK — and a second
+   `net` reads the books and makes no new asking:
+   "The lease stands; no new asking was made."
+   Third, citizenship is an idle service, not a
+   command: a reentrancy-guarded service stands in
+   kmain's loop and in the GUI's idle wait alike,
+   so a machine sitting at its shell or its desktop
+   still answers the wire — an ARP who-has for our
+   address answered with our hardware address, an
+   ICMP echo answered with its identifier, sequence
+   and payload intact — the guard keeping the
+   service from re-entering itself while a `net`
+   conversation or a transmission already holds
+   the card. Fourth, transmission walks its ring:
+   originated frames — the DHCP request, the
+   gateway's ARP ask, the gateway ping, a DNS
+   query — are built by hand, checksums honestly
+   reckoned, and sent through the transmit ring's
+   walking, each completion waited on the card's
+   own word, as milestone 20 waited for its one
+   discover. The proof is the bench's wire, not
+   its screen alone. On slirp the lease stood at
+   10.0.2.15/24 from 10.0.2.2, gateway 10.0.2.2,
+   DNS 10.0.2.3, 86,400 seconds; the gateway's ARP
+   reply came 8 microseconds after the ask; the
+   gateway ping was answered at a wire round-trip
+   of 6.9 microseconds (the Terminal reporting 0
+   ticks; on a peer wire 0.133 ms / 1 tick).
+   Citizenship was proven against a socket-peer
+   neighbour, frame for frame: the idle kernel
+   answered the peer's ARP who-has 10.0.2.15 and
+   its ICMP echo probe (reply in 4.67 ms, payload
+   intact), the Terminal's counters reading
+   exactly "1 ARP answers given, 1 ping answers
+   given, 1 gateway pings answered, 1 DNS answers
+   received", and the peer answered the DNS query
+   cardnull.com with 203.0.113.29, an address of
+   its own choosing. Silence was proven too: on a
+   network that never answers, `net` ends "No
+   answer came back on the wire." / "We hold no
+   address.", with exactly one guest frame — the
+   discover — ever sent. The stone's chronicle
+   also carries the defect its own growth found.
+   The kernel grew to 297,160 bytes and passed the
+   BIOS loader's whole-file staging cap of 294,912
+   bytes; behind the BIOS door the loader halted
+   honestly rather than hand over a kernel it had
+   not held whole. The layout reasoning is brief:
+   staging was a room the loader kept for a file
+   it then laid out — a second keeping the road
+   never needed, because the ELF itself names
+   every segment's address, and the bundle behind
+   the kernel has always been laid by streaming
+   to its named span without a staging room. The
+   fix (`biosmain.c`, the only other source file
+   changed) removes the staging: the file is
+   streamed in 16 KiB bounce pieces straight to
+   the addresses its ELF names, the cap becomes
+   32 MiB derived from the door's structural
+   limits (no more than 8 program heads, no span
+   over 4 MiB, at least 1 MiB, inside 4 GiB), new
+   checks prove each piece stands whole inside
+   the file before it is read, and the truthful
+   stop message is preserved for a file that
+   truly does not fit. Sibling caps were swept
+   and all checked clear. Re-proof covered all
+   three BIOS roads: the standard image behind
+   SeaBIOS, the ownboot image behind SeaBIOS, and
+   a disk freshly installed and made bootable
+   from the new image booting alone — its
+   KERNEL.BIN at 297,160 bytes in `dls`, its
+   extracted bytes hashing to the kernel's own
+   sha256
+   ea3bcdcc70af083f655caa7bb182654d6c1d853022dc7a37cf514052bf576215,
+   and its `net`
+   taking the lease. The regressions stood whole:
+   the HDA Doxology's eight notes at nominal,
+   0.00% error, the no-HDA speaker fallback in
+   tune, `dls` at 14 files, `about`'s bundle line
+   intact, and windowed TERM.FEATHER opening with
+   wheel-up lifting exactly 3 lines. Three
+   residuals are recorded plainly. The bench's
+   slirp did not answer the DNS query to
+   10.0.2.3 — an ICMP unreachable came back, and
+   the Terminal said so; DNS is proven against
+   the controlled neighbour, not on slirp. The
+   peer's ARP answer came after 500.7 ms — a
+   slower idle pass than the originated exchanges'
+   microsecond replies; the idle service answers
+   on the loop's own pace, and that pace is the
+   measured truth, not a number dressed up. And
+   the feather window's wheel-down leg still does
+   not return the view on this bench — a
+   pre-existing behaviour, identical frames
+   standing in milestone 28's own evidence, not
+   this stone's regression, while the kernel
+   Terminal's wheel returns exactly; it stands
+   open for a later stone, at Tyler's word.
+   The kernel stands at 16,804 lines and 297,160
+   bytes; the images at 3,710,976 bytes each —
+   `dist/cardnull.iso` sha256
+   5266854d010897a29c609ace474a1d36244a0998f4aa03a5fdea81d6ea7e5493,
+   `dist/cardnull-ownboot.iso` sha256
+   b35160690cff1bca3a001c7404ab140a10d4a2a677967463f4862b0ea04b8cbc.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

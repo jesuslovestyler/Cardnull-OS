@@ -322,21 +322,6 @@ static int read_to_phys(u32 iso_lba, u32 iso_sectors, u32 dest) {
     return 1;
 }
 
-/* Many ISO sectors, to a home below a mebibyte — no
- * bounce needed; the drive can be told the address
- * itself, segment stepping and all. */
-static int read_to_low(u32 iso_lba, u32 iso_sectors, u16 start_seg) {
-    return read_drive(iso_lba, iso_sectors, start_seg, 0);
-}
-
-/* Many raw sectors, to a home below a mebibyte (milestone
- * 28): the raw road's own read_to_low — read_raw already
- * moves in 16 KiB mouthfuls and steps the segment by the
- * paragraphs used, so a whole file is one asking. */
-static int read_file_low(u32 lba, u32 sectors512, u16 start_seg) {
-    return read_raw(lba, sectors512, start_seg, 0);
-}
-
 /* Many raw sectors, to any address in the machine, by way
  * of the same bounce field and the protected hand — the
  * raw road's read_to_phys, reckoned in 512-byte units. */
@@ -583,40 +568,116 @@ static void gather_memory(void) {
 }
 
 /* ---------------------------------------------------------------- */
-/* The kernel, laid at its own addresses. */
+/* The kernel, laid at its own addresses.
+ *
+ * Where everything stands while this section works —
+ * the whole of low memory this stage touches, stated
+ * once: the stage itself at 0x7E00, ending below
+ * 0x10000, its kept buffers (the directory's field, the
+ * E820 rows, this section's ELF head and program table,
+ * the handover's word) standing in its zeroed ground;
+ * the stack at 0x7C00, growing down away from the stage;
+ * the bounce field at 0x40000, the sixteen kibibytes
+ * the disc roads read into on their way anywhere; and
+ * the kernel's own home at 1 MiB and upward, reached
+ * only through the protected hands. Nothing else in
+ * the first mebibyte is promised to anyone.
+ *
+ * The kernel's file is never staged whole. It once was:
+ * the whole file was read to stand at 0x50000 before its
+ * segments were laid, and that staging set the stage's
+ * carrying limit — the file had to fit between 0x50000
+ * and the machine's furniture hard under the video
+ * field at 0xA0000 (the BIOS's own kept ground), which
+ * with the margin this house keeps came to 0x48000
+ * bytes. The kernel outgrew the room in milestone 29:
+ * 297,160 bytes of file against the 294,912 the staging
+ * could hold, and a ceiling a growing kernel meets
+ * again every few stones is not headroom, however
+ * honestly it is spoken. So the file now travels the
+ * road the bundle has always traveled: read_file_bytes
+ * walks it in bounce-sized pieces, and the protected
+ * hand lays each piece straight at the address the ELF
+ * names — the head and the program table into this
+ * section's own small buffers, each segment's bytes to
+ * the segment's own standing place. Low memory holds
+ * only the piece in flight, and the file's whole size
+ * leaves the reckoning entirely.
+ *
+ * What bounds the carrying now is the door's own law,
+ * the checks the laying below has always made: at most
+ * eight program heads, every segment standing at 1 MiB
+ * or above and spanning at most 0x400000 bytes, every
+ * address and size within the 4 GiB this door can name.
+ * Eight heads of four mebibytes bound the bytes this
+ * door can ever be asked to lay at 32 MiB, and the file
+ * cap is set to that sum — past it, or a table standing
+ * outside the file, or a segment reaching past the file
+ * that carries it (each proven below before a byte of
+ * it is read), the loader stops with the truth, exactly
+ * as before. Nothing is truncated, ever: a kernel that
+ * does not fit the law is not handed over at all. The
+ * kernel stands at 297,160 bytes as this is written;
+ * the room above it is a hundredfold, and it is room
+ * the layout truly has — none of it borrowed from the
+ * machine's furniture. */
 
-#define KSTAGE_PHYS 0x50000u
-#define KSTAGE_SEG 0x5000u
-#define KERNEL_FILE_CAP 0x48000u
+#define KERNEL_FILE_CAP 0x2000000u
 
 static u8 elf_head[64];
 static u8 phdr_tab[8 * 56];
 static u32 kernel_entry;
 static u32 kernel_span_high;
 
+/* The one reading failure this section can meet, named
+ * for the road the finding took. */
+static void die_reading_kernel(void) {
+    die(from_disk ? "reading the kernel off the boot disk"
+                  : "reading the kernel off the boot disc");
+}
+
+/* Reads a run of the kernel file's bytes — from
+ * file_off, len of them — to any address in the
+ * machine, in bounce-sized pieces: the sectors covering
+ * the run are read into the bounce field, and the
+ * protected hand copies the wanted slice of them home.
+ * The two roads reckon in their own sector widths, as
+ * everywhere in this stage; a run is cut so no piece
+ * asks the bounce for more than its sixteen kibibytes,
+ * and a piece may begin mid-sector — the slice, not the
+ * sector, is what travels onward. */
+static int read_file_bytes(u32 file_off, u32 len, u32 dest) {
+    u32 sec_size = from_disk ? 512u : 2048u;
+    while (len > 0) {
+        u32 sec_off = file_off & (sec_size - 1);
+        u32 want = 0x4000u - sec_off;
+        if (want > len) want = len;
+        u32 secs = (sec_off + want + sec_size - 1) / sec_size;
+        int ok;
+        if (from_disk)
+            ok = read_raw(kernel_lba512 + (file_off >> 9),
+                          secs, 0x4000, 0);
+        else
+            ok = read_drive(kernel_lba + (file_off >> 11),
+                            secs, 0x4000, 0);
+        if (!ok) return 0;
+        g_copy_src = BOUNCE_PHYS + sec_off;
+        g_copy_dst = dest;
+        g_copy_len = want;
+        pm_copy();
+        file_off += want;
+        dest += want;
+        len -= want;
+    }
+    return 1;
+}
+
 static void load_kernel(void) {
     if (kernel_size == 0 || kernel_size > KERNEL_FILE_CAP)
         die("the kernel's size is past what this stage "
             "can carry");
-    /* The staging is the roads' only difference: the disc
-     * reckons in ISO sectors through read_to_low, the disk
-     * in its own 512-byte sectors through read_file_low.
-     * Everything below this paragraph — the ELF's proof and
-     * the laying at its own addresses — is one road. */
-    if (from_disk) {
-        u32 sectors = (kernel_size + 511) >> 9;
-        if (!read_file_low(kernel_lba512, sectors, KSTAGE_SEG))
-            die("reading the kernel off the boot disk");
-    } else {
-        u32 sectors = (kernel_size + 2047) >> 11;
-        if (!read_to_low(kernel_lba, sectors, KSTAGE_SEG))
-            die("reading the kernel off the boot disc");
-    }
-
-    g_copy_src = KSTAGE_PHYS;
-    g_copy_dst = (u32)(void *)elf_head;
-    g_copy_len = 64;
-    pm_copy();
+    if (!read_file_bytes(0, 64, (u32)(void *)elf_head))
+        die_reading_kernel();
     if (elf_head[0] != 0x7F || elf_head[1] != 'E' ||
         elf_head[2] != 'L' || elf_head[3] != 'F' ||
         elf_head[4] != 2 || elf_head[5] != 1 ||
@@ -629,11 +690,15 @@ static void load_kernel(void) {
     if (phoff == 0 || phentsize < 56 || phnum == 0 || phnum > 8)
         die("the kernel's program table is not as it "
             "should be");
-
-    g_copy_src = KSTAGE_PHYS + phoff;
-    g_copy_dst = (u32)(void *)phdr_tab;
-    g_copy_len = (u32)phnum * 56;
-    pm_copy();
+    /* The table must stand inside the file that carries
+     * it, whole — proven before a byte of it is read. */
+    if (phoff > kernel_size ||
+        (u32)phnum * 56 > kernel_size - phoff)
+        die("the kernel's program table is not as it "
+            "should be");
+    if (!read_file_bytes(phoff, (u32)phnum * 56,
+                         (u32)(void *)phdr_tab))
+        die_reading_kernel();
 
     u32 span_low = 0xFFFFFFFFu;
     u32 span_high = 0;
@@ -652,11 +717,16 @@ static void load_kernel(void) {
             filesz > memsz)
             die("a kernel segment stands where it should "
                 "not");
+        /* The segment's bytes must stand inside the file
+         * that carries them, whole — proven before a
+         * byte of them is read. */
+        if (offset > kernel_size ||
+            filesz > kernel_size - offset)
+            die("a kernel segment stands where it should "
+                "not");
         if (filesz > 0) {
-            g_copy_src = KSTAGE_PHYS + offset;
-            g_copy_dst = paddr;
-            g_copy_len = filesz;
-            pm_copy();
+            if (!read_file_bytes(offset, filesz, paddr))
+                die_reading_kernel();
         }
         if (memsz > filesz) {
             g_zero_dst = paddr + filesz;

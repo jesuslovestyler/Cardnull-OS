@@ -90,6 +90,102 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 29 stands (November 11, 2026): **the network
+answers — the lease is taken, and Cardnull answers
+back.** Milestone 20 asked the wire for an address
+and confessed it did not take the offer; this stone
+takes it, holds it, and does the work an address is
+for. `net` now completes the whole DHCP conversation
+by hand — DISCOVER (291 bytes) to OFFER, REQUEST
+(303 bytes) to ACK — and holds the lease it is
+given. On the bench's slirp that lease read:
+10.0.2.15/24, from server 10.0.2.2, gateway 10.0.2.2,
+DNS 10.0.2.3, for 86,400 seconds. With an address of
+its own the machine then originates its own
+exchanges: it asks the gateway's hardware address
+by ARP (the reply came 8 microseconds after the
+ask) and pings the gateway — answered, wire
+round-trip 6.9 microseconds, the Terminal reporting
+0 ticks, and on a peer wire 0.133 ms / 1 tick. A
+second `net` in the same session makes no new
+asking at all and says so in its own words: "The
+lease stands; no new asking was made." — no new
+DHCP frame leaves the card. And the machine is a
+citizen of the wire, not only a caller on it:
+proven frame for frame against a socket-peer
+neighbour, the idle kernel answered the peer's ARP
+who-has for 10.0.2.15 (its reply after 500.7 ms —
+a slower idle pass, stated plainly below) and its
+ICMP echo probe (reply in 4.67 ms, identifier,
+sequence and payload intact), and the Terminal's
+counters read exactly "1 ARP answers given, 1 ping
+answers given, 1 gateway pings answered, 1 DNS
+answers received". DNS was proven the same honest
+way: the peer neighbour answered cardnull.com with
+203.0.113.29, an address of the peer's own
+choosing. **The bench's slirp did not answer the
+DNS query to 10.0.2.3** — an ICMP unreachable came
+back instead — and the Terminal said so honestly;
+no claim is made here that DNS answered on slirp.
+Silence is answered honestly too: on a network
+that never answers, `net` ends "No answer came
+back on the wire." / "We hold no address.", and
+exactly one guest frame — the discover — was ever
+sent. This stone also carries a defect found by
+its own growth, and its fix. The grown kernel —
+297,160 bytes — exceeded the BIOS loader's
+whole-file staging cap of 294,912 bytes, and the
+BIOS door halted honestly rather than load a
+kernel it could not hold whole. The fix stands in
+`Sources/bootloader/biosmain.c`, the only other
+source file this stone changed: the staging is
+removed, and the loader now streams the kernel
+file in 16 KiB bounce pieces straight to the
+addresses its ELF names — the road the bundle has
+always travelled — with the cap now 32 MiB derived
+from the door's own structural limits (no more
+than 8 program heads, no span over 4 MiB, at least
+1 MiB, inside 4 GiB), new whole-inside-the-file
+checks, and the truthful stop message preserved.
+Sibling caps were swept and all checked clear. The
+fix was re-proven whole: the standard image behind
+SeaBIOS, the ownboot image behind SeaBIOS, and a
+disk freshly installed and made bootable from the
+new image booting alone behind BIOS — that
+prepared disk carries the milestone 29 kernel
+byte for byte (`dls` lists KERNEL.BIN at 297160;
+the extracted bytes hash to the kernel's own
+sha256), and its `net` takes the lease. The
+regressions stand whole: the HDA Doxology, all
+eight notes at nominal with 0.00% error; the
+no-HDA speaker fallback in tune; `dls` reading 14
+files; `about`'s bundle line intact; `mem` at a
+fresh boot reading 1,572 used of 129,475 total
+(512 MB), with 20 frames taken once at the first
+`net` — the standing netTakeFrames keeping — and
+the second `net` adding none; and windowed
+TERM.FEATHER opening, its wheel-up lifting exactly
+3 lines. One residual is stated plainly, and it
+is **not** a regression of this stone: the feather
+window's wheel-down leg does not return the view
+on the bench — identical frames stand in milestone
+28's own evidence — while the kernel Terminal's
+wheel returns exactly. It stands open for a later
+stone, at Tyler's word. The kernel stands at
+16,804 lines (15,699 at milestone 28) and 297,160
+bytes (sha256
+ea3bcdcc70af083f655caa7bb182654d6c1d853022dc7a37cf514052bf576215).
+The images stand at 3,710,976 bytes each, both
+doors still ours, byte search still finding no
+GRUB: `dist/cardnull.iso` sha256
+5266854d010897a29c609ace474a1d36244a0998f4aa03a5fdea81d6ea7e5493,
+and `dist/cardnull-ownboot.iso` sha256
+b35160690cff1bca3a001c7404ab140a10d4a2a677967463f4862b0ea04b8cbc.
+Tyler's own witness in UTM — his Shared network
+answering `net` on his screen — is still his to
+give; the bench proved the road, his screen is the
+final word.
+
 Milestone 28 stands (November 11, 2026): **the disk
 starts the computer — stick preparation.** Milestone
 21 made a hard disk a Cardnull home for files and

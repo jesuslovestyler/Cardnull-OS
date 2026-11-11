@@ -94,8 +94,9 @@ Press Enter and the prompt answers. Nineteen commands, for now:
 - `mouse` — the mouse's report: its waking transcript, and what
   the face has taken from it since
 - `sound` — play a short melody on the PC speaker
-- `net` — the network card: ask the wire for an address
-  (a DHCP discover; the offer is reported, not taken)
+- `net` — the network card: take a lease on the wire
+  (DHCP, held for the session), answer ARP and ping,
+  and report the whole account
 
 Commands are matched kindly: capitals or lowercase, stray spaces at
 the ends forgiven. Anything else is answered plainly as unknown.
@@ -333,34 +334,68 @@ yet: the interrupt-0x80 door has no sound service, and
 a feather's voice is a later stone.
 
 And since milestone 20 the machine can speak to a
-neighbour — try `net`. The shell finds the network card
-on the PCI bus (an Intel e1000 — the 82540EM in UTM's
-keeping), names it, and reads the hardware address out
-of the card itself: on the builders' bench it reads
-52:54:00:12:34:56, the address of the card QEMU
-provides; yours will read as your own card reports it.
-Then the link's word — "Link: up." — and the one
-conversation this stone holds: a DHCP discover, one
-packet built by the kernel and sent through the card,
-asking the network for an address, and the listening,
-five seconds at most. On the bench the answer reads
-"Answer: the network offers us 10.0.2.15; the offer
-comes from 10.0.2.2." — the built-in server of QEMU's
-user networking. In UTM, set the machine's network to
-**Shared Network**, that world's counterpart: the same
-conversation runs, and its server will offer different
-addresses than the bench's — the difference is
-expected, not a fault. Two honest bounds ride with the
-command. The address offered is reported, not taken —
-the shell confesses it in as many words ("We did not
-take the address - asking was this stone's whole
-errand."); keeping a lease is a later stone, and
-nothing of the conversation survives it but the
-report. And a machine with no network card at all is
-answered with the plain absence — "No network card was
-found on the PCI bus." — and the shell stands. Run
-`net` twice in one sitting: the second asking is made
-on rings rebuilt fresh, and answers the same.
+neighbour — and since milestone 29 it takes the
+address and answers back. Try `net`. The shell finds
+the network card on the PCI bus (an Intel e1000 — the
+82540EM in UTM's keeping), names it, and reads the
+hardware address out of the card itself: on the
+builders' bench it reads 52:54:00:12:34:56, the
+address of the card QEMU provides; yours will read
+as your own card reports it. Then the link's word —
+"Link: up." — and the whole conversation: a DHCP
+discover (291 bytes), an offer, a request (303
+bytes), and an acknowledgement — and this time the
+lease is **taken and held**, not merely reported.
+In UTM, set the machine's network to **Shared
+Network**: its server also answers DHCP, so expect
+the full lease report on your screen — an address of
+your own, its mask, the server it came from, the
+gateway, the DNS server, and the lease's length —
+followed by the lease block itself standing in the
+report. On the builders' bench (QEMU's slirp) that
+lease read 10.0.2.15/24, from server 10.0.2.2,
+gateway 10.0.2.2, DNS 10.0.2.3, for 86,400 seconds;
+your Shared network will give different addresses,
+and the difference is expected, not a fault. With
+the lease held, `net` goes on to originate its own
+exchanges: the gateway's ARP answer and the gateway
+ping answered, each reported in its line. Then the
+counters line — the session's whole account in one
+reckoning: ARP answers given, ping answers given,
+gateway pings answered, DNS answers received. Run
+`net` a second time in the same sitting and you
+should see the standing lease instead of a new
+asking, in its own words: *"The lease stands; no
+new asking was made."* — no new DHCP leaves the
+card, and the report is the books already kept.
+The machine also answers while it idles: a
+neighbour who asks by ARP who holds our address
+gets our answer, and a neighbour's ping gets its
+echo back, identifier, sequence and payload intact
+— that citizenship was proven on the bench against
+a controlled neighbour peer, frame for frame (the
+idle ARP reply came after a slower 500.7 ms pass;
+the echo reply in 4.67 ms). UTM's Shared network
+gives no neighbour a road in to your machine, so
+there is no neighbour witness to ask for there:
+**your witness is the report your own screen
+shows** — the lease, the gateway lines, and the
+counters. Two honest notes ride with the command.
+DNS: the bench's controlled neighbour answered the
+lookup of cardnull.com (with 203.0.113.29, an
+address of its own choosing), but the bench's own
+slirp did **not** answer the DNS query to its
+10.0.2.3 — an ICMP unreachable came back instead,
+and the Terminal said so. So if your `net` reports
+*"DNS: no answer came for cardnull.com."*, that is
+your network's answer, honestly reported — not a
+failure of this stone. And silence is honest too:
+on a network that never answers, `net` ends *"No
+answer came back on the wire."* / *"We hold no
+address."*, and a machine with no network card at
+all is answered with the plain absence — "No
+network card was found on the PCI bus." — and the
+shell stands.
 
 And the OS has a face — since milestone 12 a drawn one,
 and since milestone 13 the front door itself: when the
