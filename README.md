@@ -90,6 +90,118 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 28 stands (November 11, 2026): **the disk
+starts the computer — stick preparation.** Milestone
+21 made a hard disk a Cardnull home for files and
+confessed, on the disk itself, that booting from it
+waited; milestone 24 laid our own public-domain boot
+chain behind the BIOS door. This stone joins them: a
+new Terminal command, `bootable`, behind its own
+typed confirmation gate — the word **bootable**,
+the whole word demanded, capitals folded — prepares
+a disk that already carries Cardnull, and that disk
+then starts the computer by itself behind the BIOS
+door, with no CD in the machine. The making is in
+the order that keeps every half-way state honest.
+First the filesystem migrates, byte for byte, to its
+new home at sector 2048, copied top down so the copy
+never tramples ground it has not read yet; the MBR
+partition entry that names that home — status 0x80,
+boot-flagged, type 0xCA, start 2048, its count the
+disk's sectors less 2048 (1,046,528 on the bench's
+disk) — stands in the table the MBR will carry. Then
+the boot image, BIOSBOOT.IMG from the disc's BOOT
+folder, is laid at sector 4 with its boot-info table
+patched for its new home: the word at offset 12
+becomes 1 (sector 4 in the 2048-byte units the table
+reckons in), and the word at offset 16 names the
+image's whole length, 14,150 bytes. Last of all —
+because the moment it stands, the disk is a bootable
+one and must already be whole — our MBR is written
+at sector 0, its code the patched first sector of
+that same image, the rest of its partition table
+zeroed, and the disk flushed; success is claimed
+only when the disk, judged fresh, answers ready and
+prepared with the same files standing. Every refusal
+precedes any write: no disk, a disk that is not
+Cardnull's yet ("The hard disk is not a Cardnull
+disk yet. format makes it one, and install plants
+Cardnull on it."), a disk already prepared ("This
+disk already starts the computer by itself."), no
+room to move, or no sound boot image on the disc —
+and a near-miss at the gate ("bootabl") writes
+nothing at all, the bench's host hash of the disk
+standing identical before and after. To make room
+for its new home, the kernel's filesystem became
+**home-relative**: it locates the filesystem at
+sector 0 on a plain disk, or at the 0xCA partition's
+start on a prepared one — the superblock is sector 0
+*of its home* — and `format` on a bootable disk
+reformats inside the partition, leaving the MBR,
+the boot image, and the partition untouched. `disk`
+gains one plain line when a disk is prepared: "It
+can start the computer by itself." The installer
+grew to plant the boot itself: `install` now copies
+fifteen files — the thirteen bundle files, and
+KERNEL.BIN and FILES.BUNDLE from the disc's BOOT
+folder — and writes INSTALLED.TXT, sixteen files
+standing; the note's new text says the disk carries
+Cardnull itself, that `bootable` makes it start the
+computer by itself behind the BIOS door, and that
+the UEFI door from an installed disk is not yet.
+Behind the BIOS door, the second stage learned to
+tell a disc from a disk: `biosmain.c` (766 → 962
+lines) probes sector 16 — CD001 standing there
+means the ISO road, unchanged in every behaviour —
+and otherwise reads the MBR, finds the 0xCA
+partition, verifies the CARDNULL DISK 1 superblock
+behind it, walks the on-disk flat directory, and
+stages KERNEL.BIN from the disk itself, the loader
+signing that road in its own words: "The kernel is
+in hand: 281248 bytes, read from the boot disk,
+laid at 1 MiB." The bundle rides behind the
+kernel's span, exactly as it does from a disc.
+The proof is the bench's whole walk. Preparation:
+format, then install (sixteen files in `dls` —
+KERNEL.BIN at 281,248 bytes, FILES.BUNDLE at 7,680,
+INSTALLED.TXT at 355, its new text read back
+verbatim), the near-miss gate with its identical
+hash, then the true word — "The disk is prepared:
+it can start the computer by itself behind the BIOS
+door." — and the host's own reading of the result:
+sector 0 ending 0x55AA, the image at sector 4
+differing from the ISO's BIOSBOOT.IMG at only bytes
+12–13, and sector 2048 beginning "CARDNULL DISK 1".
+Then the disk alone, **no CD device attached**: the
+loader's sign-on above, the desktop, `about`, `dls`
+and `dcat` whole, `mem` reading 4095 MiB usable with
+its self-test passed; the wire holding exactly two
+packets — a DHCP discover and its offer of
+10.0.2.15, no request, the address not taken; the
+sound chip singing all eight Doxology notes exact
+(392, 494, 587, 587, 523, 494, 440, 494 Hz, 0.00%
+error); TERM.FEATHER opening windowed from the
+disk boot; and the kernel Terminal's own scrollback
+making its wheel round-trip (the measured
+tail-against-home difference 148 pixels, against
+milestone 26's own 146). Persistence followed: a
+file saved on one disk boot read back word for word
+after a cold reboot, seventeen files then standing.
+And the regressions whole: the ownboot image behind
+SeaBIOS, the standard image behind UEFI at the
+bench's 512 MB shape, and a machine with no sound
+chip singing the same eight notes exact on the PC
+speaker. The honest scope stands where it must:
+**the BIOS door only** — booting an installed disk
+behind the UEFI door is not yet — and Tyler's own
+witness in UTM, booting from the disk alone there,
+is still his to give; the bench proved the road, his
+screen is the final word. The boot image stands at
+14,150 bytes (11,558 at milestone 24); the kernel
+stands at 15,699 lines and 281,248 bytes; the
+images at 3,692,544 bytes each, both doors still
+ours, byte search still finding no GRUB.
+
 Milestone 27 stands (November 11, 2026): **a voice
 with range — the sound chip sings.** Milestone 17
 gave the machine the PC speaker, one square wave,

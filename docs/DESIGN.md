@@ -604,7 +604,76 @@ it bends.*
    does, and one honest line in the Terminal saying
    which road was taken — the fallback is not a
    lesser silence but milestone 17's voice, kept
-   whole.)*
+   whole. Milestone 28 — November 11, 2026 — closed
+   the confession milestone 21 wrote onto every
+   installed disk: a prepared disk now starts the
+   computer by itself, behind the BIOS door. The
+   design is three decisions, each taken for the
+   honesty of the half-way states. First, the
+   filesystem became home-relative: rather than
+   teaching every disk hand two geometries, the
+   kernel keeps one home — sector 0 on a plain disk,
+   the start of the 0xCA partition on a prepared
+   one — and every reckoning in the format is made
+   from the home, so the superblock is sector 0 of
+   its home wherever the home stands, and `format`
+   on a prepared disk remakes the filesystem inside
+   its partition and leaves the MBR, the boot image,
+   and the partition entry untouched. Second, the
+   preparation writes in the only safe order: the
+   filesystem migrates first, byte for byte to
+   sector 2048, copied top down so the copy cannot
+   overwrite ground it has not yet read; the boot
+   image is laid next at sector 4, its El Torito
+   boot-info table patched for a home it was not
+   burned for (the word at offset 12 becomes 1, the
+   image's place in 2048-byte units; the word at
+   offset 16 names its whole length, 14,150 bytes);
+   and the MBR is written last of all, because the
+   moment it stands the disk claims to boot, and a
+   disk that claims to boot must already be whole.
+   Third, every refusal precedes any write — the
+   gate's near-miss, the unprepared or already
+   prepared disk, the missing or misshapen boot
+   image, the want of room — each is judged before
+   the typed word is even asked for where the
+   judging allows, and the bench proved the
+   near-miss left the disk's host hash identical.
+   The installer was widened to make the preparation
+   possible: it now plants KERNEL.BIN and
+   FILES.BUNDLE beside the thirteen, sixteen files
+   standing with INSTALLED.TXT, whose text now says
+   the disk carries Cardnull itself and names
+   `bootable` — and still confesses the scope in the
+   same breath: the UEFI door from an installed disk
+   is not yet; this road is the BIOS door only.
+   Behind that door the second stage learned the
+   fork its header always promised: sector 16 is
+   probed, CD001 means the ISO walk unchanged, and
+   anything else means a prepared disk — the MBR
+   read, the 0xCA partition found, the DISK 1
+   superblock verified at its start, the flat
+   directory walked in the disk's own 512-byte
+   sectors, and KERNEL.BIN staged from the disk,
+   the sign-on saying "read from the boot disk"
+   where the disc road says "disc"; everything
+   downstream of the finding — the ELF laying, the
+   bundle behind the kernel's span, the screen, the
+   Multiboot2 word — is one road again, and the
+   kernel did not need to learn the loader's name.
+   `disk` speaks the new standing in one plain line
+   — "It can start the computer by itself." — the
+   codes, as ever, living in the documents and the
+   shell's reckonings, not on the desktop. One
+   residual is recorded here, honestly and not as
+   this stone's failure: on this bench, wheel-down
+   over a feather's canvas does not return the view
+   — visible identically in milestone 26's and 27's
+   archived frames, a pre-existing behaviour of the
+   guest's road, while the kernel Terminal's own
+   scrollback round-trips by the wheel correctly,
+   on the disk boot as elsewhere. It stands open
+   for a later stone to hunt, at Tyler's word.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

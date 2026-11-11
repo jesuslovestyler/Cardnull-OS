@@ -12797,18 +12797,25 @@ func runNet() {
 //     not prove out is damaged — and is answered in that
 //     word, never misread into confidence.
 //
-// The commands are six: `disk` reports both drives and the
+// The commands are seven: `disk` reports both drives and the
 // hard disk's state; `format` makes a blank or foreign disk a
 // Cardnull disk, behind a typed confirmation; `dsave` saves a
 // line of words as a file; `dls` lists the disk's files;
-// `dcat` reads one back; and `install` — behind the same
+// `dcat` reads one back; `install` — behind the same
 // confirmation — formats the disk and copies the CD's own
 // files onto it, the welcome and every program and feather,
-// and writes INSTALLED.TXT to say what was done. Installing
-// makes the disk a Cardnull home for files; it does not make
-// it bootable. Booting from the disk waits for Cardnull's own
-// bootloader, a later stone, and `install` says so on screen
-// rather than letting the word promise more than it does.
+// the kernel and the file bundle themselves among them, and
+// writes INSTALLED.TXT to say what was done; and `bootable`
+// — behind the same typed gate — prepares the disk to start
+// the computer by itself (milestone 28): the filesystem moves
+// behind a partition at sector 2048, our own boot image takes
+// its place at sector 4 behind an MBR that points at the
+// partition, and the BIOS-door bootloader learned to read the
+// kernel and the bundle back off the disk they stand on. From
+// that day the filesystem's sector numbers are reckoned from
+// its home — sector 0 of the filesystem stands wherever the
+// home stands, and on a plain disk the home is 0, so every
+// disk made before this stone reads exactly as it always did.
 // ---------------------------------------------------------------------------
 
 /// A hard-disk sector's size: the ATA world's measure, four to
@@ -13226,14 +13233,35 @@ func hdTransfer(_ write: Bool, _ lba: UInt64) -> Bool {
     return false
 }
 
-/// Reads the sector at the address into the sector field.
+/// The filesystem's home: the disk sector its own sector 0
+/// stands on (milestone 28). On a plain disk the home is 0
+/// and nothing changes; on a bootable disk the filesystem
+/// stands behind a partition and the home is that partition's
+/// first sector. Every sector number the filesystem speaks —
+/// the superblock, the directory, a file's run — is reckoned
+/// from the home, and the two hands below add it on the way
+/// to the drive. hdReadState finds the home fresh at every
+/// judging; the raw road (hdTransfer itself) is how the
+/// judging reads, and how `bootable` writes the MBR and the
+/// boot image at the disk's true head before any home
+/// exists there.
+var hdHome: UInt64 = 0
+
+/// True when the standing disk is a prepared one — an MBR and
+/// a Cardnull partition at its head, the boot image beside
+/// them — so the disk can start the computer by itself.
+/// Judged fresh by hdReadState with the home.
+var hdBootable = false
+
+/// Reads the sector at the home-relative address into the
+/// sector field.
 func hdReadSector(_ lba: UInt64) -> Bool {
-    hdTransfer(false, lba)
+    hdTransfer(false, lba + hdHome)
 }
 
-/// Writes the sector field to the address.
+/// Writes the sector field to the home-relative address.
 func hdWriteSector(_ lba: UInt64) -> Bool {
-    hdTransfer(true, lba)
+    hdTransfer(true, lba + hdHome)
 }
 
 /// Makes the disk's writings stand: FLUSH CACHE, the command
@@ -13311,30 +13339,17 @@ let hdStateReady = 5
 var hdSbTotal: UInt64 = 0
 var hdSbNextFree: UInt64 = 0
 
-/// Reads the disk's state fresh from its first sector. The
-/// measure the superblock claims is checked against the
-/// measure IDENTIFY gave: a disk claiming more sectors than
-/// it owns, a data field beginning anywhere but the format's
-/// place, or a next-free sector outside the disk's reach is
-/// damage, whatever its checksum says.
-func hdReadState() -> Int {
-    if !hdFound { return hdStateAbsent }
-    if !hdReadSector(0) { return hdStateSilent }
+/// Proves the superblock standing in the sector field: the
+/// checksum, the version, and the geometry — the measure it
+/// claims checked against the measure IDENTIFY gave. A disk
+/// claiming more sectors than it owns, a data field beginning
+/// anywhere but the format's place, or a next-free sector
+/// outside the disk's reach is damage, whatever its checksum
+/// says. On a proof, the superblock's testimony is kept and
+/// the state is ready; the field's bytes are the caller's to
+/// have read in.
+func hdProveSuperblock() -> Int {
     let buffer = hdData()
-    var any = false
-    var index = 0
-    while index < hdSectorBytes {
-        if buffer[index] != 0 { any = true; break }
-        index += 1
-    }
-    if !any { return hdStateBlank }
-    index = 0
-    while index < hdMagicLength {
-        if buffer[index] != hdMagic.utf8Start[index] {
-            return hdStateForeign
-        }
-        index += 1
-    }
     if hdChecksum(buffer) != hdGet64(buffer, 504) {
         return hdStateDamaged
     }
@@ -13348,6 +13363,84 @@ func hdReadState() -> Int {
     }
     hdSbTotal = total
     hdSbNextFree = nextFree
+    return hdStateReady
+}
+
+/// True when the sector field's head carries the format's
+/// mark, letter for letter.
+func hdFieldHasMagic() -> Bool {
+    let buffer = hdData()
+    var index = 0
+    while index < hdMagicLength {
+        if buffer[index] != hdMagic.utf8Start[index] {
+            return false
+        }
+        index += 1
+    }
+    return true
+}
+
+/// Reads the disk's state fresh, and finds its home first
+/// (milestone 28). The judging reads the disk's true first
+/// sector by the raw road, with the home forgotten until it
+/// is found: all zeros is a blank disk, the mark standing at
+/// the head is a plain disk judged exactly as it always was,
+/// and anything else is asked one more question — is it an
+/// MBR, signed 55 AA at its tail, carrying a partition of
+/// Cardnull's own type (0xCA)? If it is, the sector that
+/// partition names is read raw and judged by the same proof:
+/// the mark and the proof standing there make the disk a
+/// prepared one, its home that sector, and its next-free
+/// reckoning must fit inside both the partition and the
+/// disk. A named sector without the mark is foreign ground;
+/// a named sector whose mark does not prove out is damaged,
+/// in the same words as ever. No MBR match is foreign, as
+/// ever. Every command judges before it touches a sector,
+/// so the home is always the standing one when the
+/// home-relative hands are used.
+func hdReadState() -> Int {
+    if !hdFound { return hdStateAbsent }
+    hdHome = 0
+    hdBootable = false
+    if !hdTransfer(false, 0) { return hdStateSilent }
+    let buffer = hdData()
+    var any = false
+    var index = 0
+    while index < hdSectorBytes {
+        if buffer[index] != 0 { any = true; break }
+        index += 1
+    }
+    if !any { return hdStateBlank }
+    if hdFieldHasMagic() {
+        return hdProveSuperblock()
+    }
+    if buffer[510] != 0x55 || buffer[511] != 0xAA {
+        return hdStateForeign
+    }
+    var candidate: UInt64 = 0
+    var partitionLength: UInt64 = 0
+    var entry = 0
+    while entry < 4 {
+        let base = 446 + entry * 16
+        if buffer[base + 4] == 0xCA {
+            candidate = UInt64(discU32(buffer, base + 8))
+            partitionLength = UInt64(discU32(buffer, base + 12))
+            break
+        }
+        entry += 1
+    }
+    if entry >= 4 || candidate == 0 { return hdStateForeign }
+    if !hdTransfer(false, candidate) { return hdStateSilent }
+    if !hdFieldHasMagic() { return hdStateForeign }
+    if hdProveSuperblock() != hdStateReady {
+        return hdStateDamaged
+    }
+    if candidate + hdSbNextFree > hdSectors
+        || partitionLength < hdSbNextFree {
+        return hdStateDamaged
+    }
+    hdHome = candidate
+    hdBootable = true
     return hdStateReady
 }
 
@@ -13498,6 +13591,11 @@ func hdWriteSuperblock(_ count: UInt32,
 /// is claimed only when the disk itself answers "ready" to
 /// the asking.
 func hdFormat() -> Bool {
+    // Judge first, and let the judging find the home: on a
+    // prepared disk the format is made inside the partition,
+    // and the MBR, the boot image, and the partition's word
+    // stand untouched at the disk's head (milestone 28).
+    _ = hdReadState()
     let buffer = hdData()
     var index = 0
     while index < hdSectorBytes {
@@ -13606,9 +13704,10 @@ func hdConfirmationMatches(_ word: StaticString) -> Bool {
     return true
 }
 
-/// The two words a dangerous command may demand.
+/// The words a dangerous command may demand.
 let hdFormatWord: StaticString = "format"
 let hdInstallWord: StaticString = "install"
+let hdBootableWord: StaticString = "bootable"
 
 /// Prints the disk's own name for itself — or, when it gave
 /// none worth repeating, the plain standing word — through
@@ -13676,11 +13775,11 @@ let hdInstallWarnLabel: StaticString =
 let hdInstallAskLine: StaticString =
     "Type INSTALL and press Enter to erase it and install. Anything else gives up, and nothing is written."
 let hdInstallFromLine: StaticString =
-    "Then the disc's own files - the welcome, every program, every feather - are copied onto it."
+    "Then the disc's own files - the welcome, every program, every feather, and Cardnull itself: the kernel and the bundle - are copied onto it."
 let hdInstallFromBundleLine: StaticString =
-    "Then the files carried in memory - the welcome, every program, every feather - are copied onto it."
+    "Then the files carried in memory - the welcome, every program, every feather - are copied onto it, and the kernel and the bundle themselves from the disc's BOOT folder."
 let hdInstalledMiddleBundle: StaticString =
-    " files copied from the bundle in memory, and INSTALLED.TXT written."
+    " files copied from memory and the disc, and INSTALLED.TXT written."
 let hdNoSourceLine: StaticString =
     "There is no disc to install from."
 let hdInstalledLabel: StaticString = "Installed: "
@@ -13692,7 +13791,11 @@ let hdHoldsFileClose: StaticString = " file."
 let hdInstallStoppedLine: StaticString =
     "The install stopped part-way. The files copied so far stand on the disk; no more were promised."
 let hdBootBoundaryLine: StaticString =
-    "Booting from this disk waits for Cardnull's own bootloader - the machine still boots from the disc."
+    "This disk carries Cardnull itself. Type bootable to make it start the computer by itself behind the BIOS door; the UEFI door from an installed disk is not yet."
+let hdBootableReadyLine: StaticString =
+    "  It can start the computer by itself."
+let hdNoBootFilesLine: StaticString =
+    "The disc does not carry Cardnull's boot files - the kernel and the bundle in its BOOT folder. Nothing was written."
 let hdDsaveUsageLine: StaticString =
     "dsave wants a name and words: dsave GREETING Hello from Cardnull"
 let hdBadNameLine: StaticString =
@@ -13771,6 +13874,9 @@ func runDisk() {
             writeNumber((hdSbTotal - hdSbNextFree)
                         * UInt64(hdSectorBytes))
             writeLine(hdReadyRoomClose)
+            if hdBootable {
+                writeLine(hdBootableReadyLine)
+            }
         } else {
             writeLine(hdStateSilentLine)
         }
@@ -14103,6 +14209,81 @@ let hdBinSuffix: StaticString = ".bin"
 let hdFeatherSuffix: StaticString = ".feather"
 let hdInstalledName: StaticString = "INSTALLED.TXT"
 
+/// The boot folder's names, as the installer and `bootable`
+/// seek them on the disc (milestone 28): the kernel and the
+/// bundle an install now plants on the disk beside the
+/// thirteen, and the boot image `bootable` lays at the
+/// disk's head. The paths are walked through the disc's own
+/// ISO reader, BOOT folder first, exactly as the BIOS stage
+/// walks them in its own tongue.
+let hdKernelName: StaticString = "KERNEL.BIN"
+let hdBundleName: StaticString = "FILES.BUNDLE"
+let hdKernelPath: StaticString = "BOOT/KERNEL.BIN"
+let hdBundlePath: StaticString = "BOOT/FILES.BUNDLE"
+let hdBiosBootPath: StaticString = "BOOT/BIOSBOOT.IMG"
+
+/// Resolves one standing path on the disc — the words laid
+/// in the path scratch and walked from the root by the disc
+/// reader's own resolver. True when the path stands and is a
+/// file; its extent and size are the resolver's globals.
+func hdResolveDiscFile(_ pathText: StaticString) -> Bool {
+    let path = discPath()
+    var index = 0
+    while pathText.utf8Start[index] != 0 {
+        path[index] = pathText.utf8Start[index]
+        index += 1
+    }
+    if isoResolvePath(index) != pathFoundCode { return false }
+    return !resolvedIsDirectory
+}
+
+/// Appends one disc-sourced pick to the installer's staging:
+/// the name in its field, the disc extent and the size in
+/// theirs, and the source byte zeroed — the disc, not memory.
+/// The staging must already stand (a gathering ran first).
+func hdAppendDiscPick(_ name: StaticString,
+                      _ extent: UInt32, _ size: UInt32) -> Bool {
+    if hdStageAddress == 0 { return false }
+    if hdPickCount >= hdStageCap { return false }
+    let stage = UnsafeMutablePointer<UInt8>(
+        bitPattern: UInt(hdStageAddress))!
+    let pick = hdPickCount * hdStageStride
+    var index = 0
+    while index < hdStageStride {
+        stage[pick + index] = 0
+        index += 1
+    }
+    index = 0
+    while index < 32 && name.utf8Start[index] != 0 {
+        stage[pick + index] = name.utf8Start[index]
+        index += 1
+    }
+    hdPut32(stage, pick + 32, extent)
+    hdPut32(stage, pick + 36, size)
+    hdPickCount += 1
+    return true
+}
+
+/// Gathers the two boot files after the thirteen (milestone
+/// 28): KERNEL.BIN and FILES.BUNDLE out of the disc's BOOT
+/// folder, appended to the staging the first gathering made.
+/// An install plants Cardnull itself on the disk — without
+/// these two there is nothing for `bootable` to start the
+/// computer with — so a disc that does not carry them refuses
+/// the whole making, before anything is erased.
+func hdCollectBootPicks() -> Bool {
+    if !discIsoFound { return false }
+    if !hdResolveDiscFile(hdKernelPath) { return false }
+    let kernelExtent = resolvedExtent
+    let kernelSize = resolvedSize
+    if !hdAppendDiscPick(hdKernelName, kernelExtent, kernelSize) {
+        return false
+    }
+    if !hdResolveDiscFile(hdBundlePath) { return false }
+    return hdAppendDiscPick(hdBundleName, resolvedExtent,
+                            resolvedSize)
+}
+
 /// True when the record name standing in the CD's buffer —
 /// its effective reach, the version suffix already forgiven
 /// by the caller — folds to the given word exactly.
@@ -14309,11 +14490,13 @@ let hdInstalledText1: StaticString =
     "Cardnull OS was installed on this disk by its own installer."
 let hdInstalledText2: StaticString = "Files copied from the disc: "
 let hdInstalledText2Bundle: StaticString =
-    "Files copied from the bundle in memory: "
+    "Files copied from the bundle in memory and the disc: "
 let hdInstalledText3: StaticString =
-    "Booting from this disk waits for Cardnull's own bootloader;"
+    "The disk carries Cardnull itself: its kernel and its file bundle stand among its files."
 let hdInstalledText4: StaticString =
-    "the machine still boots from the disc or stick."
+    "Type bootable in the Terminal to make this disk start the computer by itself, behind the BIOS door."
+let hdInstalledText5: StaticString =
+    "The UEFI door from an installed disk is not yet."
 let hdTooManyLine: StaticString =
     "The disc holds more files than the installer can carry in one making. Nothing was written."
 
@@ -14428,6 +14611,8 @@ func hdInstallCopy() -> Bool {
     hdTextByte(0x0A)
     hdTextStatic(hdInstalledText4)
     hdTextByte(0x0A)
+    hdTextStatic(hdInstalledText5)
+    hdTextByte(0x0A)
     if nextFree >= hdSbTotal
         || !hdWriteSector(nextFree) {
         _ = hdWriteSuperblock(UInt32(slot), nextFree)
@@ -14449,14 +14634,16 @@ func hdInstallCopy() -> Bool {
 
 /// `install`: the visiting disc plants a home. The warning
 /// and the typed word guard it as `format` is guarded; the
-/// picks are gathered off the CD before the gate, so a disc
-/// that cannot be read — or one carrying more than the
-/// installer can carry — refuses the making before anything
+/// picks are gathered off the CD before the gate — the
+/// thirteen from the root or the bundle, and the kernel and
+/// the bundle themselves from the BOOT folder — so a disc
+/// that cannot be read, or one carrying more than the
+/// installer can carry, refuses the making before anything
 /// is erased. Then the formatting, then the copying, then
 /// the account: what was copied, what the disk now holds,
-/// and the boundary spoken in full — the disk is a home for
-/// files, and booting from it waits for Cardnull's own
-/// bootloader.
+/// and the standing spoken in full — the disk carries
+/// Cardnull itself, and `bootable` can make it start the
+/// computer by itself behind the BIOS door.
 func runInstall() {
     hdRaise()
     if !hdFound {
@@ -14484,6 +14671,14 @@ func runInstall() {
     }
     if picks > hdStageCap {
         writeLine(hdTooManyLine)
+        return
+    }
+    // The two boot files ride after the thirteen, gathered
+    // from the disc's BOOT folder before the gate as well:
+    // an install that cannot plant the kernel and the bundle
+    // themselves is refused before anything is erased.
+    if !hdCollectBootPicks() {
+        writeLine(hdNoBootFilesLine)
         return
     }
     writeStatic(hdInstallWarnLabel)
@@ -14519,6 +14714,228 @@ func runInstall() {
                                     : hdHoldsFilesClose)
     }
     writeLine(hdBootBoundaryLine)
+}
+
+/// `bootable`'s vocabulary (milestone 28): the refusals, the
+/// gate, and the account, in plain words.
+let hdBootableNeedsLine: StaticString =
+    "The hard disk is not a Cardnull disk yet. format makes it one, and install plants Cardnull on it."
+let hdAlreadyBootableLine: StaticString =
+    "This disk already starts the computer by itself."
+let hdNoBootImageLine: StaticString =
+    "The disc does not carry a sound boot image in its BOOT folder. Nothing was written."
+let hdNoRoomMoveLine: StaticString =
+    "There is not room on the disk to move its files behind a partition. Nothing was written."
+let hdBootableWarnLine: StaticString =
+    "bootable will move everything on the hard disk behind a partition, and lay Cardnull's own boot image and partition table at its head."
+let hdBootableAskLine: StaticString =
+    "Type BOOTABLE and press Enter to prepare the disk. Anything else gives up, and nothing is written."
+let hdBootableUnprovenLine: StaticString =
+    "The preparation did not prove out: the disk does not answer as a prepared Cardnull disk. What stands on it now is not promised; format can make it whole again."
+let hdBootableDoneLine: StaticString =
+    "The disk is prepared: it can start the computer by itself behind the BIOS door."
+
+/// Where a prepared disk's pieces stand (milestone 28): the
+/// boot image at sector 4, and the filesystem's new home at
+/// sector 2048 — room for the table, the image, and honest
+/// emptiness between them, and the place the partition
+/// entry names.
+let hdBootImageHome: UInt64 = 4
+let hdPartitionHome: UInt64 = 2048
+
+/// The boot image's place and measure on the disc, found by
+/// hdFetchBootImage before the gate: its extent in CD
+/// sectors and its length in bytes.
+var hdBootImageExtent: UInt32 = 0
+var hdBootImageSize: UInt32 = 0
+
+/// Fetches the boot image's facts off the disc and proves
+/// its shape before anything is promised: the image must
+/// stand in the disc's BOOT folder, run past one sector and
+/// no further than the ground before the partition allows,
+/// and its first sector must wear the 55 AA tail a boot
+/// sector wears. A disc without it — or with a misshapen
+/// one — is a plain refusal, and nothing is written.
+func hdFetchBootImage() -> Bool {
+    if !discIsoFound { return false }
+    if !hdResolveDiscFile(hdBiosBootPath) { return false }
+    hdBootImageExtent = resolvedExtent
+    hdBootImageSize = resolvedSize
+    let size = Int(hdBootImageSize)
+    if size <= hdSectorBytes
+        || size > Int(hdPartitionHome - hdBootImageHome)
+            * hdSectorBytes {
+        return false
+    }
+    if !discReadSector(hdBootImageExtent) { return false }
+    let buffer = discBuffer()
+    return buffer[510] == 0x55 && buffer[511] == 0xAA
+}
+
+/// Lays the boot image at the disk's head, a sector at a
+/// time out of the disc's sectors — the two drives' measures
+/// being four apart — with the first sector's boot table
+/// patched for its new home before it is written: the image
+/// stands at sector 4, which is 1 in the 2048-byte units the
+/// table reckons in, and the table names the image's whole
+/// length. The home is still 0 while this runs, so the
+/// home-relative hands speak true disk sectors here.
+func hdWriteBootImage() -> Bool {
+    let size = Int(hdBootImageSize)
+    let sectors = (size + hdSectorBytes - 1) / hdSectorBytes
+    var cdCached: UInt32 = 0xFFFFFFFF
+    var chunk = 0
+    while chunk < sectors {
+        let sourceByte = chunk * hdSectorBytes
+        let lba = hdBootImageExtent
+            + UInt32(sourceByte / discSectorBytes)
+        if lba != cdCached {
+            if !discReadSector(lba) { return false }
+            cdCached = lba
+        }
+        let cd = discBuffer()
+        let frame = hdData()
+        var index = 0
+        while index < hdSectorBytes {
+            frame[index] = 0
+            index += 1
+        }
+        var take = size - sourceByte
+        if take > hdSectorBytes { take = hdSectorBytes }
+        let offset = sourceByte % discSectorBytes
+        index = 0
+        while index < take {
+            frame[index] = cd[offset + index]
+            index += 1
+        }
+        if chunk == 0 {
+            hdPut32(frame, 12, 1)
+            hdPut32(frame, 16, UInt32(size))
+        }
+        if !hdWriteSector(hdBootImageHome + UInt64(chunk)) {
+            return false
+        }
+        chunk += 1
+    }
+    return true
+}
+
+/// `bootable`: a prepared disk boots Cardnull by itself
+/// (milestone 28). The refusals come first and write nothing:
+/// no disk, a disk that is not Cardnull's yet, a disk already
+/// prepared, no room to move its files, or no sound boot
+/// image on the disc to lay at its head. Behind the typed
+/// word, the making goes in the order that keeps every
+/// half-way state honest: the filesystem is copied to its
+/// new home sector by sector, top down, so the copy can
+/// never trample ground it has not read yet; the boot image
+/// is laid at sector 4 with its table patched; and the MBR —
+/// the patched boot sector wearing one Cardnull partition —
+/// is written last of all, because the moment it stands, the
+/// disk is a bootable one and must already be whole. Then
+/// the disk is judged again and its directory counted: the
+/// success is claimed only when the disk itself answers
+/// ready and prepared, with the same files standing.
+func runBootable() {
+    hdRaise()
+    if !hdFound {
+        writeLine(hdNoDiskLine)
+        return
+    }
+    let state = hdReadState()
+    if state == hdStateSilent {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if state != hdStateReady {
+        writeLine(hdBootableNeedsLine)
+        return
+    }
+    if hdBootable {
+        writeLine(hdAlreadyBootableLine)
+        return
+    }
+    if !hdFetchBootImage() {
+        writeLine(hdNoBootImageLine)
+        return
+    }
+    if !hdScanDirectory(0, 0) {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    let entriesBefore = hdEntryCount
+    let nextFreeBefore = hdSbNextFree
+    if nextFreeBefore + hdPartitionHome > hdSbTotal {
+        writeLine(hdNoRoomMoveLine)
+        return
+    }
+    writeLine(hdBootableWarnLine)
+    writeLine(hdCdUntouchedLine)
+    writeLine(hdBootableAskLine)
+    writeStatic(hdYourWordLabel)
+    if !hdConfirmationMatches(hdBootableWord) {
+        writeLine(hdAbortedLine)
+        return
+    }
+    // (a) The migration: every standing sector of the
+    // filesystem, copied to its new home, top down.
+    var sector = nextFreeBefore
+    while sector > 0 {
+        sector -= 1
+        if !hdReadSector(sector) {
+            writeLine(hdWriteFailedLine)
+            return
+        }
+        if !hdWriteSector(sector + hdPartitionHome) {
+            writeLine(hdWriteFailedLine)
+            return
+        }
+    }
+    // (b) The boot image at sector 4, its table patched.
+    if !hdWriteBootImage() {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    // (c) The MBR, built in the field from the patched first
+    // sector standing at sector 4 — its code kept whole, one
+    // partition entry laid in the table's place, the rest of
+    // the table's ground zeroed — and written last.
+    if !hdReadSector(hdBootImageHome) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    let buffer = hdData()
+    var index = 446
+    while index < 510 {
+        buffer[index] = 0
+        index += 1
+    }
+    buffer[446] = 0x80
+    buffer[450] = 0xCA
+    hdPut32(buffer, 454, UInt32(hdPartitionHome))
+    hdPut32(buffer, 458, UInt32(hdSectors - hdPartitionHome))
+    if !hdWriteSector(0) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    // (d) The writings made to stand.
+    if !hdFlush() {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    // The proof: the disk judged fresh must answer ready and
+    // prepared, with the same next-free reckoning, and its
+    // directory must count the same files as before the move.
+    if hdReadState() != hdStateReady || !hdBootable
+        || hdSbNextFree != nextFreeBefore {
+        writeLine(hdBootableUnprovenLine)
+        return
+    }
+    if !hdScanDirectory(0, 0) || hdEntryCount != entriesBefore {
+        writeLine(hdBootableUnprovenLine)
+        return
+    }
+    writeLine(hdBootableDoneLine)
 }
 
 //
@@ -14600,8 +15017,14 @@ func runInstall() {
 //   dcat    a file's contents, printed off the hard disk
 //           (milestone 21; matched by its first word, like cat)
 //   install plant Cardnull on the hard disk: format it and
-//           copy the disc's own files onto it, behind the
-//           typed confirmation (milestone 21)
+//           copy the disc's own files onto it — Cardnull
+//           itself among them — behind the typed confirmation
+//           (milestone 21; the kernel and bundle joined the
+//           copying at milestone 28)
+//   bootable prepare the hard disk to start the computer by
+//           itself: the filesystem moved behind a partition,
+//           our boot image at its head, behind the typed
+//           confirmation (milestone 28)
 //
 // An empty line earns only a fresh prompt. Anything else is answered
 // plainly: it is not a command the kernel knows. Matching is done on
@@ -14635,6 +15058,7 @@ let dsaveCommand: StaticString = "dsave"
 let dlsCommand: StaticString = "dls"
 let dcatCommand: StaticString = "dcat"
 let installCommand: StaticString = "install"
+let bootableCommand: StaticString = "bootable"
 
 /// help's answer: the list itself.
 let helpTitle: StaticString = "Commands:"
@@ -14675,6 +15099,8 @@ let helpDcatLine: StaticString =
     "  dcat    print a file from the hard disk (dcat NAME)"
 let helpInstallLine: StaticString =
     "  install install Cardnull onto the hard disk (erases it)"
+let helpBootableLine: StaticString =
+    "  bootable prepare the hard disk to start the computer by itself"
 
 /// about's answer: a few honest lines, and no more than the truth.
 let aboutLine1: StaticString =
@@ -14979,6 +15405,7 @@ func submitLine() {
     let isDls = commandMatches(dlsCommand)
     let isDcat = firstWordMatches(dcatCommand)
     let isInstall = commandMatches(installCommand)
+    let isBootable = commandMatches(bootableCommand)
 
     writeNewline()
     if !blank {
@@ -15008,6 +15435,7 @@ func submitLine() {
             writeLine(helpDlsLine)
             writeLine(helpDcatLine)
             writeLine(helpInstallLine)
+            writeLine(helpBootableLine)
         } else if isAbout {
             writeLine(aboutLine1)
             writeLine(aboutLine2)
@@ -15067,6 +15495,8 @@ func submitLine() {
             runDcat()
         } else if isInstall {
             runInstall()
+        } else if isBootable {
+            runBootable()
         } else {
             writeLine(unknownLine)
         }

@@ -428,16 +428,93 @@ desktops rising and `about` naming the bundle, the
 wiring change having broken nothing. Tyler's UTM run
 is, as always, the final witness.
 
+## Booting from an installed disk (milestone 28)
+
+November 11, 2026: the chain this document built
+learned its second road. A hard disk prepared by the
+kernel's `bootable` command (the shape is defined in
+docs/DISK.md) carries this same chain at its head —
+our MBR at sector 0, the boot image at sector 4, and
+the CARDNULL DISK 1 filesystem behind its partition
+at sector 2048 — and SeaBIOS, booting the disk,
+hands the machine to the MBR copy of the boot
+sector exactly as it does from a stick carrying an
+image. The second stage grew for the road:
+`biosmain.c` is 962 lines now (766 at milestone 24).
+
+The stage tells a disc from a disk by one probe,
+made after the memory map is gathered:
+
+1. **Sector 16 is read and asked for CD001.** On a
+   CD — or a stick carrying the ISO image — the
+   primary volume descriptor stands at sector 16
+   and confesses CD001 at its bytes 1–5, with the
+   descriptor's kind byte 1 at byte 0. Standing
+   there, the ISO road runs **unchanged in every
+   behaviour**: the ISO9660 walk to the BOOT
+   directory, KERNEL.BIN and FILES.BUNDLE found in
+   the disc's tree, read in the disc's own
+   sector width.
+2. **Anything else is taken for a prepared hard
+   disk**, and the walk is the disk's own: the MBR
+   at sector 0 is read and its table searched for
+   the Cardnull partition (an entry of type 0xCA);
+   the sector that entry names is read and must
+   confess the **CARDNULL DISK 1** superblock; then
+   the filesystem's flat directory — sixteen sectors
+   of 64-byte entries behind the superblock — is
+   walked in the disk's native 512-byte sectors for
+   KERNEL.BIN and FILES.BUNDLE, their entries' first
+   sectors reckoned from the partition's start.
+   A disk with no Cardnull partition, a partition
+   that does not confess itself, or no KERNEL.BIN
+   standing in it stops the loader where it stands,
+   in plain words, and nothing is handed over.
+
+Everything downstream of the finding is one road
+again: the kernel file staged, its ELF segments
+laid at 1 MiB, the bundle laid right behind the
+kernel's span, the screen chosen by VESA VBE, the
+same Multiboot2 information built, the same
+handoff. Only the reading hand and the sign-on's
+one word differ — the disk road reads by raw
+512-byte sectors with no ISO multiplier, and the
+loader signs it so:
+
+    The kernel is in hand: 281248 bytes, read from the boot disk, laid at 1 MiB.
+    The file bundle rides in memory: 7680 bytes.
+
+("boot disc" on the ISO road; "boot disk" here.)
+The bundle's absence is cargo, not a condition, on
+this road too: its pointers simply stay zero and
+the boot goes on without one.
+
+The bench proved the road whole: a prepared disk
+booted with **no CD device in the machine at all** —
+the sign-on above, the desktop, the disk's own
+sixteen files listed and read, the bundle serving
+from memory, a file saved on that boot read back
+word for word after a cold reboot — and the ISO
+road's regressions stood beside it, the ownboot
+image behind SeaBIOS and the standard image behind
+UEFI exactly as before. The scope is the stone's
+own, stated plainly: **the BIOS door only**.
+Booting an installed disk behind the UEFI door —
+our UEFI loader learning the disk's shape as this
+stage has — is not yet.
+
 ## The next stone
 
 Neither door of any Cardnull image owes anything to
 GRUB now; the bootloader pair is complete, and the
 bundle rides behind both doors (docs/BUNDLE.md).
-What the pair makes possible is the stick road
+What the pair made possible was the stick road
 itself: an image a stick can carry that boots
-natively, and — the installer's own confession,
-still true as it stands on an installed disk —
-booting from an installed hard disk, which waits
-for the installer to learn to lay this same chain
-on the disk it prepares. Those are the stick stones,
-and they ride on this one.
+natively — proven at milestone 24 — and, since
+milestone 28 above, booting from an installed hard
+disk behind the BIOS door, the installer's old
+confession answered by `bootable` laying this same
+chain on the disk it prepares. What still waits is
+the same boot from an installed disk behind the
+UEFI door, and the stick itself as a prepared,
+bootable home rather than an image it carries.

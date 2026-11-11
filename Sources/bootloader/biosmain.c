@@ -24,6 +24,16 @@
  *      sector learned the drive's width from the drive
  *      itself, and every read below is reckoned through
  *      that multiplier, so one road serves both.
+ *      Milestone 28 adds the second road this stage was
+ *      always headed for: when sector 16 does not confess
+ *      CD001, the boot device is taken for a prepared hard
+ *      disk — an MBR at its head carrying a Cardnull
+ *      partition, the CARDNULL DISK 1 filesystem standing
+ *      behind it — and KERNEL.BIN and FILES.BUNDLE are
+ *      found in that filesystem's own flat directory and
+ *      read in the disk's native 512-byte sectors, by a
+ *      raw reader that knows no ISO multiplier. Everything
+ *      downstream of the finding is one road again.
  *   3. It lays the kernel's ELF segments at their
  *      physical addresses — the kernel stands at 1 MiB,
  *      where its linker script put it — and zeroes what
@@ -248,6 +258,42 @@ static int read_drive(u32 iso_lba, u32 iso_count,
     return 1;
 }
 
+/* The raw road (milestone 28): the same DAP discipline,
+ * but the counts and addresses are the drive's own 512-byte
+ * sectors, with no ISO multiplier standing between the
+ * asking and the disk — the road a prepared hard disk is
+ * read by. A mouthful is at most 32 sectors (16 KiB), and
+ * the segment steps by the paragraphs actually used, so a
+ * long read walks up real-mode memory exactly as far as
+ * its bytes reach and no further. */
+static int read_raw(u32 lba, u32 count, u16 buf_seg, u16 buf_off) {
+    while (count > 0) {
+        u32 chunk = count > 32 ? 32 : count;
+        g_dap[0] = 0x10;
+        g_dap[1] = 0;
+        g_dap[2] = (u8)chunk;
+        g_dap[3] = (u8)(chunk >> 8);
+        g_dap[4] = (u8)buf_off;
+        g_dap[5] = (u8)(buf_off >> 8);
+        g_dap[6] = (u8)buf_seg;
+        g_dap[7] = (u8)(buf_seg >> 8);
+        g_dap[8] = (u8)lba;
+        g_dap[9] = (u8)(lba >> 8);
+        g_dap[10] = (u8)(lba >> 16);
+        g_dap[11] = (u8)(lba >> 24);
+        g_dap[12] = 0;
+        g_dap[13] = 0;
+        g_dap[14] = 0;
+        g_dap[15] = 0;
+        bios_edd_read();
+        if (g_carry || g_status != 0) return 0;
+        lba += chunk;
+        count -= chunk;
+        buf_seg = (u16)(buf_seg + chunk * 32);
+    }
+    return 1;
+}
+
 /* One ISO sector, into the stage's own directory buffer. */
 static u8 dirbuf[2048];
 
@@ -281,6 +327,32 @@ static int read_to_phys(u32 iso_lba, u32 iso_sectors, u32 dest) {
  * itself, segment stepping and all. */
 static int read_to_low(u32 iso_lba, u32 iso_sectors, u16 start_seg) {
     return read_drive(iso_lba, iso_sectors, start_seg, 0);
+}
+
+/* Many raw sectors, to a home below a mebibyte (milestone
+ * 28): the raw road's own read_to_low — read_raw already
+ * moves in 16 KiB mouthfuls and steps the segment by the
+ * paragraphs used, so a whole file is one asking. */
+static int read_file_low(u32 lba, u32 sectors512, u16 start_seg) {
+    return read_raw(lba, sectors512, start_seg, 0);
+}
+
+/* Many raw sectors, to any address in the machine, by way
+ * of the same bounce field and the protected hand — the
+ * raw road's read_to_phys, reckoned in 512-byte units. */
+static int read_raw_to_phys(u32 lba, u32 sectors512, u32 dest) {
+    while (sectors512 > 0) {
+        u32 chunk = sectors512 > 32 ? 32 : sectors512;
+        if (!read_raw(lba, chunk, 0x4000, 0)) return 0;
+        g_copy_src = BOUNCE_PHYS;
+        g_copy_dst = dest;
+        g_copy_len = chunk * 512;
+        pm_copy();
+        lba += chunk;
+        sectors512 -= chunk;
+        dest += chunk * 512;
+    }
+    return 1;
 }
 
 /* ---------------------------------------------------------------- */
@@ -361,6 +433,14 @@ static int find_in_dir(u32 dir_lba, u32 dir_size,
 static u32 kernel_lba, kernel_size;
 static u32 bundle_lba, bundle_size;
 
+/* The disk road's keeping (milestone 28): which road the
+ * finding took, where the Cardnull partition stands, and
+ * the two files' places in the disk's own 512-byte sectors
+ * — absolute, the partition's start already added. */
+static int from_disk;
+static u32 part_start;
+static u32 kernel_lba512, bundle_lba512;
+
 static void walk_disc(void) {
     if (!read_sector(16, dirbuf))
         die("reading the boot disc");
@@ -381,6 +461,92 @@ static void walk_disc(void) {
         bundle_lba = 0;
         bundle_size = 0;
     }
+}
+
+/* ---------------------------------------------------------------- */
+/* The disk's tree: CARDNULL DISK 1 (milestone 28), read
+ * the way the kernel writes it — one flat directory of
+ * 64-byte entries on the sixteen sectors behind the
+ * superblock, a name in bytes 1..31 with zeros after it,
+ * the file's first sector and length in the entry's tail,
+ * and every file standing in one unbroken run. */
+
+/* One raw sector's field: the MBR, the superblock, and a
+ * directory sector each stand here in their turn. */
+static u8 rawbuf[512];
+
+/* Does the entry's name say the word we seek? The disk's
+ * names carry no version suffix to forgive — the name is
+ * simply spent where its zeros begin. Letters are matched
+ * without case, as everywhere in this house. */
+static int name512_says(const u8 *entry, const char *word) {
+    u32 name_len = 0;
+    while (name_len < 31 && entry[1 + name_len] != 0) name_len++;
+    u32 i = 0;
+    for (;;) {
+        char want = word[i];
+        if (want == '\0') return i == name_len;
+        if (i >= name_len) return 0;
+        char got = (char)entry[1 + i];
+        if (got >= 'a' && got <= 'z') got = (char)(got - 'a' + 'A');
+        if (want >= 'a' && want <= 'z') want = (char)(want - 'a' + 'A');
+        if (got != want) return 0;
+        i++;
+    }
+}
+
+/* Finds the Cardnull partition on the boot disk and the
+ * two files this stage exists for, in the filesystem's own
+ * directory. The bundle's absence is not a failure, exactly
+ * as on the disc: its pointers simply stay zero, and the
+ * bundle's own "did not ride" line covers it downstream. */
+static void walk_disk(void) {
+    from_disk = 1;
+    if (!read_raw(0, 1, 0, (u16)(u32)(void *)rawbuf))
+        die("reading the boot disk");
+    u32 start = 0;
+    for (int e = 0; e < 4; e++) {
+        const u8 *entry = rawbuf + 446 + e * 16;
+        if (entry[4] == 0xCA) {
+            start = rd32(entry, 8);
+            break;
+        }
+    }
+    if (start == 0)
+        die("the boot disk carries no Cardnull partition");
+    part_start = start;
+    if (!read_raw(part_start, 1, 0, (u16)(u32)(void *)rawbuf))
+        die("reading the boot disk");
+    const char *magic = "CARDNULL DISK 1";
+    for (int i = 0; i < 15; i++) {
+        if (rawbuf[i] != (u8)magic[i])
+            die("the boot disk's partition does not "
+                "confess itself a Cardnull disk");
+    }
+    kernel_size = 0;
+    bundle_size = 0;
+    kernel_lba512 = 0;
+    bundle_lba512 = 0;
+    for (u32 s = 0; s < 16; s++) {
+        if (!read_raw(part_start + 1 + s, 1, 0,
+                      (u16)(u32)(void *)rawbuf))
+            die("reading the boot disk");
+        for (u32 at = 0; at < 512; at += 64) {
+            const u8 *entry = rawbuf + at;
+            if (entry[0] == 0) continue;
+            if (kernel_size == 0
+                && name512_says(entry, "KERNEL.BIN")) {
+                kernel_lba512 = part_start + rd32(entry, 32);
+                kernel_size = rd32(entry, 36);
+            } else if (bundle_size == 0
+                       && name512_says(entry, "FILES.BUNDLE")) {
+                bundle_lba512 = part_start + rd32(entry, 32);
+                bundle_size = rd32(entry, 36);
+            }
+        }
+    }
+    if (kernel_size == 0)
+        die("finding KERNEL.BIN on the boot disk");
 }
 
 /* ---------------------------------------------------------------- */
@@ -432,9 +598,20 @@ static void load_kernel(void) {
     if (kernel_size == 0 || kernel_size > KERNEL_FILE_CAP)
         die("the kernel's size is past what this stage "
             "can carry");
-    u32 sectors = (kernel_size + 2047) >> 11;
-    if (!read_to_low(kernel_lba, sectors, KSTAGE_SEG))
-        die("reading the kernel off the boot disc");
+    /* The staging is the roads' only difference: the disc
+     * reckons in ISO sectors through read_to_low, the disk
+     * in its own 512-byte sectors through read_file_low.
+     * Everything below this paragraph — the ELF's proof and
+     * the laying at its own addresses — is one road. */
+    if (from_disk) {
+        u32 sectors = (kernel_size + 511) >> 9;
+        if (!read_file_low(kernel_lba512, sectors, KSTAGE_SEG))
+            die("reading the kernel off the boot disk");
+    } else {
+        u32 sectors = (kernel_size + 2047) >> 11;
+        if (!read_to_low(kernel_lba, sectors, KSTAGE_SEG))
+            die("reading the kernel off the boot disc");
+    }
 
     g_copy_src = KSTAGE_PHYS;
     g_copy_dst = (u32)(void *)elf_head;
@@ -495,7 +672,9 @@ static void load_kernel(void) {
 
     print("The kernel is in hand: ");
     print_dec(kernel_size);
-    print(" bytes, read from the boot disc, laid at 1 MiB.\r\n");
+    print(" bytes, read from the boot ");
+    print(from_disk ? "disk" : "disc");
+    print(", laid at 1 MiB.\r\n");
 }
 
 /* ---------------------------------------------------------------- */
@@ -507,20 +686,26 @@ static u32 bundle_end;
 static void load_bundle(void) {
     bundle_start = 0;
     bundle_end = 0;
-    if (bundle_lba == 0) {
+    if (bundle_size == 0) {
         print("The file bundle did not ride: it is not "
               "on the boot disc.\r\n");
         return;
     }
-    if (bundle_size == 0 || bundle_size > 0x1000000u) {
+    if (bundle_size > 0x1000000u) {
         print("The file bundle did not ride: its size is "
               "past what the handover can name.\r\n");
         return;
     }
     u32 dest = (kernel_span_high + 0xFFF) & ~0xFFFu;
-    u32 sectors = (bundle_size + 2047) >> 11;
-    if (!read_to_phys(bundle_lba, sectors, dest))
-        die("reading the file bundle off the boot disc");
+    if (from_disk) {
+        u32 sectors = (bundle_size + 511) >> 9;
+        if (!read_raw_to_phys(bundle_lba512, sectors, dest))
+            die("reading the file bundle off the boot disk");
+    } else {
+        u32 sectors = (bundle_size + 2047) >> 11;
+        if (!read_to_phys(bundle_lba, sectors, dest))
+            die("reading the file bundle off the boot disc");
+    }
     bundle_start = dest;
     bundle_end = dest + bundle_size;
     print("The file bundle rides in memory: ");
@@ -754,7 +939,18 @@ void stage2_main(void) {
     print_dec(e820_count);
     print(" regions, by the machine's own E820 word.\r\n");
 
-    walk_disc();
+    /* The fork between the stage's two roads (milestone
+     * 28): probe sector 16, and let the disc confess itself.
+     * CD001 standing there means the ISO9660 walk, exactly
+     * as ever; anything else means the boot device is a
+     * prepared hard disk, and the walk is the disk's own. */
+    if (read_sector(16, dirbuf)
+        && dirbuf[0] == 1 && dirbuf[1] == 'C'
+        && dirbuf[2] == 'D' && dirbuf[3] == '0'
+        && dirbuf[4] == '0' && dirbuf[5] == '1')
+        walk_disc();
+    else
+        walk_disk();
     load_kernel();
     load_bundle();
 

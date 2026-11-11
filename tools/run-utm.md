@@ -585,9 +585,12 @@ refresh.
 
 Since milestone 21 the OS can write — to the VM's **hard
 disk**, never to the CD (the CD cannot be written at all;
-the commands say so on screen). Six commands in the
+the commands say so on screen). Seven commands in the
 Terminal work the disk: `disk`, `format`, `dsave`, `dls`,
-`dcat`, `install`.
+`dcat`, `install`, and — since milestone 28 —
+`bootable`, which prepares an installed disk to start
+the computer by itself (its own walk stands at the end
+of this page).
 
 > **Read this first, before you witness:** `format` and
 > `install` **erase the hard disk completely**, after a
@@ -636,13 +639,19 @@ Finally, the installer:
 It names the disk, warns that installing erases it, and
 asks for its word: type **INSTALL** and press Enter. It
 formats the disk and copies the disc's own files onto it
-— the welcome, every program, every feather — and writes
-one more, INSTALLED.TXT, which `dcat installed.txt` reads
-back from the disk, including its honest last word:
-**booting from this disk waits for Cardnull's own
-bootloader** — the machine still boots from the CD (or,
-one day, the stick); installing has made the disk a
-Cardnull home for files, not yet a bootable home. The
+— the welcome, every program, every feather, and, since
+milestone 28, Cardnull itself: the kernel and the file
+bundle from the disc's BOOT folder, fifteen files copied
+in all — and writes one more, INSTALLED.TXT, sixteen
+files standing, which `dcat installed.txt` reads back
+from the disk. Its text now says the disk carries
+Cardnull itself, and names the next step: **type
+`bootable` to make this disk start the computer by
+itself, behind the BIOS door** — with the honest scope
+in the same breath: the UEFI door from an installed
+disk is not yet. Installing alone still boots nothing;
+the machine boots from the CD until `bootable` prepares
+the disk, in the walk at the end of this page. The
 format itself is defined in `docs/DISK.md`.
 
 Shut the VM down whenever you like. The CD's world is as
@@ -789,3 +798,92 @@ yours. If your mouse answers the plain name instead,
 the report will read "It has no wheel." and the
 desktop will behave exactly as it did before this
 stone: nothing is lost, and nothing pretends.
+
+## Bootable: the disk starts the computer by itself
+
+Since milestone 28, an installed disk can be
+prepared to boot Cardnull on its own — behind the
+**BIOS door only**, so this walk runs with **UEFI
+Boot** unchecked (Edit → QEMU → **UEFI Boot** off
+is the BIOS door, as this page has framed the doors
+from the start). The UEFI door from an installed
+disk is not yet, and nothing in this walk pretends
+otherwise.
+
+> **The warning from the hard-disk walk stands,
+> doubled:** `format`, `install`, and `bootable`
+> remake the hard disk. Witness with the same kind
+> of **new throwaway disk** that walk asks for —
+> never a disk holding anything you keep.
+
+The walk, in order:
+
+1. **Boot from an ISO with a hard disk attached.**
+   Point the VM's CD drive at either image (the
+   standard `cardnull.iso` is the daily one), leave
+   the fresh hard disk attached, make sure **UEFI
+   Boot** is off, and start the VM. The desktop
+   rises behind the BIOS door, by our own chain.
+2. **Plant Cardnull, then prepare it.** In the
+   Terminal, on the throwaway disk:
+
+       format
+       install
+       bootable
+
+   Each asks for its own typed word — **FORMAT**,
+   then **INSTALL**, then **BOOTABLE** — and
+   anything else writes nothing and says so.
+   `install` leaves sixteen files standing (the
+   thirteen, KERNEL.BIN, FILES.BUNDLE, and
+   INSTALLED.TXT; `dls` counts them, and `dcat
+   installed.txt` reads the new note back).
+   `bootable` warns that it will move everything
+   behind a partition and lay Cardnull's own boot
+   image and partition table at the disk's head,
+   and its success is one plain sentence: *"The
+   disk is prepared: it can start the computer by
+   itself behind the BIOS door."* Run `disk` and
+   its account gains the same truth in one line:
+   *"It can start the computer by itself."* Run
+   `bootable` a second time and it answers, just as
+   plainly, *"This disk already starts the computer
+   by itself."* — and changes nothing.
+3. **Take the CD away.** Shut the VM fully down.
+   In UTM's settings, remove the CD drive from the
+   VM (or set the hard disk first in the boot
+   order, so the disk is what the firmware boots).
+   What matters: no CD stands in the machine for
+   the next start.
+4. **Boot from the disk alone.** Start the VM. The
+   BIOS boots the hard disk, our MBR hands over to
+   the boot image the disk itself carries, and the
+   loader signs the new road in its own words —
+   quickly, on the text screen before the desktop:
+
+       Cardnull Bootloader
+       Cardnull OS behind the BIOS door, loaded by our own hand.
+       The kernel is in hand: 281248 bytes, read from the boot disk, laid at 1 MiB.
+       The file bundle rides in memory: 7680 bytes.
+
+   — "boot **disk**", not "disc": that one word is
+   the witness that the kernel came off the hard
+   disk, not off any CD. The desktop that follows
+   is the whole system, living off the disk:
+   `about`, `dls` (the sixteen files), `dcat
+   installed.txt`, `mem`, `sound` — and what you
+   `dsave` now comes back after a full shutdown
+   and a cold start from the disk again, word for
+   word, because the disk is home now in both
+   senses.
+
+The bench proved this whole walk in QEMU — the
+preparation with its gate and its hashes, the
+disk-alone boot with no CD device attached, the
+persistence, and the regressions — on
+November 11, 2026. But the bench is not your
+machine, and this page does not claim your witness
+for you: **whether it stands in UTM is yours to
+see, and your screen is the final word.** If any
+step answers differently there, that is a finding
+to record, not a failure to hide.

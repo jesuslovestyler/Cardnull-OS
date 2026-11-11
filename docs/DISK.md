@@ -33,7 +33,19 @@ sectors 1..16     the directory: 128 entries, 64 bytes each
 sectors 17..      file data, in unbroken runs of sectors
 ```
 
-### The superblock (sector 0)
+These sector numbers are **home-relative** (milestone 28):
+they count from the filesystem's home, not always from the
+disk's own sector 0. On a plain disk the home is the disk's
+sector 0, exactly as this format was first laid. On a
+**bootable** disk the home is sector 2048, named by the
+disk's partition entry, and the disk's head carries the
+boot chain instead — see "The bootable shape" below. Every
+reckoning in this document — the superblock, the directory,
+the data area, a file's first sector — is made from the
+home, so the superblock is sector 0 *of its home* wherever
+the home stands.
+
+### The superblock (sector 0 of its home)
 
 | bytes   | what stands there                                        |
 |---------|----------------------------------------------------------|
@@ -123,18 +135,22 @@ the superblock back and finding it standing.
 
 ## How a disk is judged
 
-Every disk command reads sector 0 afresh and judges it:
+Every disk command reads the home's first sector afresh
+and judges it. The home is found first: a Cardnull
+partition entry (type 0xCA) in the disk's MBR names a
+home at its start sector; without one, the home is the
+disk's sector 0.
 
 - **absent** — no hard disk answered its IDENTIFY: *"No
   hard disk is attached."*
 - **silent** — a disk is attached but its first sector
   cannot be read: reported as damaged ground, never guessed
   at.
-- **blank** — sector 0 reads as all zeros: *"It is blank:
-  nothing on it is Cardnull's yet."*
-- **foreign** — sector 0 carries something that is not
-  Cardnull's signature: *"not a Cardnull disk yet"* — the
-  bytes are never interpreted.
+- **blank** — the home's first sector reads as all zeros:
+  *"It is blank: nothing on it is Cardnull's yet."*
+- **foreign** — the home's first sector carries something
+  that is not Cardnull's signature: *"not a Cardnull disk
+  yet"* — the bytes are never interpreted.
 - **damaged** — the signature stands but the version, the
   checksum, or the geometry disagree with the disk's own
   IDENTIFY: reported as damaged, in plain words.
@@ -154,12 +170,71 @@ path is untouched and has **no write road at all**: no code
 in the kernel can write to the CD, and `format` and
 `install` say so on screen before they ask for their word.
 
+## The bootable shape (milestone 28)
+
+*Amendment, November 11, 2026.* A disk that `install` has
+planted Cardnull on can be **prepared** by the Terminal
+command `bootable` — behind a typed confirmation, the
+word **bootable** — to start the computer by itself
+behind the BIOS door. Preparation changes the disk's
+head, and only its head; the filesystem itself moves
+whole and byte for byte. In absolute disk sectors:
+
+```
+sector 0          our MBR: the boot sector's code, one
+                  partition entry, the 0x55AA tail
+sectors 4..       BIOSBOOT.IMG, the boot image, laid
+                  whole (14,150 bytes today)
+sector 2048       the filesystem's home: the superblock
+                  stands here, and every sector number
+                  in this format counts from here
+```
+
+- **The partition entry** is the MBR table's first (and
+  only) entry: status **0x80** (boot-flagged), type
+  **0xCA**, start **2048**, count the disk's total
+  sectors less 2048 (1,046,528 on the bench's disk).
+  The rest of the table's ground stands zeroed.
+- **The boot image** stands at sector **4**, with its
+  El Torito boot-info table patched for this home
+  before it is written: the word at offset **12**
+  becomes **1** — sector 4 reckoned in the table's
+  2048-byte units — and the word at offset **16**
+  names the image's whole length (14,150 bytes;
+  on the bench, the laid image differed from the
+  ISO's BIOSBOOT.IMG at only bytes 12–13).
+- **The MBR is written last.** The filesystem migrates
+  first (copied top down, so the copy never overwrites
+  ground it has not read yet), the image is laid next,
+  and only then is sector 0 written and the disk
+  flushed — the moment the MBR stands, the disk claims
+  to boot, and it must already be whole. Success is
+  claimed only when the disk, judged fresh, answers
+  ready and prepared with the same files standing.
+- **Every refusal precedes any write:** no disk, a
+  disk that is not Cardnull's yet, a disk already
+  prepared, no room to move its files behind the
+  partition, or no sound boot image on the disc — and
+  a wrong word at the gate writes nothing at all.
+- **Living on a prepared disk:** the kernel locates
+  the filesystem at the partition's start (the
+  home-relative rule above), and `format` on a
+  bootable disk reformats **inside the partition** —
+  the MBR, the boot image, and the partition entry
+  are not touched, and the disk stays bootable.
+  `disk` adds one plain line for such a disk: *"It
+  can start the computer by itself."*
+
+The scope is stated as plainly as the shape: this is
+the **BIOS door only**. Booting an installed disk
+behind the UEFI door is not yet.
+
 ## The bounds, stated
 
 - 128 files at most; a name at most 31 letters.
 - No folders, no delete, no overwrite, no renaming.
 - One unbroken run per file; the disk fills from sector 17
-  upward and does not compact.
+  of its home upward and does not compact.
 - `dsave` writes text the shell was handed — small files
   only; `install` copies whole files of any size.
 - The format is version 1. A later version will be a new
