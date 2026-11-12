@@ -90,6 +90,110 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 31 stands (November 12, 2026): **the
+writing window — a page on the desktop, and a door
+for feathers to keep files.** The desktop gains its
+sixth window, named in plain words: Write. It opens
+from its own launcher in the bottom bar — four
+launchers now, and the bar's own layout rules still
+keep the clock its room at 1280 wide — or by the
+Terminal command `write`, and it keeps every
+mechanic its siblings keep: title bar, close box,
+drag, maximize, the room by focus, the wheel
+scrolling three lines to a notch. A person writes
+in it with the keys the PS/2 path truly delivers —
+letters with their Shift and Caps faces, backspace,
+Enter, the arrows, Home and End, Page Up and Page
+Down, Delete — and no key is promised that the path
+does not carry. Its strip carries New, Open, and
+Save, and the writing's standing in plain words.
+Saving an untitled writing asks for its name in the
+window itself — milestone 30 confessed the face
+could not type a name; now it can — and a name that
+already stands is refused in plain words, the
+writer choosing another: no save ever overwrites
+another file. One bounded exception, stated
+openly: saving the file you have open writes back
+into its own run when the new words fit it;
+outgrow the run, and the window asks for a new name
+rather than take another file's ground. A page
+holds 8,192 bytes; a longer file opens its first
+page and says so. With no Cardnull disk in the
+machine, Save and Open answer plainly — "No
+Cardnull disk yet. Your words are still here." —
+and the words stay on the screen. The same stone
+extends the feather door (interrupt 0x80) with two
+file services, 10 and 11: a guest may read a named
+disk file into its memory, and write its memory out
+as a named file — one sector, 512 bytes, at a time
+— under the same laws, every reach proven against
+the guest's estate before a byte moves, refusals
+in the door's all-ones family. A new feather,
+KEEP.FEATHER — the bundle carries 14 files now — is
+their witness: it writes NOTE.TXT, reads it back,
+and speaks the bytes it read. The proofs are the
+bench's own. A three-line writing, edited mid-line
+with backspace and arrows, saved as letter.txt,
+read back word for word by `dcat`, then — after a
+cold reboot — reopened in the editor, given a
+fourth line, and saved again into the very sector
+it already stood on, the disk's next-free pointer
+unmoved: a host-side read of the platter found 74
+bytes, exactly the words typed. The feather's file
+read the same in the editor and in `dcat`, and a
+second boot's rewrite was refused — name taken —
+while the standing file still read back whole. A
+session of nothing but refusals, the editor's and
+the feather's alike, left its bench disk
+byte-identical, sha256
+3fac55f09c35099eac9672994c4900ca10311b5a56565cdcdd8f98e843f5ed9d
+before and after. And a disk freshly installed and
+made bootable from the new image boots alone
+behind BIOS, the streaming loader carrying the
+grown kernel: there the editor saved disknote.txt
+and the feather kept NOTE.TXT beside the 17
+installed files, all standing after another cold
+boot (`dls` counts 19). The regressions stand
+whole: the file family's rename, copy, and gated
+delete in one scripted pass; on slirp, one DORA in
+the capture for two `net` commands, the second
+answering "The lease stands; no new asking was
+made."; the HDA Doxology's eight notes at nominal,
+0.00% error, and the no-HDA speaker fallback in
+tune; windowed TERM.FEATHER's wheel lifting
+exactly 3 lines; `mem` at a fresh boot reading
+1,589 used of 129,475 total (512 MB), with 20
+frames taken once at the first `net` and none at
+the second — and the editor and the door take no
+frames and no heap at all. `about`'s bundle line
+reads 14 files; `dls` reads 14 files on the
+milestone 21 disk; `help` carries one new line
+("open the Write window - a page to write on").
+One cosmetic bound is stated rather than hidden:
+the strip's field fits about two short lines, so
+its longest sentences clip at the window's edge —
+the refusal's heart ("A file with that name
+already stands.") reads whole; its tail does not.
+One bench catch is worth the telling: the proof
+found the witness feather printing an empty
+read-back — its own print hand had spent the
+register holding the count — and the feather, not
+the door, was what needed fixing; the door's
+answers were true throughout, as `dcat` and the
+platter both showed. The known feather-window
+wheel-down residual stands as it stood, not this
+stone's regression. The kernel stands at 19,450
+lines and 350,816 bytes (sha256
+9742ee12b05164b76e7f455cd8ed708c0c38695c4e25e47e1b0d04d4dcdac2c9).
+The images stand at 3,768,320 bytes each:
+`dist/cardnull.iso` sha256
+4ec10e4c39b19e9442df589970258a504f4fc9223953a37f43b0101d2030c4a8,
+and `dist/cardnull-ownboot.iso` sha256
+371c1585bd4ff0f779dfa89d8b20e35395853506ac4ded5ff3ef9a4f88bfb9ea.
+Tyler's own witness in UTM is still his to give;
+the bench proved the road, his screen is the final
+word.
+
 Milestone 30 stands (November 12, 2026): **files with
 manners — the disk learns rename, copy, and delete.**
 Milestone 21 gave the hard disk files and stated its

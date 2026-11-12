@@ -109,8 +109,10 @@ done
 # step 5 rather than carried bare. Milestone 18 adds face, the
 # greeting painted through the door's drawing services, and
 # term, the terminal that is a feather, standing on the door
-# alone.
-for feather in greet face term; do
+# alone. Milestone 31 adds keep, the keeping feather, which
+# writes one small file to the Cardnull disk through the
+# door's file services and reads it back.
+for feather in greet face term keep; do
     clang --target="$TARGET" -c \
         "$ROOT/feathers/$feather.s" -o "$BUILD/$feather.o"
     "$LD" -Ttext=0x40000000 --oformat binary \
@@ -155,6 +157,11 @@ python3 "$ROOT/tools/pack-feather.py" pack \
 python3 "$ROOT/tools/pack-feather.py" pack \
     "$ROOT/feathers/term.card" "$BUILD/term.bin" \
     "$BUILD/TERM.FEATHER"
+# Milestone 31's feather: the keeping feather, behind its
+# own card, packed by the same hand.
+python3 "$ROOT/tools/pack-feather.py" pack \
+    "$ROOT/feathers/keep.card" "$BUILD/keep.bin" \
+    "$BUILD/KEEP.FEATHER"
 
 echo "==> [6/8] Staging the disc"
 # A clean staging every time: the tree is rebuilt whole
@@ -193,7 +200,8 @@ cp "$BUILD/HELLO.FEATHER" "$ISO_DIR/HELLO.FEATHER"
 cp "$BUILD/TAMPERED.FEATHER" "$ISO_DIR/TAMPERED.FEATHER"
 cp "$BUILD/FACE.FEATHER" "$ISO_DIR/FACE.FEATHER"
 cp "$BUILD/TERM.FEATHER" "$ISO_DIR/TERM.FEATHER"
-# The bundle (milestone 23, docs/BUNDLE.md): the same thirteen
+cp "$BUILD/KEEP.FEATHER" "$ISO_DIR/KEEP.FEATHER"
+# The bundle (milestone 23, docs/BUNDLE.md): the same fourteen
 # files the staging just gathered, packed into one file — the
 # welcome, every guest, every feather — and laid in /boot, where
 # both bootloaders carry it into memory beside the kernel,

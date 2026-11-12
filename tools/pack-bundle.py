@@ -62,6 +62,7 @@ MANIFEST = (
     "TAMPERED.FEATHER",
     "FACE.FEATHER",
     "TERM.FEATHER",
+    "KEEP.FEATHER",
 )
 
 

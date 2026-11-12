@@ -291,16 +291,57 @@ any write: a session of nothing but refusals — taken
 names, missing files, a wrong word at delete's gate —
 left the bench disk byte-identical, hash for hash.
 
+## The writing window and the door (milestone 31)
+
+*Amendment, November 12, 2026.* Two more roads write
+to the disk, and both keep its laws. **The format did
+not change** — no byte of the layout above moved, and
+version 1 stands.
+
+- **The Write window** (the desktop's editor) saves
+  under the family's rules: a fresh name is written
+  exactly as `dsave` writes — data, then the directory
+  entry, then the superblock, then a flush — and a
+  name that stands is refused, in the window's own
+  plain words. One bounded exception, stated openly:
+  saving the very file the window has open writes the
+  new words back into that file's own run, when they
+  still fit its sectors; the entry's length is
+  rewritten, the count and the next-free pointer do
+  not move. A writing that has outgrown its run is
+  not moved and nothing else is touched: the window
+  asks for a new name instead. This is the one road
+  on which a standing file's bytes change, and it
+  reaches only the file's own ground.
+- **The door's file services** (interrupt 0x80,
+  services 10 and 11, published in docs/FEATHER.md)
+  let a guest program read a named file into its
+  memory and write its memory out as a named file —
+  one sector, 512 bytes, at a time, refused whole
+  past that bound. Writing there is creation only:
+  a name that stands is refused, exactly as at the
+  Terminal and in the window, because it is the same
+  filesystem down all three roads — a file a feather
+  writes is a file `dcat` and the editor read, and
+  the other way around. Every refusal on every road
+  precedes any write: on the bench, a session of
+  refusals from the window and the door together
+  left the disk byte-identical, hash for hash.
+
 ## The bounds, stated
 
 - 128 files at most; a name at most 31 letters.
-- No folders, no overwrite. Renaming, copying, and
-  deleting stand since milestone 30, under the
-  amendment above.
+- No folders, no overwrite of another file. Renaming,
+  copying, and deleting stand since milestone 30,
+  under the amendment above; the editor's saving of
+  its own open file into its own run stands since
+  milestone 31, under the amendment above that.
 - One unbroken run per file; the disk fills from sector 17
   of its home upward and does not compact.
 - `dsave` writes text the shell was handed — small files
-  only; `install` copies whole files of any size.
+  only; the Write window holds one page of 8,192 bytes;
+  the door carries one sector at a time; `install`
+  copies whole files of any size.
 - The format is version 1. A later version will be a new
   signature and its own document, never a quiet change to
   this one.

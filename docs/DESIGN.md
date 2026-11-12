@@ -881,6 +881,83 @@ it bends.*
    a380ea331985659ac9e627f4b6b53ff1816449db51c366bb6f15ee1c7fd15eb2,
    `dist/cardnull-ownboot.iso` sha256
    6c2d9adc18315793f1962c236207d2982a6fd9ad844bdaf7ee301f21b409dbd9.)*
+   Milestone 31 — November 12, 2026 — gave the
+   desktop a writing window, and gave feathers
+   hands for the disk. The decisions are five.
+   First, the editor is a window, not a mode: it
+   stands sixth among the desktop's windows under
+   every mechanic the face already keeps — its
+   own bar launcher (the bar now lays out four,
+   and its gap-shrinking rules still keep the
+   clock its room at 1280 wide), title bar, close
+   box, drag, maximize, the room by focus, the
+   wheel at three lines a notch — because a
+   person should meet one desktop, not two.
+   Second, saving is the window's own work:
+   milestone 30 confessed the face had no way to
+   type a name, so names are typed in the strip,
+   and the disk family's no-overwrite law binds
+   the window exactly as it binds the Terminal —
+   with one bounded, openly stated exception: a
+   writing saved back under its own name into its
+   own run when the words still fit it, the way
+   every editor a person has ever used saves;
+   outgrow the run and the window asks for a new
+   name rather than move onto another file's
+   ground. Third, absence is spoken, not suffered:
+   no disk, a full page (8,192 bytes), a file
+   longer than one page opening as its first page
+   — each is a plain sentence in the strip, and
+   the words stay on the screen; nothing is
+   silently dropped and nothing silently
+   overwritten. Fourth, the door's file services
+   are the disk's laws in the door's own accent:
+   services 10 and 11 read and write one named
+   file of at most one sector (512 bytes), every
+   guest reach proven against the estate before a
+   byte moves, the disk judged fresh at every
+   knock, refusals in the all-ones family the
+   door has spoken since milestone 9 — two more
+   doors into the one filesystem, and the bench
+   proved each road reads what the other wrote.
+   Fifth, the witness is a program, not a
+   promise: KEEP.FEATHER, the bundle's fourteenth
+   file, writes NOTE.TXT, reads it back, and
+   speaks the bytes — and its first build spoke
+   an empty read-back on this bench, because its
+   own decimal-print hand had spent the register
+   holding the count; the feather was fixed, the
+   door needed nothing, and `dcat` and the host's
+   read of the platter had told the truth about
+   the door the whole time. The proofs are the
+   bench's numbers: an edited three-line writing
+   at 69 bytes, 74 after a line appended across a
+   cold reboot, byte-exact from the host's read
+   and saved again into the same sector with the
+   next-free pointer unmoved; a session of
+   refusals from both doors leaving a disk
+   byte-identical, sha256
+   3fac55f09c35099eac9672994c4900ca10311b5a56565cdcdd8f98e843f5ed9d
+   on both sides; a freshly installed, bootable
+   disk booting alone behind BIOS with the grown
+   kernel aboard, the editor and the feather both
+   keeping files on it, 19 standing after another
+   cold boot; and the regressions whole — the
+   file family in one pass, one DORA for two
+   `net` commands, the Doxology note-exact on the
+   HDA chip and the speaker alike, TERM.FEATHER's
+   wheel at exactly 3 lines, `mem` at 1,589 used
+   of 129,475 fresh with 20 frames at the first
+   `net` and none at the second. One cosmetic
+   bound is recorded plainly: the strip's longest
+   sentences clip at the window's edge — the
+   refusal's heart reads whole, its tail does
+   not. The kernel stands at 19,450 lines and
+   350,816 bytes; the images at 3,768,320 bytes
+   each — `dist/cardnull.iso` sha256
+   4ec10e4c39b19e9442df589970258a504f4fc9223953a37f43b0101d2030c4a8,
+   `dist/cardnull-ownboot.iso` sha256
+   371c1585bd4ff0f779dfa89d8b20e35395853506ac4ded5ff3ef9a4f88bfb9ea.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

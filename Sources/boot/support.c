@@ -418,6 +418,28 @@ unsigned char *cardnull_files_keeping(void) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Milestone 31: the Write window's keeping.                          */
+/*                                                                    */
+/* The desktop gains a window for writing in, and the window          */
+/* keeps its facts in bytes as its elder siblings do — the text       */
+/* being written, the Open list gathered off the hard disk, the       */
+/* name being typed, and the strip's message — for the same reason    */
+/* every keeping above is lent: Embedded Swift cannot name fixed      */
+/* mutable storage without a heap. The floor makes no decision        */
+/* about the bytes; their layout is the kernel's business, agreed     */
+/* here only in size: 16,384 bytes, within which the kernel keeps     */
+/* its text at the head and its list and fields toward the tail       */
+/* (the kernel's own constants name the offsets —                     */
+/* writeKeepingBytes and its companions).                             */
+/* ------------------------------------------------------------------ */
+
+static unsigned char write_keeping[16384];
+
+unsigned char *cardnull_write_keeping(void) {
+    return write_keeping;
+}
+
+/* ------------------------------------------------------------------ */
 /* Milestone 6: the frame allocator's two lendings.                    */
 /*                                                                     */
 /* The allocator itself — which frames exist, which are free, what   */

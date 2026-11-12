@@ -698,6 +698,42 @@ a deleted file's name and place in the list are freed,
 but its bytes' room is not reclaimed until a `format`.
 Deleting removes a file; it does not make room.
 
+Since milestone 31 the desktop has a writing window,
+and feathers can keep files. Click **Write** in the
+bottom bar (or type `write` in the Terminal): a window
+opens with New, Open, and Save at its head. Type a few
+lines — letters, backspace, Enter, and the arrow keys
+all work as you would expect — then click **Save**:
+the window asks for a name in its own strip; type one
+(say, `letter`) and press Enter. The words at the
+strip's head give the name and "- saved". **Shut the
+VM fully down, start it again,** open Write, click
+**Open**, and choose the file: your words come back
+from the disk, and you can keep writing and save
+again — saving the file you have open writes back
+into its own place. A name that already stands is
+refused in plain words, and nothing is ever
+overwritten. With no Cardnull disk in the machine,
+Save answers "No Cardnull disk yet. Your words are
+still here." and the words stay on the screen. One
+honest bound: a page here holds 8,192 bytes, and a
+longer file opens as its first page, saying so.
+
+The same stone gave feathers hands for the disk. With
+the prepared disk in the machine, type:
+
+    feather /keep.feather
+
+It answers in the Terminal: "KEEP: written", then
+"KEEP: read back 20 bytes: kept by keep.feather" — it
+wrote NOTE.TXT through the service door and read it
+back and said what it read. Run it a second time and
+the writing is refused — "KEEP: refused - name
+taken" — because the door never overwrites either;
+the standing file still reads back whole, and
+`dcat note.txt` in the Terminal, or Open in the Write
+window, shows the same words.
+
 Finally, the installer:
 
     install

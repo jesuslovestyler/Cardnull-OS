@@ -125,7 +125,11 @@ home in `rax`. Every other register is kept across the door.
 Services 0–3 are the first suite (milestones 9, 10 and 15);
 services 4–8 are the graphical suite (milestone 18), which
 gives a guest a face; service 9 (milestone 25) is the
-window standing, the guest's news of its window.
+window standing, the guest's news of its window. Services
+10 and 11 (milestone 31) are the file services: a guest
+may read a named file off the Cardnull disk into its own
+memory, and write its memory out as a named file — the
+disk keeps its laws on both sides of the door.
 
 | # | service | the words | the answer |
 | --- | --- | --- | --- |
@@ -139,6 +143,8 @@ window standing, the guest's news of its window.
 | 7 | read key | — | the key as a character (Enter = 0x0A, Backspace = 0x08), or 0 when no key waits — windowed, also 0 while another window holds the room |
 | 8 | poll mouse | — | the pointer's place in the low words and its buttons above them (bit 0 left, 1 right, 2 middle), and — since milestone 26 — the wheel's turning in the byte above them (bits 40–47): the signed sum since the guest last asked, positive turned up toward older lines, spent by the asking; all-ones when it is not the guest's to ask. Windowed, the place is the desktop pointer's, relative to the canvas and signed, and the buttons answer only while the pointer stands over the canvas |
 | 9 | window standing | — | bits of one word: bit 0 a repaint is owed, bit 1 your face holds the room, bit 2 the pointer stands over your ground; all-ones in a pair |
+| 10 | read a file | name address, name length, destination address, room offered | the byte count copied; all-ones for a bad reach or a name the disk cannot hold, one less when no Cardnull disk stands ready, two less when the name does not stand, three less when the file is longer than one sector (512 bytes) or longer than the room offered — refused whole, nothing copied |
+| 11 | write a file | name address, name length, source address, byte count (at most 512) | 0 when written; all-ones for a bad reach, a bad name, or a count past the bound, one less when no Cardnull disk stands ready, two less when the name already stands, four less when the disk has no room |
 
 The laws that bind the suite:
 
@@ -264,6 +270,25 @@ The laws that bind the suite:
   Windowed, the pointer is the desktop's own and the
   kernel does draw it — the guest reads its standing
   through services 8 and 9 and paints nothing of it.
+- **The file services keep the disk's laws (services
+  10 and 11).** One file at a time, named as the disk
+  names files, and at most one sector — 512 bytes — in
+  either direction: the keeping is one sector honest,
+  and a longer file is refused whole rather than read
+  in part. Writing never overwrites: a name that
+  stands is refused, as it is at the Terminal and in
+  the Write window, because it is the same filesystem
+  down all three roads — a file a feather writes is a
+  file `dcat` and the editor read, and the other way
+  around. The disk is judged fresh at every knock, as
+  the shell judges it; no disk at all, or a disk not
+  Cardnull's, hears one less than all-ones, and no
+  refusal writes anything. Every reach — the name,
+  the source, the destination — is proven against the
+  guest's estate before a byte of it is read or
+  written, with exactly the write-string discipline.
+  KEEP.FEATHER is the standing witness: it writes
+  NOTE.TXT, reads it back, and speaks the bytes.
 - **There is no sound service.** The speaker is the
   kernel's own voice (milestone 17's `sound` command); a
   feather cannot yet sing, and a guest asking for a
