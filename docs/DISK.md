@@ -17,8 +17,11 @@ itself put them, and give them back word for word.
 It is small on purpose. There is one directory, at the root;
 there are no folders, no permissions, no journals, and in
 this first version **no deleting**: a name, once taken,
-stands. What the format cannot do is written down below as
-plainly as what it can.
+stood. Milestone 30 gave the disk manners — rename, copy,
+and delete — and the amendment near the end of this
+document says exactly what changed and what did not. What
+the format cannot do is written down below as plainly as
+what it can.
 
 ## The layout
 
@@ -93,9 +96,11 @@ never a lie told to the user.
 A name is at
 most 31 letters — letters, digits, `.`, `-` and `_` — and is
 never `.` or `..`. Names are compared without caring about
-case, and a name once standing is **never reused**: there is
-no overwrite and no delete in this version, so a second
-`dsave` under a standing name is refused in plain words.
+case. While a name stands it is **never reused** and never
+overwritten: there is no overwrite in this format, so a
+second `dsave` under a standing name is refused in plain
+words. What can free a name — a rename, a delete — is
+milestone 30's amendment below.
 
 ### File data (sectors 17..)
 
@@ -103,8 +108,10 @@ Each file's bytes stand in one unbroken run of whole
 sectors, beginning where the superblock's next-free pointer
 stood when the file was written; the pointer then advances
 past the run. Nothing is ever moved or compacted, and a
-freed run — there are none, there being no delete — would
-not be reclaimed. What `dsave` can write is bounded by the
+freed run is **not reclaimed**: since milestone 30 a file
+can be deleted, and its run then stands unread on the
+platter, its bytes untouched, until a `format` — the
+next-free pointer never walks backward. What `dsave` can write is bounded by the
 shell's own line: a name and words up to the line's reach,
 so a `dsave` file is at most a few hundred bytes and always
 fits within one sector's content, though the run is counted
@@ -229,10 +236,67 @@ The scope is stated as plainly as the shape: this is
 the **BIOS door only**. Booting an installed disk
 behind the UEFI door is not yet.
 
+## Files with manners (milestone 30)
+
+*Amendment, November 12, 2026.* Three Terminal commands
+joined the disk family — the family is ten now:
+`rename OLD NEW`, `copy SOURCE NEW`, and `delete NAME`.
+**The format did not change** — no byte of the layout
+above moved, and version 1 stands. What changed is two
+rules this document first stated: a name once standing
+can now be freed, and a file can be removed. This
+amendment supersedes milestone 21's "no deletion in v1",
+and it says exactly how far the change reaches.
+
+- **Rename** rewrites the file's directory entry where
+  it stands — same slot, same first sector, same
+  length; only the name changes. The data run is not
+  read, moved, or copied. The old name is free the
+  moment the rename lands, and another file may take
+  it at once. Renaming to the very name the file
+  already has, to a name that stands, from a name that
+  does not stand, or to a name the format cannot hold
+  is refused in plain words before anything is written.
+- **Copy** makes a second, independent file: the
+  source's bytes are written to a fresh run at the
+  next-free pointer, and a new entry stands for them.
+  Afterwards the two files share nothing — either can
+  be renamed or deleted without touching the other.
+  Copy never overwrites: a destination name that
+  stands is refused.
+- **Delete** is gated, as `format` and `install` are
+  gated: the Terminal names the file and its size,
+  says plainly that nothing can bring it back, and
+  demands the typed word **delete** (capitals folded,
+  the whole word demanded). Anything else writes
+  nothing at all. A true delete zeroes the file's 64
+  directory bytes: the slot and the name are free at
+  once, and the file is gone from `dls` and `dcat` for
+  good — across a cold reboot, proven. **Its data run
+  is not reclaimed.** The next-free pointer never
+  walks backward, so the deleted bytes stand unread on
+  the platter until a `format`, and the room `disk`
+  reports does not grow when a file is deleted: on the
+  bench it read 536,860,160 bytes with four files
+  standing and the same 536,860,160 with two. Deleting
+  is a way to remove a file, not a way to make room;
+  `format` remains the only road back to an empty disk.
+
+Each of the three writes in the standing order — for
+copy, the data first, as `dsave` writes it; then the
+directory entry; then the superblock; then a flush —
+so a half-finished operation never leaves the disk
+claiming what is not there. And every refusal precedes
+any write: a session of nothing but refusals — taken
+names, missing files, a wrong word at delete's gate —
+left the bench disk byte-identical, hash for hash.
+
 ## The bounds, stated
 
 - 128 files at most; a name at most 31 letters.
-- No folders, no delete, no overwrite, no renaming.
+- No folders, no overwrite. Renaming, copying, and
+  deleting stand since milestone 30, under the
+  amendment above.
 - One unbroken run per file; the disk fills from sector 17
   of its home upward and does not compact.
 - `dsave` writes text the shell was handed — small files

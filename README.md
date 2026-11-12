@@ -90,6 +90,93 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 30 stands (November 12, 2026): **files with
+manners — the disk learns rename, copy, and delete.**
+Milestone 21 gave the hard disk files and stated its
+limits plainly: no deleting, a name once taken never
+reused. This stone lifts exactly those two limits, in
+the open, and no others. Three Terminal commands join
+the disk family — ten commands now: `rename OLD NEW`
+rewrites a file's directory entry where it stands
+(same slot, same first sector, same length; only the
+name changes, and the old name is free again at
+once), `copy SOURCE NEW` writes the source's bytes to
+a fresh run at the next-free pointer so the two files
+stand independent, and `delete NAME` removes a file
+behind the family's typed gate — the Terminal names
+the file and its size, says plainly that nothing can
+bring it back, and demands the word **delete**,
+capitals folded; anything else writes nothing. No
+operation overwrites: a destination name that stands
+is refused for rename and copy alike, in plain words,
+as are a missing source, a name the format cannot
+hold, and a disk absent or not Cardnull's yet. The
+format itself did not move — CARDNULL DISK 1,
+version 1, the layout milestone 21 wrote, byte for
+byte; docs/DISK.md carries the amendment that
+reconciles the rules. One rule of the old format
+survives delete unchanged, and the amendment says so:
+a deleted file's data run is **not** reclaimed — the
+next-free pointer never walks backward, the bytes
+stand unread on the platter until a `format`, and
+the room `disk` reports does not grow: on the bench
+it read 536,860,160 bytes with four files standing
+and the same 536,860,160 with two. The proofs are
+the bench's own. A renamed file read back byte for
+byte under its new name after a cold reboot, its
+copy beside it identical; a deleted file was gone
+from `dls` and still gone after the reboot, while a
+host-side look at the platter found its bytes
+standing unread in their old sectors ("scratch
+words" at sector 18, "ephemeral" at sector 19),
+exactly as the amendment promises. A session of
+nothing but refusals — taken names, missing files,
+bare commands, and delete's gate answered with the
+near-miss word "delet" — left the bench disk
+byte-identical, sha256
+1a9e37fdcde6bab140b665279ee6e772e334ad9a883e2126436e063404171672
+before and after. And a disk freshly installed and
+made bootable from the new image boots alone behind
+BIOS carrying the grown kernel (`dls` lists
+KERNEL.BIN at 309,992); on that disk rename, copy,
+and delete worked and persisted across a second cold
+boot, and its `net` took the lease in a full DORA.
+The desktop Files window still lists the CD, not the
+hard disk, and the face has no way to type a name —
+so the three commands are Terminal-first by design,
+stated plainly rather than dressed up as a GUI path
+that is not there. The regressions stand whole: on
+slirp, one DORA in ten packets for two `net`
+commands, the second answering "The lease stands;
+no new asking was made."; the HDA Doxology's eight
+notes at nominal, 0.00% error, and the no-HDA
+speaker fallback in tune; windowed TERM.FEATHER
+opening, its wheel-up lifting exactly 3 lines;
+`mem` at a fresh boot reading 1,575 used of 129,475
+total (512 MB), with 20 frames taken once at the
+first `net` and none at the second; `about`'s
+bundle line intact at 13 files; `dls` at 14 files on
+the milestone 21 disk; `help` carrying the three new
+lines ("rename a file on the hard disk", "copy a
+file on the hard disk", "remove a file from the hard
+disk"). One residual stands as it stood, and it is
+not this stone's regression: the feather window's
+wheel-down leg does not return the view on this
+bench — identical frames stand in milestone 28's and
+29's evidence — while the kernel Terminal's wheel
+returns exactly; it stands open for a later stone,
+at Tyler's word. The kernel stands at 17,304 lines
+and 309,992 bytes (sha256
+2c2c8b01e71c439374fdd8fc876a6f41104f4c205083dcf820f0aedf612b953e).
+The images stand at 3,723,264 bytes each, both
+doors still ours, byte search still finding no GRUB:
+`dist/cardnull.iso` sha256
+a380ea331985659ac9e627f4b6b53ff1816449db51c366bb6f15ee1c7fd15eb2,
+and `dist/cardnull-ownboot.iso` sha256
+6c2d9adc18315793f1962c236207d2982a6fd9ad844bdaf7ee301f21b409dbd9.
+Tyler's own witness in UTM is still his to give; the
+bench proved the road, his screen is the final word.
+
 Milestone 29 stands (November 11, 2026): **the network
 answers — the lease is taken, and Cardnull answers
 back.** Milestone 20 asked the wire for an address

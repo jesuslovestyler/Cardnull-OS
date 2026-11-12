@@ -799,6 +799,88 @@ it bends.*
    5266854d010897a29c609ace474a1d36244a0998f4aa03a5fdea81d6ea7e5493,
    `dist/cardnull-ownboot.iso` sha256
    b35160690cff1bca3a001c7404ab140a10d4a2a677967463f4862b0ea04b8cbc.)*
+   Milestone 30 — November 12, 2026 — gave the
+   disk files with manners: rename, copy, and
+   delete, the three verbs milestone 21's format
+   deliberately withheld. The design decisions are
+   four. First, the format did not change: no byte
+   of CARDNULL DISK 1's layout moved, so every disk
+   this OS has ever written reads exactly as
+   before, and the rule change lives in the
+   commands and in docs/DISK.md's amendment, where
+   it is reconciled in the open — milestone 21's
+   "no deletion in v1" and "a name once standing
+   is never reused" are superseded by this stone,
+   on the record, not by quiet drift. Second, each
+   verb was given the smallest honest shape.
+   Rename edits the directory entry in place — the
+   data run is never read or moved — and frees the
+   old name immediately; there are no tombstones,
+   because a tombstone is a name the user cannot
+   see standing yet cannot use, a quiet lie of
+   exactly the kind this house does not tell. Copy
+   spends a fresh run at the next-free pointer and
+   so makes two files that share nothing, rather
+   than a second name for one run — which would
+   have made delete a riddle (whose bytes go when
+   one of two names is removed?). Third, delete is
+   gated in the family's own manner, the typed-word
+   confirmation format, install, and bootable
+   already demand, because it is the one new verb
+   that cannot be undone; its gate word is the
+   verb itself, the whole word demanded. And
+   delete frees the name and the directory slot
+   but does not reclaim the data run: the
+   next-free pointer never walks backward, the
+   orphaned bytes stand unread until a format, and
+   `disk`'s room figure is the witness that does
+   not flatter — 536,860,160 bytes with four files
+   standing, the same 536,860,160 with two.
+   Reclaiming runs would have meant either moving
+   other files' bytes — a compaction the format's
+   simplicity forbids — or keeping a free-list the
+   format has no honest room to describe; the
+   stone chose the truthful limit and wrote it
+   down. Fourth, the surface is the Terminal,
+   plainly: the desktop Files window lists the
+   CD's files, not the hard disk's, and the face
+   has no field in which a person could type a new
+   name, so a windowed rename would have been a
+   rewrite wearing this stone's clothes; the
+   commands live where the disk family has always
+   lived, and the record says so. The proofs:
+   rename and copy read back byte for byte after a
+   cold reboot; delete persisted the same way, its
+   orphaned bytes found standing in their sectors
+   by a host-side read; a session of nothing but
+   refusals — delete's gate answered with the
+   near-miss "delet" among them — left the disk
+   byte-identical, sha256
+   1a9e37fdcde6bab140b665279ee6e772e334ad9a883e2126436e063404171672
+   on both sides; and a freshly installed,
+   bootable disk booted alone behind BIOS with the
+   grown kernel aboard (KERNEL.BIN at 309,992 in
+   its own `dls`), worked all three verbs, kept
+   them across a second cold boot, and took its
+   lease in a full DORA. The regressions stood
+   whole: one DORA in ten slirp packets for two
+   `net` commands, the HDA Doxology's eight notes
+   at nominal with 0.00% error and the no-HDA
+   speaker fallback in tune, windowed TERM.FEATHER
+   with wheel-up lifting exactly 3 lines, `mem` at
+   1,575 used of 129,475 at a fresh boot (the
+   kernel's growth: three frames), `about`'s
+   bundle line intact at 13 files, `dls` at 14
+   files, and `help` carrying the three new lines.
+   One residual stands unchanged and is not this
+   stone's: the feather window's wheel-down leg
+   still does not return the view on this bench.
+   The kernel stands at 17,304 lines and 309,992
+   bytes; the images at 3,723,264 bytes each —
+   `dist/cardnull.iso` sha256
+   a380ea331985659ac9e627f4b6b53ff1816449db51c366bb6f15ee1c7fd15eb2,
+   `dist/cardnull-ownboot.iso` sha256
+   6c2d9adc18315793f1962c236207d2982a6fd9ad844bdaf7ee301f21b409dbd9.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

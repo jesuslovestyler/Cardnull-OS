@@ -13898,11 +13898,15 @@ func runNetConversation() {
 //     not prove out is damaged — and is answered in that
 //     word, never misread into confidence.
 //
-// The commands are seven: `disk` reports both drives and the
+// The commands are ten: `disk` reports both drives and the
 // hard disk's state; `format` makes a blank or foreign disk a
 // Cardnull disk, behind a typed confirmation; `dsave` saves a
 // line of words as a file; `dls` lists the disk's files;
-// `dcat` reads one back; `install` — behind the same
+// `dcat` reads one back; `rename` renames one of the disk's
+// files, `copy` copies one, and `delete` — behind the same
+// typed confirmation — removes one, its name and its
+// directory slot set down free and its data's ground never
+// given again (milestone 30); `install` — behind the same
 // confirmation — formats the disk and copies the CD's own
 // files onto it, the welcome and every program and feather,
 // the kernel and the file bundle themselves among them, and
@@ -14809,6 +14813,7 @@ func hdConfirmationMatches(_ word: StaticString) -> Bool {
 let hdFormatWord: StaticString = "format"
 let hdInstallWord: StaticString = "install"
 let hdBootableWord: StaticString = "bootable"
+let hdDeleteWord: StaticString = "delete"
 
 /// Prints the disk's own name for itself — or, when it gave
 /// none worth repeating, the plain standing word — through
@@ -14903,7 +14908,7 @@ let hdBadNameLine: StaticString =
     "A name is one word of letters, digits, dots and dashes."
 let hdTakenLabel: StaticString = "A file named "
 let hdTakenClose: StaticString =
-    " already stands on the disk. Names are not reused."
+    " already stands on the disk."
 let hdDirFullLine: StaticString =
     "The disk's directory is full: 128 files stand on it."
 let hdDiskFullLine: StaticString =
@@ -15286,6 +15291,467 @@ func runDcat() {
         sector += 1
     }
     writeNewline()
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 30: the disk's files gain their manners — a file
+// can be renamed, copied, and deleted.
+//
+// Until now a name, once given to a file on the hard disk,
+// stood for the disk's life: `dsave` could give a name, and
+// nothing could change it, carry the file's bytes to a
+// second name, or take the file away. This stone adds the
+// three keeping-house commands of the family — `rename`,
+// `copy`, and `delete` — working on the disk's own files
+// alone. The disc's files are the disc's, read-only as
+// ever, and no road is made from them here; `install`
+// remains the one carrying from the disc.
+//
+// `rename` is a directory matter and nothing more: the
+// entry that stands is found, and its name field alone is
+// rewritten — the entry is remade in its own slot by the
+// family's own writing hand, with the file's start and
+// length carried over untouched — so the file's run, its
+// length, and its place in the directory do not move, and
+// no data sector is touched. Because the entry itself is
+// renamed — no second entry is made and none is unmade —
+// the name it leaves stands free: a later `dsave` may take
+// it, and the file answers to its new name alone.
+//
+// `copy` walks the road the format already trusts, the one
+// `dsave` and `install` walk: the source's bytes are read
+// and written, sector by sector, to a fresh unbroken run
+// at the data's next free sector; the new entry is
+// written; the superblock is written last. The two files
+// then stand independent — each has its own run, and what
+// befalls one says nothing about the other.
+//
+// `delete` removes a file, and because removing is the
+// destructive act of this family it stands behind the
+// family's typed gate, as `format` and `install` do: the
+// word DELETE must be typed at the asking, and anything
+// else gives up with nothing written. The removing itself
+// unmakes the directory entry whole — its sixty-four bytes
+// returned to zero, so the slot stands exactly as a
+// never-used slot stands — and the superblock's count is
+// set one lower, written last as ever. Two things are set
+// free: the file's name, which a later save may take, and
+// its directory slot. One thing is not: the file's data
+// run. The data's next free sector never walks backward
+// in this format, so the deleted file's ground is never
+// given to another file; its bytes stand on the disk
+// unread — no directory names them, and no command can
+// reach them — until a `format` makes the disk new. That
+// is the format's plain bargain, and it is written where
+// the format is defined, in docs/DISK.md.
+//
+// The old rule this stone retires is milestone 21's: a
+// name once standing was never reused, there being no
+// command that could set one down. Renaming and deleting
+// are that setting down, and the rule now stands as it is
+// written in DISK.md: a name that stands cannot be taken —
+// by save, rename, or copy alike — and a name set down
+// stands free again. There is still no overwrite anywhere
+// in the format.
+//
+// The refusals are the family's own, in the family's
+// words: no disk, a disk not Cardnull's yet, a file the
+// disk does not hold, a new name this house cannot keep, a
+// new name already standing, a full directory, no room,
+// and — rename's own — a new name that is the name the
+// file already wears, which would rename nothing. Every
+// refusal is spoken before any writing, and a refusal
+// writes nothing at all: the proof of that stands on the
+// bench, in a host-side hash of the disk taken before and
+// after a session of refused commands, byte for byte the
+// same.
+// ---------------------------------------------------------------------------
+
+/// rename's, copy's, and delete's vocabulary: their
+/// usages, the gate's asking, and their answers' shapes,
+/// with the numbers and the names spoken between them.
+let hdRenameUsageLine: StaticString =
+    "rename wants two names: rename OLD NEW"
+let hdCopyUsageLine: StaticString =
+    "copy wants two names: copy OLD NEW"
+let hdDeleteUsageLine: StaticString =
+    "delete wants a name: delete GREETING"
+let hdSameNameLine: StaticString =
+    "That is the name it already has. Nothing was renamed."
+let hdRenamedLabel: StaticString = "Renamed "
+let hdCopiedLabel: StaticString = "Copied "
+let hdToWord: StaticString = " to "
+let hdDotClose: StaticString = "."
+let hdDeleteWarnLabel: StaticString = "delete will remove "
+let hdDeleteWarnMiddle: StaticString = " ("
+let hdDeleteWarnClose: StaticString =
+    " bytes) from the hard disk for good. Nothing can bring it back."
+let hdDeleteAskLine: StaticString =
+    "Type DELETE and press Enter to remove it. Anything else gives up, and nothing is written."
+let hdDeletedLabel: StaticString = "Deleted "
+
+/// The two name words rename and copy are spoken with,
+/// reckoned from the argument scratch: their starts and
+/// lengths stand in the globals below. One leading slash
+/// on the first word is forgiven, as the family forgives
+/// it everywhere.
+var hdWord1Start = 0
+var hdWord1Length = 0
+var hdWord2Start = 0
+var hdWord2Length = 0
+
+/// Reckons the two name words standing in the argument
+/// scratch. The answering is false when the line does not
+/// carry exactly two words — a name missing, or a third
+/// word trailing behind the second, is the usage's affair,
+/// answered by the caller in the command's own words:
+/// taking the first two words of three and letting the
+/// third go silently could rename a file to a name the
+/// typist did not mean whole.
+func hdParseTwoNames(_ argument: UnsafeMutablePointer<UInt8>,
+                     _ argLength: Int) -> Bool {
+    var start = 0
+    if start < argLength && argument[start] == 0x2F { start += 1 }
+    var end1 = start
+    while end1 < argLength && argument[end1] != 0x20 { end1 += 1 }
+    hdWord1Start = start
+    hdWord1Length = end1 - start
+    var start2 = end1
+    while start2 < argLength && argument[start2] == 0x20 {
+        start2 += 1
+    }
+    var end2 = start2
+    while end2 < argLength && argument[end2] != 0x20 { end2 += 1 }
+    hdWord2Start = start2
+    hdWord2Length = end2 - start2
+    var rest = end2
+    while rest < argLength && argument[rest] == 0x20 { rest += 1 }
+    if hdWord1Length == 0 || hdWord2Length == 0 { return false }
+    return rest >= argLength
+}
+
+/// True when the word standing in the argument scratch at
+/// `start`, `length` letters long, is a name this house can
+/// keep: the reckoning `dsave` makes of the name it is
+/// given — letters, digits, dots, dashes and underscores,
+/// at most the directory's reach of thirty-one, and never
+/// "." or "..". It judges names being given, never names
+/// being sought: a name the disk cannot hold is answered
+/// by the seeking itself, as not on the disk.
+func hdNameCanStand(_ argument: UnsafeMutablePointer<UInt8>,
+                    _ start: Int, _ length: Int) -> Bool {
+    if length <= 0 || length > hdNameCap { return false }
+    var index = start
+    while index < start + length {
+        let byte = argument[index]
+        let letter = byte >= 0x41 && byte <= 0x5A
+            || byte >= 0x61 && byte <= 0x7A
+        let digit = byte >= 0x30 && byte <= 0x39
+        if !letter && !digit && byte != 0x2E && byte != 0x2D
+            && byte != 0x5F {
+            return false
+        }
+        index += 1
+    }
+    if length == 1 && argument[start] == 0x2E { return false }
+    if length == 2 && argument[start] == 0x2E
+        && argument[start + 1] == 0x2E { return false }
+    return true
+}
+
+/// True when the two name words are one name, capitals
+/// folded for the meeting, as every name in this house is
+/// matched.
+func hdWordsAreOneName(
+    _ argument: UnsafeMutablePointer<UInt8>) -> Bool {
+    if hdWord1Length != hdWord2Length { return false }
+    var index = 0
+    while index < hdWord1Length {
+        if featherFold(argument[hdWord1Start + index])
+            != featherFold(argument[hdWord2Start + index]) {
+            return false
+        }
+        index += 1
+    }
+    return true
+}
+
+/// Speaks one word standing in the argument scratch
+/// through the output door, letter for letter as typed.
+func hdWriteWord(_ argument: UnsafeMutablePointer<UInt8>,
+                 _ start: Int, _ length: Int) {
+    var index = start
+    while index < start + length {
+        writeChar(argument[index])
+        index += 1
+    }
+}
+
+/// Unmakes one directory entry: the entry's whole
+/// sixty-four bytes are returned to zero — the standing
+/// mark, the name, the start, the length — so the slot
+/// stands exactly as a never-used slot stands. The file's
+/// data run is not touched: its ground is simply never
+/// given again, as the milestone's own words above say.
+func hdEraseEntry(_ slot: Int) -> Bool {
+    let dirSector = hdDirStart + UInt64(slot)
+        / UInt64(Int(hdSectorBytes) / hdEntryBytes)
+    if !hdReadSector(dirSector) { return false }
+    let buffer = hdData()
+    let base = (slot % (Int(hdSectorBytes) / hdEntryBytes))
+        * hdEntryBytes
+    var index = 0
+    while index < hdEntryBytes {
+        buffer[base + index] = 0
+        index += 1
+    }
+    return hdWriteSector(dirSector)
+}
+
+/// `rename`: a file on the hard disk takes a new name.
+/// The old name is sought first — a file the disk does not
+/// hold is answered as missing; then the new name is
+/// judged: it must be a name this house can keep, it must
+/// not be the name the file already wears, and it must
+/// not already stand. The writing is one directory entry
+/// remade in its slot, the file's start and length carried
+/// over untouched, and the drive's cache made to stand.
+func runRename() {
+    let argLength = copyArgumentToScratch()
+    let argument = discPath()
+    if !hdParseTwoNames(argument, argLength) {
+        writeLine(hdRenameUsageLine)
+        return
+    }
+    if !hdNameCanStand(argument, hdWord2Start, hdWord2Length) {
+        writeLine(hdBadNameLine)
+        return
+    }
+    if hdWordsAreOneName(argument) {
+        writeLine(hdSameNameLine)
+        return
+    }
+    hdRaise()
+    if !hdFound {
+        writeLine(hdNoDiskLine)
+        return
+    }
+    let state = hdReadState()
+    if state == hdStateSilent {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if state != hdStateReady {
+        writeLine(hdNotReadyLine)
+        return
+    }
+    if !hdScanDirectory(hdWord1Start, hdWord1Length) {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if hdFoundSlot < 0 {
+        writeStatic(hdNotOnDiskLabel)
+        hdWriteWord(argument, hdWord1Start, hdWord1Length)
+        writeNewline()
+        return
+    }
+    let slot = hdFoundSlot
+    let start = hdFoundStart
+    let length = hdFoundLength
+    if !hdScanDirectory(hdWord2Start, hdWord2Length) {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if hdFoundSlot >= 0 {
+        writeStatic(hdTakenLabel)
+        hdWriteWord(argument, hdWord2Start, hdWord2Length)
+        writeLine(hdTakenClose)
+        return
+    }
+    if !hdWriteEntry(slot, UnsafePointer(argument),
+                     hdWord2Start, hdWord2Length, start, length) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    _ = hdFlush()
+    writeStatic(hdRenamedLabel)
+    hdWriteWord(argument, hdWord1Start, hdWord1Length)
+    writeStatic(hdToWord)
+    hdWriteWord(argument, hdWord2Start, hdWord2Length)
+    writeLine(hdDotClose)
+}
+
+/// `copy`: a file on the hard disk is copied to a new
+/// name. The source is sought first, then the new name is
+/// judged as rename judges it — keepable, and not already
+/// standing — and the directory must have a slot and the
+/// disk the room, both answered before any writing. The
+/// copying itself walks the format's order: the source's
+/// sectors, read and written one by one to a fresh run at
+/// the data's next free sector; then the new entry; then
+/// the superblock, last as ever.
+func runCopy() {
+    let argLength = copyArgumentToScratch()
+    let argument = discPath()
+    if !hdParseTwoNames(argument, argLength) {
+        writeLine(hdCopyUsageLine)
+        return
+    }
+    if !hdNameCanStand(argument, hdWord2Start, hdWord2Length) {
+        writeLine(hdBadNameLine)
+        return
+    }
+    hdRaise()
+    if !hdFound {
+        writeLine(hdNoDiskLine)
+        return
+    }
+    let state = hdReadState()
+    if state == hdStateSilent {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if state != hdStateReady {
+        writeLine(hdNotReadyLine)
+        return
+    }
+    if !hdScanDirectory(hdWord1Start, hdWord1Length) {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if hdFoundSlot < 0 {
+        writeStatic(hdNotOnDiskLabel)
+        hdWriteWord(argument, hdWord1Start, hdWord1Length)
+        writeNewline()
+        return
+    }
+    let sourceStart = UInt64(hdFoundStart)
+    let sourceLength = UInt64(hdFoundLength)
+    if !hdScanDirectory(hdWord2Start, hdWord2Length) {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if hdFoundSlot >= 0 {
+        writeStatic(hdTakenLabel)
+        hdWriteWord(argument, hdWord2Start, hdWord2Length)
+        writeLine(hdTakenClose)
+        return
+    }
+    if hdFreeSlot < 0 {
+        writeLine(hdDirFullLine)
+        return
+    }
+    let sectors = (sourceLength + UInt64(hdSectorBytes) - 1)
+        / UInt64(hdSectorBytes)
+    if hdSbNextFree + sectors > hdSbTotal {
+        writeLine(hdDiskFullLine)
+        return
+    }
+    var index: UInt64 = 0
+    while index < sectors {
+        if !hdReadSector(sourceStart + index) {
+            writeLine(hdWriteFailedLine)
+            return
+        }
+        if !hdWriteSector(hdSbNextFree + index) {
+            writeLine(hdWriteFailedLine)
+            return
+        }
+        index += 1
+    }
+    if !hdWriteEntry(hdFreeSlot, UnsafePointer(argument),
+                     hdWord2Start, hdWord2Length,
+                     UInt32(hdSbNextFree), UInt32(sourceLength)) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    if !hdWriteSuperblock(UInt32(hdEntryCount + 1),
+                          hdSbNextFree + sectors) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    _ = hdFlush()
+    writeStatic(hdCopiedLabel)
+    hdWriteWord(argument, hdWord1Start, hdWord1Length)
+    writeStatic(hdToWord)
+    hdWriteWord(argument, hdWord2Start, hdWord2Length)
+    writeStatic(hdSavedMiddle)
+    writeNumber(sourceLength)
+    writeLine(hdSavedClose)
+}
+
+/// `delete`: a file on the hard disk is removed, behind
+/// the family's typed gate. The file is sought first — a
+/// name the disk does not hold is answered as missing,
+/// before any asking — then the warning names the file
+/// and its size and says plainly that nothing can bring
+/// it back, and the gate waits for the word DELETE:
+/// anything else, a near miss, a bare Enter, Esc, gives up
+/// with nothing written, in the family's own aborted
+/// words. The removing unmakes the entry whole and sets
+/// the superblock's count one lower, the superblock
+/// written after the entry as the format's order demands;
+/// the file's data run is left standing unread, its ground
+/// never given again, as the milestone's words above say.
+func runDelete() {
+    let argLength = copyArgumentToScratch()
+    let argument = discPath()
+    var start = 0
+    if start < argLength && argument[start] == 0x2F { start += 1 }
+    let nameLength = argLength - start
+    if nameLength <= 0 {
+        writeLine(hdDeleteUsageLine)
+        return
+    }
+    hdRaise()
+    if !hdFound {
+        writeLine(hdNoDiskLine)
+        return
+    }
+    let state = hdReadState()
+    if state == hdStateSilent {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if state != hdStateReady {
+        writeLine(hdNotReadyLine)
+        return
+    }
+    if !hdScanDirectory(start, nameLength) {
+        writeLine(hdSilentAnswerLine)
+        return
+    }
+    if hdFoundSlot < 0 {
+        writeStatic(hdNotOnDiskLabel)
+        hdWriteWord(argument, start, nameLength)
+        writeNewline()
+        return
+    }
+    let slot = hdFoundSlot
+    writeStatic(hdDeleteWarnLabel)
+    hdWriteWord(argument, start, nameLength)
+    writeStatic(hdDeleteWarnMiddle)
+    writeNumber(UInt64(hdFoundLength))
+    writeLine(hdDeleteWarnClose)
+    writeLine(hdDeleteAskLine)
+    writeStatic(hdYourWordLabel)
+    if !hdConfirmationMatches(hdDeleteWord) {
+        writeLine(hdAbortedLine)
+        return
+    }
+    if !hdEraseEntry(slot) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    if !hdWriteSuperblock(UInt32(hdEntryCount - 1),
+                          hdSbNextFree) {
+        writeLine(hdWriteFailedLine)
+        return
+    }
+    _ = hdFlush()
+    writeStatic(hdDeletedLabel)
+    hdWriteWord(argument, start, nameLength)
+    writeLine(hdDotClose)
 }
 
 /// The installer's carrying: a heap table of the files it
@@ -16117,6 +16583,19 @@ func runBootable() {
 //           directory (milestone 21)
 //   dcat    a file's contents, printed off the hard disk
 //           (milestone 21; matched by its first word, like cat)
+//   rename  rename a file on the hard disk: the entry's name
+//           alone is rewritten, and the name it leaves stands
+//           free (milestone 30; matched by its first word, the
+//           two names being its own)
+//   copy    copy a file on the hard disk to a new name, its
+//           bytes carried to a fresh run of sectors
+//           (milestone 30; matched by its first word, like
+//           rename)
+//   delete  remove a file from the hard disk, behind the
+//           typed confirmation — it unmakes the entry and
+//           frees the name and the slot, and its data's
+//           ground is never given again (milestone 30;
+//           matched by its first word, like dcat)
 //   install plant Cardnull on the hard disk: format it and
 //           copy the disc's own files onto it — Cardnull
 //           itself among them — behind the typed confirmation
@@ -16158,6 +16637,9 @@ let formatCommand: StaticString = "format"
 let dsaveCommand: StaticString = "dsave"
 let dlsCommand: StaticString = "dls"
 let dcatCommand: StaticString = "dcat"
+let renameCommand: StaticString = "rename"
+let copyCommand: StaticString = "copy"
+let deleteCommand: StaticString = "delete"
 let installCommand: StaticString = "install"
 let bootableCommand: StaticString = "bootable"
 
@@ -16198,6 +16680,12 @@ let helpDlsLine: StaticString =
     "  dls     list the files on the hard disk"
 let helpDcatLine: StaticString =
     "  dcat    print a file from the hard disk (dcat NAME)"
+let helpRenameLine: StaticString =
+    "  rename  rename a file on the hard disk (rename OLD NEW)"
+let helpCopyLine: StaticString =
+    "  copy    copy a file on the hard disk (copy OLD NEW)"
+let helpDeleteLine: StaticString =
+    "  delete  remove a file from the hard disk (delete NAME)"
 let helpInstallLine: StaticString =
     "  install install Cardnull onto the hard disk (erases it)"
 let helpBootableLine: StaticString =
@@ -16505,6 +16993,9 @@ func submitLine() {
     let isDsave = firstWordMatches(dsaveCommand)
     let isDls = commandMatches(dlsCommand)
     let isDcat = firstWordMatches(dcatCommand)
+    let isRename = firstWordMatches(renameCommand)
+    let isCopy = firstWordMatches(copyCommand)
+    let isDelete = firstWordMatches(deleteCommand)
     let isInstall = commandMatches(installCommand)
     let isBootable = commandMatches(bootableCommand)
 
@@ -16535,6 +17026,9 @@ func submitLine() {
             writeLine(helpDsaveLine)
             writeLine(helpDlsLine)
             writeLine(helpDcatLine)
+            writeLine(helpRenameLine)
+            writeLine(helpCopyLine)
+            writeLine(helpDeleteLine)
             writeLine(helpInstallLine)
             writeLine(helpBootableLine)
         } else if isAbout {
@@ -16594,6 +17088,12 @@ func submitLine() {
             runDls()
         } else if isDcat {
             runDcat()
+        } else if isRename {
+            runRename()
+        } else if isCopy {
+            runCopy()
+        } else if isDelete {
+            runDelete()
         } else if isInstall {
             runInstall()
         } else if isBootable {

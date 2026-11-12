@@ -620,12 +620,13 @@ refresh.
 
 Since milestone 21 the OS can write — to the VM's **hard
 disk**, never to the CD (the CD cannot be written at all;
-the commands say so on screen). Seven commands in the
+the commands say so on screen). Ten commands in the
 Terminal work the disk: `disk`, `format`, `dsave`, `dls`,
-`dcat`, `install`, and — since milestone 28 —
-`bootable`, which prepares an installed disk to start
-the computer by itself (its own walk stands at the end
-of this page).
+`dcat`, `install`, the three that came with milestone
+30 — `rename`, `copy`, `delete` — and — since milestone
+28 — `bootable`, which prepares an installed disk to
+start the computer by itself (its own walk stands at
+the end of this page).
 
 > **Read this first, before you witness:** `format` and
 > `install` **erase the hard disk completely**, after a
@@ -660,12 +661,42 @@ writes nothing, and the command says so. Then:
 
 The greeting is saved (36 bytes: the words and a closing
 newline), read back, and listed. Saving under a name that
-already stands is refused — names are not reused — and
-saving to an unformatted disk is refused in plain words
-too. Now the proof that matters: **shut the VM fully
-down, start it again, and type `dcat greeting`** — the
-words come back from the disk, word for word. What you
-save now *does* persist, on that disk, between boots.
+already stands is refused — while a name stands it is
+never reused or overwritten — and saving to an
+unformatted disk is refused in plain words too. Now the
+proof that matters: **shut the VM fully down, start it
+again, and type `dcat greeting`** — the words come back
+from the disk, word for word. What you save now *does*
+persist, on that disk, between boots.
+
+Since milestone 30 the files have manners — they can be
+renamed, copied, and deleted, all in the Terminal (the
+Files window lists the CD, not the hard disk, so these
+live here):
+
+    rename greeting salutation
+    dcat salutation
+    copy salutation keepsake
+    dls
+
+The rename answers "Renamed greeting to salutation.",
+the file reads back word for word under its new name,
+and the copy stands beside it as its own file — from
+here the two share nothing. The name `greeting` is free
+again at once; a rename or copy onto a name that stands
+is refused in plain words, and nothing is overwritten,
+ever. Deleting is gated, like `format`:
+
+    delete keepsake
+
+It names the file and its size, warns that nothing can
+bring it back, and asks for a word: type **DELETE** and
+press Enter. Anything else writes nothing, and the
+command says so. One honest limit to witness: `disk`
+before and after a delete reports the **same** room —
+a deleted file's name and place in the list are freed,
+but its bytes' room is not reclaimed until a `format`.
+Deleting removes a file; it does not make room.
 
 Finally, the installer:
 
