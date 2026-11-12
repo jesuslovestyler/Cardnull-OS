@@ -90,6 +90,97 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 32 stands (November 12, 2026): **seeing
+a USB stick.** The machine gains a fourth road for
+bytes to travel — the USB bus — and learns to see
+the drive a person carries in a pocket. A new
+driver speaks to the UHCI host controller (the
+plainest of the USB host designs, the one the
+chipset in these machines presents when its USB
+is switched on; a machine wearing another design
+is told so plainly, never guessed at), wakes the
+stick standing on its port, reads the arrangement
+the stick itself declares — mass storage, found
+by its numbers, never assumed — and carries SCSI
+commands in bulk-only envelopes whose status must
+sign its name and echo the command's mark before
+its verdict is believed. Three Terminal commands
+speak of it, each looking afresh, because a hand
+can pull a stick out between one asking and the
+next: `usb` reports what is plugged in — the
+stick's own name for itself, its measure, and
+what stands on it — or says plainly that no stick
+is there; `uls` lists a Cardnull stick's files;
+`ucat` reads one back. The filesystem judged is
+the hard disk's own, CARDNULL DISK 1, spoken a
+second time over the USB road: the mark at the
+stick's head, or behind a prepared stick's
+partition entry, proved by the same checksum and
+geometry, its claimed measure checked against the
+measure the stick itself reported. What is not
+Cardnull's is named, not guessed: a blank stick
+is called blank, a foreign one is reported seen
+and measured and *not one Cardnull reads yet* —
+its bytes are never interpreted — and a device
+that answers but declares another kind is
+reported as exactly that. This stone reads only:
+no code path in it can write to a stick. The
+Files window keeps its disc face this stone; the
+stick's face there rides a later one, and the
+Terminal does not dress its account up as one.
+The proofs are the bench's own, all on the final
+images. The stick the bench made was seen and
+measured — QEMU's own name for it, 64 MiB,
+67,108,864 bytes — and its three files listed
+(85, 80, and 1,140 bytes) and read back line for
+line against the host's own parse of the stick's
+bytes, sha256 for sha256; a prepared stick was
+reported, truthfully, as able to start the
+computer by itself, and its kept note read back;
+the foreign stick was named unread, the blank
+stick blank, and with no stick attached all three
+commands answered the absence in one plain
+sentence each — no hang, no crash. Behind
+SeaBIOS the same report and reading stand. The
+regressions stand whole: the file family's
+manners in one pass; the Write window's round
+trip, its letter standing at 74 bytes on the
+platter by the host's read; one DORA in the
+capture for two `net` commands, the second
+answering "The lease stands"; the HDA Doxology's
+eight notes at nominal, 0.00% error, and the
+no-HDA speaker fallback in tune; a prepared disk
+booting alone with 19 files standing by the
+host's count; windowed TERM.FEATHER's wheel at
+exactly 3 lines; `mem` at a fresh boot reading
+1,594 used of 129,475 total (512 MB), 20 frames
+taken once at the first `net` and none at the
+second, and the USB road taking exactly 3 frames
+at its first asking and none ever after. `help`
+carries three new lines (`usb`, `uls`, `ucat`).
+One bench catch is recorded in the driver's own
+comments: on the bench's controller the port does
+not raise its own enabled bit after a reset, so
+the waking writes it standing, as many a driver
+for this controller does — the port's own verdict
+is still read in that bit afterward. The known
+residuals stand as they stood — the
+feather-window wheel-down, the Write strip's
+clipping — not this stone's regressions. The
+kernel stands at 20,811 lines and 374,232 bytes
+(sha256
+84e52a49d0de91a5d39b43b9184ed5a514468172dbef50b87ef19b13b7bc7212).
+The images stand at 3,790,848 bytes each:
+`dist/cardnull.iso` sha256
+33f18d86e99d53a6af7618523b41f982b13d4ce6a3d3c65e3415d2700db9dbd0,
+and `dist/cardnull-ownboot.iso` sha256
+9b3560083c5c5dc8fe6aa97737936a2d43e90bc4db7bc913e72cd779f13fe834.
+Tyler's own witness in UTM is still his to give —
+this stone asks him to switch USB Support on
+there first, as tools/run-utm.md now tells; the
+bench proved the road, his screen is the final
+word.
+
 Milestone 31 stands (November 12, 2026): **the
 writing window — a page on the desktop, and a door
 for feathers to keep files.** The desktop gains its

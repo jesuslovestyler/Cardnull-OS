@@ -328,6 +328,52 @@ version 1 stands.
   refusals from the window and the door together
   left the disk byte-identical, hash for hash.
 
+## The stick road (milestone 32)
+
+*Amendment, November 12, 2026.* The format travels.
+**The format did not change** — a stick carrying
+CARDNULL DISK 1 is judged by the same questions the
+hard disk is judged by, and version 1 stands. What
+is new is only the road the bytes travel and the
+hands that may use it:
+
+- **The road is USB, and it reads only.** The kernel
+  speaks to a UHCI host controller, wakes the stick
+  standing on it, and carries SCSI commands in
+  bulk-only envelopes: the stick's own name
+  (INQUIRY), its readiness (TEST UNIT READY), its
+  measure (READ CAPACITY), and its sectors, one at a
+  time (READ(10)). No code path in the stone can
+  write to a stick: a stick's files can be listed
+  (`uls`) and read (`ucat`), and its standing
+  reported (`usb`), and that is all. Writing to a
+  stick is a later stone's work, if it comes.
+- **The judging is the disk's own, spoken a second
+  time.** Sector 0 is read fresh from the stick at
+  every asking: the mark at the head, or a signed
+  MBR carrying a partition of Cardnull's own type
+  (0xCA) with the mark standing behind it, exactly
+  as a prepared hard disk is found — a prepared
+  stick is reported as able to start the computer
+  by itself, because it can. The superblock is
+  proved by its checksum, its version, and its
+  geometry, its claimed measure checked against
+  the measure the stick itself reported.
+- **What is not Cardnull's is named, not guessed.**
+  A stick whose first sector is all zeros is
+  blank. A stick carrying another format is
+  reported as seen and measured, and *not one
+  Cardnull reads yet* — its bytes are never
+  interpreted. A stick whose sectors are not the
+  512 bytes the format is read in is reported as
+  such, and its files are not attempted. A stick
+  that stops answering is reported as silent.
+  Nothing is ever faked from a name or a guess.
+- **The face is the Terminal's, this stone.** The
+  Files window still shows the disc; the stick's
+  face there rides a later stone, and the Terminal
+  does not dress its account up as one.
+
 ## The bounds, stated
 
 - 128 files at most; a name at most 31 letters.

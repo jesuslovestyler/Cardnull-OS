@@ -958,6 +958,74 @@ it bends.*
    4ec10e4c39b19e9442df589970258a504f4fc9223953a37f43b0101d2030c4a8,
    `dist/cardnull-ownboot.iso` sha256
    371c1585bd4ff0f779dfa89d8b20e35395853506ac4ded5ff3ef9a4f88bfb9ea.)*
+   Milestone 32 — November 12, 2026 — taught the
+   machine to see a USB stick. The decisions are
+   five. First, the controller is the plainest
+   one: UHCI, found by its PCI class like every
+   device here, spoken through I/O ports a word
+   at a time — and a machine whose USB wears
+   another design (EHCI, xHCI) is not guessed at;
+   the report says no controller of the kind
+   Cardnull speaks was found. Second, the stick
+   is believed only in what it declares: its
+   arrangement is read descriptor by descriptor,
+   the mass-storage interface found by its class,
+   subclass, and protocol numbers, its bulk doors
+   taken with their packet bounds — a device that
+   declares another kind is reported as exactly
+   that, and nothing is faked from a vendor's
+   name. Third, storage is SCSI in bulk-only
+   envelopes, and the status wrapper must sign
+   its name and echo the command's fresh mark
+   before its verdict is read; readiness is asked
+   with the standard's own patience, sense and
+   all, three askings with a breath between.
+   Fourth, the filesystem is the hard disk's own,
+   judged a second time over the USB road rather
+   than bent around a shared one — the house's
+   habit — with one new standing only the stick
+   can hold: sectors that are not 512 bytes are
+   reported, never read around. Fifth, the stone
+   reads only, and says so: no code path in it
+   can write to a stick, every command looks
+   afresh because a hand can pull a stick out
+   between askings, and the Files window keeps
+   its disc face — the stick's face there is a
+   later stone, confessed rather than dressed
+   up. The proofs are the bench's numbers: the
+   made stick named in its maker's words and
+   measured at 64 MiB (67,108,864 bytes, 131,072
+   sectors of 512 — the device's own numbers,
+   agreeing), three files listed at 85, 80, and
+   1,140 bytes and read back against the host's
+   parse sha256 for sha256 (GREETING a64e074e…,
+   LONGSONG b6f1673d…); a prepared stick reported
+   bootable and its note read; the foreign stick
+   seen, measured, and named unread; the blank
+   stick blank; the absence answered by all three
+   commands in one plain sentence; the same
+   report and reading behind SeaBIOS; and the
+   regressions whole — the file family in one
+   pass, the editor's letter at 74 bytes on the
+   platter, one DORA for two `net` commands, the
+   Doxology note-exact on the HDA chip and the
+   speaker alike, a prepared disk booting alone
+   with 19 files by the host's count,
+   TERM.FEATHER's wheel at exactly 3 lines, `mem`
+   at 1,594 used of 129,475 fresh, 20 frames at
+   the first `net`, and exactly 3 frames at the
+   USB road's first asking and none after. One
+   bench catch stands in the driver's comments:
+   the bench controller does not raise a port's
+   enabled bit after its reset, so the waking
+   writes it standing and reads the verdict in
+   that bit afterward. The kernel stands at
+   20,811 lines and 374,232 bytes; the images at
+   3,790,848 bytes each — `dist/cardnull.iso`
+   sha256
+   33f18d86e99d53a6af7618523b41f982b13d4ce6a3d3c65e3415d2700db9dbd0,
+   `dist/cardnull-ownboot.iso` sha256
+   9b3560083c5c5dc8fe6aa97737936a2d43e90bc4db7bc913e72cd779f13fe834.)*
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

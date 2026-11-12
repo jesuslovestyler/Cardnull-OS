@@ -989,3 +989,61 @@ for you: **whether it stands in UTM is yours to
 see, and your screen is the final word.** If any
 step answers differently there, that is a finding
 to record, not a failure to hide.
+
+## The USB stick: seeing what is plugged in
+
+Milestone 32 teaches Cardnull to see a USB stick —
+to name it, measure it, and read a Cardnull stick's
+files. The recipe at the top of this page turns USB
+off; this witness turns it on.
+
+1. **Switch USB on.** Shut the VM fully down. In
+   UTM's settings for the VM, set **USB Support** to
+   enabled (the recipe's standing setting is
+   Disabled — this witness is the one that changes
+   it). Start the VM from either image and let the
+   desktop come up.
+2. **Ask with nothing plugged in.** Open the
+   Terminal and type `usb`. The answer should be
+   the plain absence:
+
+       USB stick: no stick is plugged in.
+
+   `uls` and `ucat greeting.txt` answer the same
+   way. An absence is an answer, not an error.
+3. **Share a stick with the VM.** Plug a USB stick
+   into the Mac, then pass it to the running VM
+   from UTM's USB menu (the USB icon in the VM
+   window's toolbar — share the stick with the
+   guest). Back in the Terminal, type `usb` again.
+   Cardnull looks afresh at every asking, so no
+   restart is needed: the report names the stick in
+   its own words (the name its maker gave it), its
+   measure, and what stands on it.
+4. **Read a Cardnull stick.** On a stick carrying
+   the Cardnull disk format, the report counts its
+   files; `uls` lists them, and `ucat NAME` reads
+   one back, word for word. A stick a `bootable`
+   preparation has touched is reported as able to
+   start the computer by itself. A stick carrying
+   some other format is reported as seen and
+   measured — and *not one Cardnull reads yet*:
+   that is the truth about it, not a failure.
+
+Two honest bounds. Cardnull speaks the plainest
+USB host design (UHCI, the USB 1.1 companion the
+chipset presents when its USB is switched on), and
+it reads only — nothing in this stone can write to
+a stick, and the Files window does not show the
+stick yet; its face there rides a later stone.
+
+The bench proved this walk in QEMU — the report,
+the listing, the reading, the prepared stick, the
+foreign stick named unread, the blank stick, and
+the absence answered plainly — on November 12,
+2026. But the bench is not your machine, and this
+page does not claim your witness for you:
+**whether it stands in UTM is yours to see, and
+your screen is the final word.** If any step
+answers differently there, that is a finding to
+record, not a failure to hide.
