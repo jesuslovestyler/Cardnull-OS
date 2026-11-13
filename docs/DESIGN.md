@@ -1163,6 +1163,68 @@ it bends.*
    14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
    `dist/cardnull-ownboot.iso` sha256
    486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
+   Milestone 37 — November 13, 2026 — gave the
+   desktop its second screen: the whole
+   desktop proven at other display sizes, and
+   the design choices are three. First, no
+   loader change: both loaders already
+   prefer 1280×800 where it is offered and
+   otherwise take the best the display
+   gives, so the milestone belongs to the
+   kernel's layout, which is reckoned from
+   the framebuffer everywhere and shared by
+   both boot doors. Second, the bar's
+   crowding is reckoned against the true
+   neighbour: the gaps were tested against
+   Home alone, and at 1024 wide the Welcome
+   launcher slipped eight pixels beneath
+   Power; the reckoning now runs against
+   Power, and the ladder gives in the
+   family's order — the status gap narrows,
+   the launchers' gap narrows, the status
+   word is withheld (a report, not a
+   control, as the clock before it), and
+   the last gap closes — so the controls,
+   which are the furniture, never give.
+   Third, what a small screen withholds is
+   withheld by decision and stated, never
+   by collision: at 800 wide the status and
+   the clock rest, the Welcome card keeps
+   the doors its standing height rule
+   allows, and every window clamps to the
+   work area it is given. The bench's
+   proofs: at 1024×768, behind SeaBIOS on a
+   Cirrus display with no 1280×800 in its
+   table — the bar whole with clean ground
+   between its buttons, the Welcome card
+   with all three doors, the Help page,
+   the Power card centred; at 800×600, on
+   a standard display whose small memory
+   leaves 800×600 its best — every bar
+   control standing, the Welcome card
+   carrying the Bible and Shield buttons,
+   and the Bible, Shield, and Help windows
+   whole at their clamped grounds, the Help
+   window by its Terminal door. Two
+   boundaries stand stated: the bench's
+   UEFI firmware offers 1280×800 on every
+   device tried, so the other sizes are
+   proven through the BIOS door's fallback
+   and the shared layout; and 640 wide,
+   which cannot hold the bar's row at all,
+   is not claimed. The regressions stand
+   whole: the suite's seventeen sessions,
+   the USB road's seven standings, the
+   clock and Power walk, one DORA, the
+   Doxology note-exact on HDA and speaker
+   alike, a prepared disk booting alone.
+   The kernel stands at 23,579 lines in
+   nineteen files and 420,008 bytes; the
+   images at 27,195,392 bytes each —
+   `dist/cardnull.iso` sha256
+   9d343ab4c73936d67a8e8fcadf36b66a535813daffbf6182363ef83b851999b3,
+   `dist/cardnull-ownboot.iso` sha256
+   11b7c780d89c92b8e74c12cfaf475b8e876432f129f40a59ff765cfaab8b1b03.
    Milestone 36 — November 13, 2026 — gave the
    desktop its plain answers. The Help window,
    ninth of the windows, is one scrollable page

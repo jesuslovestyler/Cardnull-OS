@@ -1281,3 +1281,48 @@ stands in UTM is yours to see, and your screen
 is the final word.** If any step answers
 differently there, that is a finding to
 record, not a failure to hide.
+
+## The second screen
+
+Milestone 37 proves the desktop whole at
+other display sizes. Your UTM window gives
+the machine 1280×800, and at that size
+nothing changes — this section is for the
+day Cardnull meets a different screen, and
+there is nothing you must do to witness it
+unless a screen of another size comes to
+hand.
+
+What to expect wherever it does:
+
+1. **The desktop stands whole.** The name
+   centred, the windows within the work
+   area, the bottom bar's buttons all
+   standing with ground between them —
+   never overlapping, never cut off.
+2. **On a narrower screen, the reports
+   rest before the controls give.** The
+   clock steps aside first (its standing
+   rule), then the bar's gaps narrow, then
+   the little status word at the bar's left
+   rests. Every button — Terminal, Files,
+   Write, Welcome, Power, Home — stands at
+   any width that can hold them in a row.
+3. **The Welcome card keeps the doors that
+   fit.** On a short screen its tallest
+   buttons rest in their standing order;
+   whatever rests is still reachable from
+   the Terminal (`bible`, `shield`,
+   `howdoi`), as the Help window's own
+   section tells.
+
+The bench proved this in QEMU on
+November 13, 2026 — at 1024×768 and
+800×600, through the BIOS image's own
+fallback to the best mode each display
+offered — and found and mended one fault
+on the way: at 1024 wide the Welcome and
+Power buttons had overlapped by eight
+pixels, and now stand clear. **Your screen
+remains the final word** for any size your
+own machine may one day offer.

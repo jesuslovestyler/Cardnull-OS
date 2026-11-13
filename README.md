@@ -90,6 +90,70 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 37 stands (November 13, 2026): **the
+second screen.** The desktop is proven whole
+at other display sizes than its home
+1280×800, and one fault the smaller screens
+exposed is repaired. The loaders already knew
+the road — each takes 1280×800 where it is
+offered and otherwise the best the display
+offers — so the milestone's work was the
+kernel's layout, and the bench exercised the
+fallbacks honestly: behind SeaBIOS, a Cirrus
+display whose table has no 1280×800 brought
+the desktop up at 1024×768, and a standard
+display with a small memory brought it up at
+800×600. At 1024 the bench caught the bar
+crowding wrongly: its gaps were reckoned
+against the Home button, never against
+Power, so the Welcome launcher's edge slipped
+eight pixels beneath Power's. The reckoning
+now runs against Power, the launchers' true
+right-hand neighbour, and the ladder of
+giving gives one step more: the gaps narrow
+first, then the status word — a report, not a
+control, as the clock is — is withheld, then
+the last gap closes; every control stands
+whole at any width that can hold the row at
+all, and nothing at 1280×800 changes. At
+1024×768 the desktop stands whole: the bar
+with clean ground between its buttons, the
+clock withheld by the standing decision, the
+Welcome card with all three doors, the Help
+page, and the Power card centred. At 800×600
+every bar control stands — the status word
+and the clock withheld by decision — the
+Welcome card carries the Bible and Shield
+buttons (the Help button rests by the card's
+standing rule, and its door remains in the
+Terminal), and the Bible, Shield, and Help
+windows stand whole at their clamped
+grounds. Two honest boundaries: the bench's
+UEFI firmware offers 1280×800 on every
+device tried, so the other sizes stand
+proven through the BIOS door's fallback and
+the one layout the two doors share; and a
+screen 640 wide cannot hold the bar's
+furniture in a row at all, and is not
+claimed. The regressions stand whole on the
+final images: the suite's seventeen
+sessions, the USB road's seven standings,
+the clock and Power walk, one DORA in the
+capture, the HDA Doxology's eight notes at
+nominal, 0.00% error, and the speaker
+fallback in tune; a prepared disk booting
+alone. The kernel stands at 23,579 lines in
+nineteen files and 420,008 bytes (sha256
+994720b75d171ea4467b1f059313a88002c08684ed48f77e3e08781fe1e91cb8).
+The images stand at 27,195,392 bytes each:
+`dist/cardnull.iso` sha256
+9d343ab4c73936d67a8e8fcadf36b66a535813daffbf6182363ef83b851999b3,
+and `dist/cardnull-ownboot.iso` sha256
+11b7c780d89c92b8e74c12cfaf475b8e876432f129f40a59ff765cfaab8b1b03.
+Tyler's own witness in UTM is still his to
+give: on his screen, the second screen has
+not yet stood.
+
 Milestone 36 stands (November 13, 2026): **the
 Help window.** The desktop gains its plain
 answers. The ninth window, "How do I...", is

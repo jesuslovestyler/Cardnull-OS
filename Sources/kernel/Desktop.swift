@@ -991,50 +991,64 @@ let guiFilesTitle: StaticString = "Files"
 /// (milestone 31 — four launchers now, reckoned by the same
 /// budget as the three were); a gap; the Welcome launcher;
 /// then open ground; the clock, ending one gap
-/// before Home; and Home, closing one margin from the right
-/// edge. If the row cannot stand at this width, the gaps —
-/// never the furniture — give: first the status gap narrows
-/// to 12, then the launchers' gap to 8. The clock is painted
+/// before Power (milestone 33); Power; and Home, closing one
+/// margin from the right edge. If the row cannot stand at
+/// this width, the gaps — never the furniture — give: first
+/// the status gap narrows to 12, then the launchers' gap to
+/// 8. If it still cannot stand, the status word itself —
+/// a report, not a control, as the clock is — is withheld,
+/// and the launchers' gap closes altogether; the controls
+/// all stand whole at any width that can hold them in a
+/// row at all. (Milestone 37: the crowding is reckoned
+/// against the Power button, the launchers' true right-hand
+/// neighbour — before, it was reckoned against Home alone,
+/// and at 1024 wide the Welcome launcher's edge slipped
+/// eight pixels beneath Power's.) The clock is painted
 /// only when its whole patch stands clear of the Welcome
 /// launcher with a gap to spare; otherwise it is simply not
 /// there, as it was crowded off before — only now by decision,
 /// stated, and not by collision.
-func guiLayoutBar() {
-    var statusGap = 24
-    var btnGap = 16
-    barStatusX = 16
-    barStatusW = guiTextGlyphs(guiMouseStandingWord()) * 16
-    barHomeBtnX = framebufferWidth - 16
-        - guiBarButtonWidth(guiHomeLabel)
-    barPowerBtnX = barHomeBtnX - 16
-        - guiBarButtonWidth(guiPowerLabel)
-    barTermBtnX = barStatusX + barStatusW + statusGap
+var guiStatusVisible = true
+
+/// Lays the launcher chain from the status's measure and
+/// the two gaps, and returns the Welcome launcher's right
+/// edge — the reckoning guiLayoutBar's ladder tries at
+/// each of its steps.
+func barChainEnd(_ statusW: Int, _ statusGap: Int,
+                 _ btnGap: Int) -> Int {
+    barTermBtnX = barStatusX + statusW + statusGap
     barFilesBtnX = barTermBtnX
         + guiBarButtonWidth(guiTermTitle) + btnGap
     barWriteBtnX = barFilesBtnX
         + guiBarButtonWidth(guiFilesTitle) + btnGap
     barWelcomeBtnX = barWriteBtnX
         + guiBarButtonWidth(guiWriteTitle) + btnGap
-    if barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
-        > barHomeBtnX - 8 {
-        statusGap = 12
-        barTermBtnX = barStatusX + barStatusW + statusGap
-        barFilesBtnX = barTermBtnX
-            + guiBarButtonWidth(guiTermTitle) + btnGap
-        barWriteBtnX = barFilesBtnX
-            + guiBarButtonWidth(guiFilesTitle) + btnGap
-        barWelcomeBtnX = barWriteBtnX
-            + guiBarButtonWidth(guiWriteTitle) + btnGap
+    return barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
+}
+
+func guiLayoutBar() {
+    barStatusX = 16
+    barStatusW = guiTextGlyphs(guiMouseStandingWord()) * 16
+    guiStatusVisible = true
+    barHomeBtnX = framebufferWidth - 16
+        - guiBarButtonWidth(guiHomeLabel)
+    barPowerBtnX = barHomeBtnX - 16
+        - guiBarButtonWidth(guiPowerLabel)
+    if barChainEnd(barStatusW, 24, 16) > barPowerBtnX - 8 {
+        _ = barChainEnd(barStatusW, 12, 16)
     }
     if barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
-        > barHomeBtnX - 8 {
-        btnGap = 8
-        barFilesBtnX = barTermBtnX
-            + guiBarButtonWidth(guiTermTitle) + btnGap
-        barWriteBtnX = barFilesBtnX
-            + guiBarButtonWidth(guiFilesTitle) + btnGap
-        barWelcomeBtnX = barWriteBtnX
-            + guiBarButtonWidth(guiWriteTitle) + btnGap
+        > barPowerBtnX - 8 {
+        _ = barChainEnd(barStatusW, 12, 8)
+    }
+    if barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
+        > barPowerBtnX - 8 {
+        guiStatusVisible = false
+        _ = barChainEnd(0, 0, 8)
+    }
+    if barWelcomeBtnX + guiBarButtonWidth(guiWindowTitle)
+        > barPowerBtnX - 8 {
+        _ = barChainEnd(0, 0, 0)
     }
     barClockEndX = barPowerBtnX - 16
     guiClockVisible = barClockEndX - guiClockPatchW
@@ -1175,8 +1189,10 @@ func guiPaintBar() {
     let top = guiBarTop()
     guiFillRect(0, top, framebufferWidth, guiBarHeight, guiBarColor)
     guiFillRect(0, top, framebufferWidth, 2, guiGoldColor)
-    guiDrawText(barStatusX, top + 10, 2, guiMouseStandingWord(),
-                guiHintColor)
+    if guiStatusVisible {
+        guiDrawText(barStatusX, top + 10, 2,
+                    guiMouseStandingWord(), guiHintColor)
+    }
     guiPaintBarButton(barTermBtnX,
                       guiBarButtonWidth(guiTermTitle),
                       guiTermTitle, termOpen)
