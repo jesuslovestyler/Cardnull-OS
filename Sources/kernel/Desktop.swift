@@ -505,6 +505,42 @@ func guiPaintHelpButton() {
                 2, guiHelpLabel, guiInkColor)
 }
 
+/// The Welcome card's Settings button (milestone 38): a
+/// fourth wide button beneath the Help button's, in the
+/// row the card's fourth growth makes — "Settings",
+/// the door to the Settings window and its plain
+/// choices. It stands only when the card's height gives
+/// it its own row clear of the Click-me button's; where
+/// it does not, the `settings` command opens the
+/// window.
+let guiSettingsLabel: StaticString = "Settings"
+
+func guiSettingsButtonStands() -> Bool {
+    guiWinH >= 536
+}
+
+func guiSettingsButtonContains(_ x: Int, _ y: Int) -> Bool {
+    guiSettingsButtonStands()
+        && x >= guiWinX + 32 && x < guiWinX + guiWinW - 32
+        && y >= guiWinY + 400 && y < guiWinY + 444
+}
+
+func guiPaintSettingsButton() {
+    if !guiSettingsButtonStands() { return }
+    let buttonX = guiWinX + 32
+    let buttonY = guiWinY + 400
+    let buttonW = guiWinW - 64
+    guiFillRect(buttonX, buttonY, buttonW, 44, guiButtonColor)
+    guiFillRect(buttonX, buttonY, buttonW, 2, guiBorderColor)
+    guiFillRect(buttonX, buttonY + 42, buttonW, 2, guiBorderColor)
+    guiFillRect(buttonX, buttonY, 2, 44, guiBorderColor)
+    guiFillRect(buttonX + buttonW - 2, buttonY, 2, 44,
+                guiBorderColor)
+    let labelW = guiTextGlyphs(guiSettingsLabel) * 16
+    guiDrawText(buttonX + (buttonW - labelW) / 2, buttonY + 14,
+                2, guiSettingsLabel, guiInkColor)
+}
+
 /// Paints the click count beside the button: the label and the
 /// number, over a fresh patch of the window's parchment — the
 /// patch is repainted whole each time, so a shrinking count
@@ -574,6 +610,7 @@ func guiPaintWindow() {
     guiPaintBibleButton()
     guiPaintShieldButton()
     guiPaintHelpButton()
+    guiPaintSettingsButton()
     guiPaintButton()
     guiPaintClicks()
 }
@@ -623,6 +660,9 @@ func guiPaintDesktop() {
     if holder != 7 && bibleOpen { guiPaintBibleWindow() }
     if holder != 8 && shieldOpen { guiPaintShieldWindow() }
     if holder != 9 && helpOpen { guiPaintHelpWindow() }
+    if holder != 10 && settingsOpen {
+        guiPaintSettingsWindow()
+    }
     if holder == 1 && welcomeOpen { guiPaintWindow() }
     if holder == 2 && termOpen { guiPaintTerminal() }
     if holder == 3 && filesOpen { guiPaintFilesWindow() }
@@ -631,6 +671,9 @@ func guiPaintDesktop() {
     if holder == 7 && bibleOpen { guiPaintBibleWindow() }
     if holder == 8 && shieldOpen { guiPaintShieldWindow() }
     if holder == 9 && helpOpen { guiPaintHelpWindow() }
+    if holder == 10 && settingsOpen {
+        guiPaintSettingsWindow()
+    }
     // The feather's window stands over the elders while its
     // session stands (milestone 25): a guest's face has no
     // launcher in the bar to raise it from burial, and the
@@ -1163,6 +1206,21 @@ func guiPaintClock() {
     guiFillRect(barClockEndX - guiClockPatchW, guiBarTop() + 4,
                 guiClockPatchW, 28, guiBarColor)
     if !rtcValid { return }
+    if settingsClock24 {
+        // The twenty-four-hour form (milestone 38's
+        // choice): the hour as the chip counts it, two
+        // digits, and no AM or PM after it.
+        let startX = barClockEndX - (32 + 16 + 32)
+        var penX = startX
+        guiDrawTwoDigits(penX, y, UInt64(rtcHour),
+                         guiHintColor)
+        penX += 32
+        guiDrawGlyph(penX, y, 2, 0x3A, guiHintColor)
+        penX += 16
+        guiDrawTwoDigits(penX, y, UInt64(rtcMinute),
+                         guiHintColor)
+        return
+    }
     let hour12 = rtcHour % 12 == 0 ? 12 : rtcHour % 12
     let hourDigits = hour12 >= 10 ? 2 : 1
     let startX = barClockEndX
@@ -1375,6 +1433,13 @@ func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
         dragRectY = guiHelpY
         dragRectW = guiHelpW
         dragRectH = guiHelpH
+    } else if window == 10 {
+        dragOffsetX = px - guiSettingsX
+        dragOffsetY = py - guiSettingsY
+        dragRectX = guiSettingsX
+        dragRectY = guiSettingsY
+        dragRectW = guiSettingsW
+        dragRectH = guiSettingsH
     } else {
         dragOffsetX = px - guiTermX
         dragOffsetY = py - guiTermY
@@ -1400,6 +1465,8 @@ func guiBeginDrag(_ window: Int, _ px: Int, _ py: Int) {
         guiPaintShieldTitleBar(true)
     } else if window == 9 {
         guiPaintHelpTitleBar(true)
+    } else if window == 10 {
+        guiPaintSettingsTitleBar(true)
     } else {
         guiPaintTermTitleBar(true)
     }
@@ -1467,6 +1534,11 @@ func guiEndDrag() {
         moved = dragRectX != guiHelpX || dragRectY != guiHelpY
         guiHelpX = dragRectX
         guiHelpY = dragRectY
+    } else if carried == 10 {
+        moved = dragRectX != guiSettingsX
+            || dragRectY != guiSettingsY
+        guiSettingsX = dragRectX
+        guiSettingsY = dragRectY
     } else if carried == 5 {
         moved = dragRectX != guiFeatherX || dragRectY != guiFeatherY
         guiFeatherX = dragRectX
@@ -1493,6 +1565,8 @@ func guiEndDrag() {
         guiPaintShieldTitleBar(false)
     } else if carried == 9 {
         guiPaintHelpTitleBar(false)
+    } else if carried == 10 {
+        guiPaintSettingsTitleBar(false)
     } else if carried == 5 {
         guiPaintFeatherTitleBar(false)
     } else {
@@ -1514,7 +1588,7 @@ func guiEndDrag() {
 func guiSetFocus(_ toTerminal: Bool) {
     let filesHeld = guiFocusFiles || guiFocusReader
         || guiFocusWrite || guiFocusBible || guiFocusShield
-        || guiFocusHelp
+        || guiFocusHelp || guiFocusSettings
     if guiFocusTerminal == toTerminal && !filesHeld { return }
     guiFocusTerminal = toTerminal
     guiFocusFiles = false
@@ -1523,6 +1597,7 @@ func guiSetFocus(_ toTerminal: Bool) {
     guiFocusBible = false
     guiFocusShield = false
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -1801,7 +1876,8 @@ func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
         // case the closing changes nothing about the room.
         if termOpen && !guiFocusFiles && !guiFocusReader
             && !guiFocusWrite && !guiFocusBible
-            && !guiFocusShield && !guiFocusHelp {
+            && !guiFocusShield && !guiFocusHelp
+            && !guiFocusSettings {
             guiFocusTerminal = true
         }
         pointerHide()
@@ -1829,6 +1905,10 @@ func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
     }
     if guiHelpButtonContains(x, y) {
         guiOpenHelp()
+        return true
+    }
+    if guiSettingsButtonContains(x, y) {
+        guiOpenSettings()
         return true
     }
     if guiWinTitleContains(x, y) {
@@ -1989,7 +2069,7 @@ func guiPressAt(_ x: Int, _ y: Int) {
     }
     let holder = guiRoomHolder()
     if guiPressWindow(holder, x, y) { return }
-    var candidate = 9
+    var candidate = 10
     while candidate >= 1 {
         if candidate != holder && candidate != 5
             && guiPressWindow(candidate, x, y) { return }
@@ -2013,6 +2093,7 @@ func guiPressWindow(_ window: Int, _ x: Int, _ y: Int) -> Bool {
     if window == 7 { return guiPressBible(x, y) }
     if window == 8 { return guiPressShield(x, y) }
     if window == 9 { return guiPressHelp(x, y) }
+    if window == 10 { return guiPressSettings(x, y) }
     return guiPressReader(x, y)
 }
 
@@ -2041,6 +2122,10 @@ func guiWindowRect(_ window: Int) -> (Int, Int, Int, Int) {
     if window == 9 {
         return (guiHelpX, guiHelpY, guiHelpW, guiHelpH)
     }
+    if window == 10 {
+        return (guiSettingsX, guiSettingsY, guiSettingsW,
+                guiSettingsH)
+    }
     return (guiFeatherX, guiFeatherY, guiFeatherW, guiFeatherH)
 }
 
@@ -2056,6 +2141,7 @@ func guiWindowStands(_ window: Int) -> Bool {
     if window == 7 { return bibleOpen }
     if window == 8 { return shieldOpen }
     if window == 9 { return helpOpen }
+    if window == 10 { return settingsOpen }
     return featherWinOpen
 }
 
@@ -2097,10 +2183,12 @@ func guiSessionFocus(_ window: Int) {
     let bible = window == 7
     let shield = window == 8
     let help = window == 9
+    let settings = window == 10
     if guiFocusFeather == feather && guiFocusTerminal == terminal
         && guiFocusFiles == files && guiFocusReader == reader
         && guiFocusWrite == write && guiFocusBible == bible
-        && guiFocusShield == shield && guiFocusHelp == help {
+        && guiFocusShield == shield && guiFocusHelp == help
+        && guiFocusSettings == settings {
         return
     }
     guiFocusFeather = feather
@@ -2111,6 +2199,7 @@ func guiSessionFocus(_ window: Int) {
     guiFocusBible = bible
     guiFocusShield = shield
     guiFocusHelp = help
+    guiFocusSettings = settings
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -2169,7 +2258,7 @@ func guiPressAtSession(_ x: Int, _ y: Int) {
     if holder != 5 && guiPressWindowSession(holder, x, y) {
         return
     }
-    var candidate = 9
+    var candidate = 10
     while candidate >= 1 {
         if candidate != holder && candidate != 5
             && guiPressWindowSession(candidate, x, y) { return }
@@ -2281,6 +2370,21 @@ func guiFinishMousePacket(_ wheelDelta: Int) {
     if mouseFirstByte & 0x10 != 0 { travelX -= 256 }
     var travelY = Int(mouseThirdByte)
     if mouseFirstByte & 0x20 != 0 { travelY -= 256 }
+    // The mouse's pace (milestone 38's choice): Slower
+    // halves the travel and keeps the remainders, so a
+    // small movement is never rounded away; Faster
+    // doubles it; Steady leaves it as the mouse sent it.
+    if settingsMouseGear == 0 {
+        let totalX = travelX + settingsRemX
+        travelX = totalX / 2
+        settingsRemX = totalX - travelX * 2
+        let totalY = travelY + settingsRemY
+        travelY = totalY / 2
+        settingsRemY = totalY - travelY * 2
+    } else if settingsMouseGear == 2 {
+        travelX *= 2
+        travelY *= 2
+    }
     // The mouse reckons up as forward; the screen reckons down,
     // so the Y travel is turned over as it is added.
     let newX = min(max(pointerX + travelX, 0), framebufferWidth - 1)
@@ -2353,7 +2457,7 @@ func guiWheelTurn(_ delta: Int) {
     }
     let holder = guiRoomHolder()
     if guiWheelWindow(holder, delta) { return }
-    var candidate = 9
+    var candidate = 10
     while candidate >= 1 {
         if candidate != holder && candidate != 5
             && guiWheelWindow(candidate, delta) { return }
@@ -2440,6 +2544,17 @@ func guiWheelWindow(_ window: Int, _ delta: Int) -> Bool {
             guiSetFocusHelp()
         }
         helpScrollBy(-guiWheelStep * delta)
+        return true
+    }
+    if window == 10 {
+        // The Settings page does not scroll — the page is
+        // the whole of it; the wheel over it only gives
+        // it the room (milestone 38).
+        if guestWindowed {
+            guiSessionFocus(10)
+        } else {
+            guiSetFocusSettings()
+        }
         return true
     }
     if guestWindowed {
@@ -2977,6 +3092,8 @@ func runGui() {
     shieldWantedAtFace = false
     let wantHelp = helpWantedAtFace
     helpWantedAtFace = false
+    let wantSettings = settingsWantedAtFace
+    settingsWantedAtFace = false
     if !useFramebuffer {
         writeLine(guiNoScreenLine)
         return
@@ -2989,10 +3106,12 @@ func runGui() {
     // Milestone 34: the card stands a row taller where the
     // screen allows, for the Bible button's row beneath the
     // verse (see guiPaintBibleButton); milestone 35 grows
-    // it a second row for the Shield button's. On a short
-    // screen it keeps the measure the screen affords and
-    // the buttons are withheld by their own standings.
-    guiWinH = min(480, framebufferHeight - guiBarHeight - 140)
+    // it a second row for the Shield button's, milestone
+    // 36 a third for the Help button's, and milestone 38 a
+    // fourth for the Settings button's. On a short screen
+    // it keeps the measure the screen affords and the
+    // buttons are withheld by their own standings.
+    guiWinH = min(536, framebufferHeight - guiBarHeight - 140)
     guiWinX = 48
     guiWinY = 120
     guiTermX = 16
@@ -3075,6 +3194,22 @@ func runGui() {
     }
     if guiHelpY < guiWorkTop { guiHelpY = guiWorkTop }
     helpOpen = false
+    // Milestone 38's window joins the arrangement: the
+    // Settings window, a page's shape on its own ground
+    // between the Shield's and the Help window's,
+    // reckoned as its siblings' are.
+    guiSettingsW = min(688, framebufferWidth - 32)
+    guiSettingsH = min(520, guiBarTop() - guiWorkTop - 24)
+    guiSettingsX = min(268, framebufferWidth
+        - guiSettingsW - 16)
+    guiSettingsY = 96
+    if guiSettingsY + guiSettingsH > guiBarTop() - 8 {
+        guiSettingsY = guiBarTop() - 8 - guiSettingsH
+    }
+    if guiSettingsY < guiWorkTop {
+        guiSettingsY = guiWorkTop
+    }
+    settingsOpen = false
     // Milestone 33's card joins the arrangement: the Power
     // card, centred over the work area — the one card that is
     // never carried about, for the question it asks should be
@@ -3157,9 +3292,21 @@ func runGui() {
     // before the first painting so the bar opens already
     // telling the time.
     rtcReadTime()
+    // The settings' keeping is read (milestone 38) before
+    // the first painting, so the clock already reads in
+    // its kept form and the Welcome card's standing at
+    // the start is the kept one.
+    settingsLoad()
     termOpen = true
     guiFocusTerminal = true
     consoleEnterTerminal()
+    // The kept choice (milestone 38): the desktop opens
+    // with the Welcome card standing and holding the
+    // room, when the person has asked for it so.
+    if settingsWelcomeAtStart {
+        welcomeOpen = true
+        guiFocusTerminal = false
+    }
     // The pointer opens at the screen's centre — a known place,
     // so its first standing can be witnessed, not guessed.
     pointerX = framebufferWidth / 2
@@ -3183,6 +3330,9 @@ func runGui() {
     }
     if wantHelp {
         guiOpenHelp()
+    }
+    if wantSettings {
+        guiOpenSettings()
     }
     // The face's whole work: drain the mouse's ring (and poll
     // its port) into packets; give the keyboard's ring to the

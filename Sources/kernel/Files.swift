@@ -227,6 +227,7 @@ func guiRoomHolder() -> Int {
     if guiFocusWrite { return 6 }
     if guiFocusShield { return 8 }
     if guiFocusHelp { return 9 }
+    if guiFocusSettings { return 10 }
     if guiFocusBible { return 7 }
     if guiFocusReader { return 4 }
     if guiFocusFiles { return 3 }
@@ -240,7 +241,7 @@ func guiRoomHolder() -> Int {
 func guiSetFocusFiles() {
     if guiFocusFiles && !guiFocusTerminal && !guiFocusReader
         && !guiFocusWrite && !guiFocusBible && !guiFocusShield
-        && !guiFocusHelp {
+        && !guiFocusHelp && !guiFocusSettings {
         return
     }
     guiFocusTerminal = false
@@ -250,6 +251,7 @@ func guiSetFocusFiles() {
     guiFocusBible = false
     guiFocusShield = false
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -259,7 +261,7 @@ func guiSetFocusFiles() {
 func guiSetFocusReader() {
     if guiFocusReader && !guiFocusTerminal && !guiFocusFiles
         && !guiFocusWrite && !guiFocusBible && !guiFocusShield
-        && !guiFocusHelp {
+        && !guiFocusHelp && !guiFocusSettings {
         return
     }
     guiFocusTerminal = false
@@ -269,6 +271,7 @@ func guiSetFocusReader() {
     guiFocusBible = false
     guiFocusShield = false
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
