@@ -201,6 +201,18 @@ cp "$BUILD/TAMPERED.FEATHER" "$ISO_DIR/TAMPERED.FEATHER"
 cp "$BUILD/FACE.FEATHER" "$ISO_DIR/FACE.FEATHER"
 cp "$BUILD/TERM.FEATHER" "$ISO_DIR/TERM.FEATHER"
 cp "$BUILD/KEEP.FEATHER" "$ISO_DIR/KEEP.FEATHER"
+# The Bible (milestone 34): the Douay-Rheims text, plain
+# files at the disc's root like everything the OS reads —
+# six group files of whole books and the index that names
+# every book's place, authored by tools/build-bible-text.py
+# from the Catholic Bible app's own data and kept in
+# disc/bible/. They ride in the bundle below, and the
+# Bible window reads them out of memory.
+cp "$ROOT/disc/bible/BIBLE-IDX.TXT" "$ISO_DIR/BIBLE-IDX.TXT"
+for group in 1 2 3 4 5 6; do
+    cp "$ROOT/disc/bible/BIBLE-$group.TXT" \
+        "$ISO_DIR/BIBLE-$group.TXT"
+done
 # The bundle (milestone 23, docs/BUNDLE.md): the same fourteen
 # files the staging just gathered, packed into one file — the
 # welcome, every guest, every feather — and laid in /boot, where
@@ -254,8 +266,11 @@ cp "$BUILD/biosboot.img" "$ISO_DIR/boot/biosboot.img"
 # PE/COFF application, and the ESP it stands on — the
 # loader at \EFI\BOOT\BOOTX64.EFI, the same kernel at
 # \BOOT\KERNEL.BIN, the bundle beside it at
-# \BOOT\FILES.BUNDLE. The ESP keeps the 2880 KiB size
-# the disc has always carried.
+# \BOOT\FILES.BUNDLE. The ESP stood at 2880 KiB until
+# milestone 34, when the bundle grew by the Bible's
+# measure; it stands at 16 MiB now — room for the bundle
+# up to the handover's own bound, with the kernel and
+# the loader beside it.
 clang -target x86_64-unknown-windows \
     -ffreestanding -fno-stack-protector -mno-red-zone -O2 -Wall \
     -c "$ROOT/Sources/bootloader/bootloader.c" \
@@ -269,7 +284,7 @@ lld-link -subsystem:efi_application -entry:efi_main -nodefaultlib \
     "$BUILD/bootloader.o" "$BUILD/trampoline.o"
 ESP="$ISO_DIR/efi.img"
 rm -f "$ESP"
-mformat -C -i "$ESP" -f 2880 ::
+mformat -C -i "$ESP" -T 32768 -h 64 -s 32 ::
 mmd -i "$ESP" ::/EFI
 mmd -i "$ESP" ::/EFI/BOOT
 mmd -i "$ESP" ::/BOOT

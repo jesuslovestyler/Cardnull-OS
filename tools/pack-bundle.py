@@ -63,6 +63,18 @@ MANIFEST = (
     "FACE.FEATHER",
     "TERM.FEATHER",
     "KEEP.FEATHER",
+    # Milestone 34: the Bible — its index and the six group
+    # files of Douay-Rheims text (disc/bible/, authored by
+    # tools/build-bible-text.py). Each group stands under
+    # the kernel's per-file bound; the whole stands well
+    # under the payload bound.
+    "BIBLE-IDX.TXT",
+    "BIBLE-1.TXT",
+    "BIBLE-2.TXT",
+    "BIBLE-3.TXT",
+    "BIBLE-4.TXT",
+    "BIBLE-5.TXT",
+    "BIBLE-6.TXT",
 )
 
 
@@ -81,7 +93,7 @@ def is_system_file(name):
     a feather — judged by the name, the way the installer
     judges its picks (milestone 21)."""
     upper = name.upper()
-    return (upper == "WELCOME.TXT" or upper.endswith(".BIN")
+    return (upper.endswith(".TXT") or upper.endswith(".BIN")
             or upper.endswith(".FEATHER"))
 
 

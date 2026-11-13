@@ -108,8 +108,9 @@ packed it. Nothing in this format claims otherwise.
    and never served from.
 3. **The serving rule.** A valid bundle rides, the bundle
    serves: `ls`, `cat`, `run`, `both`, `feather`, the Files
-   window's list and its Reader, and the installer's copies
-   all read from memory. No bundle, or an unsound one, and
+   window's list and its Reader, the installer's copies,
+   and — since milestone 34 — the Bible window's text all
+   read from memory. No bundle, or an unsound one, and
    the disc path serves, unchanged in every behavior. The
    hard disk's world is its own: `disk`, `dls`, `dcat`,
    `dsave`, `format` never read the bundle.
@@ -130,3 +131,27 @@ system file standing in the staging that the manifest does
 not name. If a future milestone adds a system file, it adds
 a manifest line in the same commit, or the build stops and
 says why.
+
+## Milestone 34: the Bible rides
+
+The bundle's set grows by seven files: `BIBLE-IDX.TXT`
+(2,503 bytes — the index of books: the credit line, and
+per book its group file, offset and length) and
+`BIBLE-1.TXT` through `BIBLE-6.TXT` (the Douay-Rheims
+text, 4,758,797 bytes in all, whole books per file, each
+file under the one-megabyte cap with room to spare). The
+payload stands at 4,769,967 bytes of the sixteen
+megabytes the cap allows — the bundle file, header and
+table included, is 4,770,384 bytes, and its header
+counts 21 files. The text's home in the tree is `disc/bible/`,
+authored by tools/build-bible-text.py from the Catholic
+Bible app's data, and tools/build-iso.sh stages it like
+every system file — so the Bible window's fallback
+honesty holds: no bundle, and the window says its book
+did not ride rather than pretending. One carrying grew
+with the set: the standard image's UEFI system partition,
+a 2,880 KiB floppy image since the bootloader's infancy,
+is sixteen megabytes since this milestone, because the
+bundle's file must fit through that door (the BIOS door
+loads the bundle behind the kernel, under its own
+sixteen-megabyte cap, and needed no change).

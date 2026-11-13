@@ -1113,3 +1113,63 @@ stands in UTM is yours to see, and your screen
 is the final word.** If any step answers
 differently there, that is a finding to record,
 not a failure to hide.
+
+## The Bible window
+
+Milestone 34 gives the desktop its book: the
+whole Douay-Rheims Bible, in a window of its
+own. The witness is a reading.
+
+1. **Open it from the Welcome card.** Start the
+   VM from either image. Click **Welcome** in
+   the bottom bar: the greeting card stands a
+   row taller than it used to, and beneath the
+   verse from John it carries a wide button,
+   **Read the Bible**. Click it. A window titled
+   **Bible** opens on the list of books — Genesis
+   first, the names in the Catholic order (Josue,
+   Paralipomenon, Esdras, Tobias, Judith among
+   them) — with the line "The Douay-Rheims Bible
+   (Challoner, 1899)" at its foot.
+2. **Read a book.** Click **Genesis**. The title
+   becomes "Genesis", a "< All books" button
+   stands at the page's head, and the text opens
+   at "In the beginning God created heaven, and
+   earth." Scroll with the mouse wheel or the
+   arrow keys; Page Down turns a page. Press
+   **Escape** once: you are back at the list of
+   books (Escape again would head home, as it
+   always has).
+3. **Find John.** Scroll the list of books with
+   the wheel until **John** stands in it, and
+   click it: "In the beginning was the Word, and
+   the Word was with God, and the Word was God."
+4. **The Terminal's road.** Close the Bible
+   window by its X box. In the Terminal, type
+   `bible` and press Enter: the window opens
+   again. (`help` names the command, with the
+   others.)
+
+Two honest bounds. The Psalms stand in the
+Vulgate numbering the Douay-Rheims keeps, so
+the twenty-third Psalm of the Protestant
+counting is Psalm 22 here — "The Lord ruleth
+me: and I shall want nothing." That is the
+translation's own order, not a misprint. And
+the text is read from memory, off the bundle
+the disc carries; a copy of the system with no
+bundle would open the window onto one plain
+line saying the Bible did not ride — on these
+images, it rides.
+
+The bench proved this walk in QEMU — the list
+whole, Genesis, John and Hebrews read on the
+screen, the wheel and the keys scrolling, the
+same Genesis behind the BIOS bootloader — on
+November 13, 2026. But the bench is not your
+machine, and this page does not claim your
+witness for you: **whether it stands in UTM is
+yours to see, and your screen is the final
+word.** If any step answers differently there,
+that is a finding to record, not a failure to
+hide.

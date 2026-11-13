@@ -1100,6 +1100,69 @@ it bends.*
    134fa74ea60a0ecff873e3e6378273cf9680d479e353689f8c0e3de754a98bc2,
    `dist/cardnull-ownboot.iso` sha256
    d1215117bb0c94d1224317190aa19f86dfa5cc51959de75239626b4328b806dc.
+   Milestone 34 — November 13, 2026 — gave the
+   desktop its book. The Bible window, seventh of
+   the windows, reads the Douay-Rheims Bible
+   (Challoner, 1899) straight out of the bundle:
+   six group files of whole books and an index,
+   authored from the Catholic Bible app's data by
+   tools/build-bible-text.py, which proves its own
+   work (chapter counts and verbatim needles)
+   before anything is staged. The design choices
+   are three. First, the text rides the bundle
+   uncompressed and unencoded, the same plain
+   bytes a person could read off the disc, because
+   every other system file does and the bundle's
+   law — sixteen megabytes, files under one — has
+   room for it honestly; what did not have room
+   was the standard image's UEFI partition, a
+   floppy-sized image from the bootloader's
+   infancy, grown here to sixteen megabytes so the
+   bundle's file fits through that door too (the
+   BIOS door loads the bundle behind the kernel
+   and needed nothing). Second, the book table
+   rides as data, not code: the kernel is one
+   Swift file and keeps no generated tables, so
+   the index is a small text file the window walks
+   fresh at every asking — its count, its credit
+   line, and each book's group file, offset and
+   length — the same walk-the-table honesty the
+   bundle itself is read by. Third, the window
+   keeps the family's manners entire: two
+   standings (the list of the seventy-three books
+   in Catholic order; a book read by the Reader's
+   own line reckoning over the span), the room,
+   the drag, the maximize, the wheel, the keys,
+   the rail — and Escape climbs from a book to the
+   list before it goes home, one step at a time,
+   as a reader's hand expects. The doors are the
+   Welcome card's new "Read the Bible" button —
+   the card stands a row taller where the screen
+   allows, and withholds the button where it does
+   not — and the Terminal's `bible` command; the
+   bar takes no fifth launcher, the arithmetic of
+   its ground beside the clock being plain, and
+   the desktop's law prefers a whole word on the
+   greeting card to a squeezed button. A Bible
+   that did not ride opens onto one plain line
+   saying so. The bench's proofs: the list whole
+   with its credit standing clear; Genesis 1 read
+   verbatim; the wheel's nine lines at three
+   notches and Page Down's page; the list scrolled
+   to its reckoning (Zacharias at forty-two) and
+   John 1 and Hebrews 1 read verbatim out of the
+   scrolled list; the `bible` command's road; the
+   same Genesis behind SeaBIOS; and the
+   regressions whole — the file family, the Write
+   round trip, the USB road's seven standings,
+   one DORA, the Doxology note-exact on HDA and
+   speaker alike, a prepared disk booting alone.
+   The kernel stands at 22,406 lines and 395,248
+   bytes; the images at 27,168,768 bytes each —
+   `dist/cardnull.iso` sha256
+   14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
+   `dist/cardnull-ownboot.iso` sha256
+   486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

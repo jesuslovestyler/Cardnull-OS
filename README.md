@@ -90,6 +90,86 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 34 stands (November 13, 2026): **the
+Bible window.** The desktop gains its own book.
+The whole Douay-Rheims Bible — Challoner
+revision, 1899, public domain, Tyler's Catholic
+text — all seventy-three books in the Catholic
+order, rides on the disc as plain text files in
+the bundle: six group files of whole books and
+one index naming every book's place, authored
+from the Catholic Bible app's own data by a tool
+that keeps the receipts (`tools/build-bible-text.py`;
+the text is 4,758,797 bytes, and the Psalms stand
+in the Vulgate numbering the Douay-Rheims keeps,
+so "The Lord ruleth me" is Psalm 22). The seventh
+window reads the text straight out of the bundle's
+span in memory — nothing is copied into a keeping
+— and walks it with the Reader's own line
+reckoning, so a page wraps at the window's width
+exactly as the Reader's pages do. The window has
+two standings: the list of books, one name to a
+line in their order, with the index's credit line
+at its foot — "The Douay-Rheims Bible (Challoner,
+1899)" — and the reading of a book, opened by a
+press on its name, its own name in the title bar,
+the "< All books" strip at the page's head, and
+Escape climbing back to the list before it goes
+home. It keeps every manner its siblings keep:
+the room by focus, the drag, the maximize, the
+wheel and the scroll keys and the rail. The doors
+in are two, both plain words: the Welcome card —
+grown a row taller where the screen allows —
+carries a "Read the Bible" button beneath the
+John 1:1 it has always opened with, and the
+Terminal gains a `bible` command. (The bar has no
+room for a fifth launcher beside the clock at the
+screens this house runs; the layout's arithmetic
+is plain about it, and a word standing whole on
+the greeting card serves a new reader better.)
+If no bundle rode, or the index is not among its
+files, the window still opens and says so in one
+plain line — it does not pretend to a book it
+cannot read. Two honest growths came with the
+text: the bundle itself grows to 4,770,384
+bytes in all, still inside its sixteen-megabyte
+law, and
+the standard image's UEFI system partition grows
+from the floppy-sized image it was born with to
+sixteen megabytes, so the bundle's file fits
+through that door; the BIOS door's bundle, loaded
+behind the kernel, needed no change and carried
+the whole text as it stood. The proofs are the
+bench's own, all on the final images. The window
+opened from the Welcome card onto the whole list;
+Genesis opened at its head — "In the beginning
+God created heaven, and earth." — the wheel
+advanced the page nine lines at three notches,
+Page Down a page further to the third day; the
+list scrolled to its reckoning exactly (Zacharias
+at the top at forty-two lines down) and John
+opened at "In the beginning was the Word";
+Hebrews opened from the same scrolled list and
+read true; the `bible` command opened the window
+from the Terminal; and behind SeaBIOS the same
+Genesis stood, the whole text having ridden the
+BIOS door. The regressions stand whole: the file
+family's manners; the Write window's round trip;
+the USB road's standings all seven; one DORA in
+the capture; the HDA Doxology's eight notes at
+nominal, 0.00% error, and the speaker fallback in
+tune; a prepared disk booting alone. The kernel
+stands at 22,406 lines and 395,248 bytes (sha256
+b5d03228dbcf5f6de0429539ac977b53bc8fbbd9ebc1dcadf0d8fb55a0e67559).
+The images stand at 27,168,768 bytes each:
+`dist/cardnull.iso` sha256
+14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
+and `dist/cardnull-ownboot.iso` sha256
+486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
+Tyler's own witness in UTM is still his to give:
+his reading of a chapter in his own window, at
+his own machine's pace, is the final word.
+
 Milestone 33 stands (November 13, 2026): **the
 wall clock, and the power to leave.** The bottom
 bar's clock stops counting the session's age and
