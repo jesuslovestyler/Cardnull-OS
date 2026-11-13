@@ -1026,6 +1026,80 @@ it bends.*
    33f18d86e99d53a6af7618523b41f982b13d4ce6a3d3c65e3415d2700db9dbd0,
    `dist/cardnull-ownboot.iso` sha256
    9b3560083c5c5dc8fe6aa97737936a2d43e90bc4db7bc913e72cd779f13fe834.)*
+   Milestone 33 — November 13, 2026 — gave the
+   desktop its wall clock and its leaving. The
+   clock is the machine's own: the CMOS real-time
+   clock at ports 0x70/0x71, read once a second in
+   the face's existing cadence, each reading taken
+   twice and believed only when the two agree (a
+   read straddling the second's turning would mix
+   two moments), with register A's
+   update-in-progress waited out within a bound
+   and register B's own dialect honoured — binary
+   or packed BCD, twelve-hour with its PM flag or
+   twenty-four. An answer outside the day's honest
+   ranges is not believed and the patch is left
+   empty: the face would rather show no time than
+   a wrong one. The reckoning is spoken the way a
+   kitchen clock speaks it — "11:59 AM" to
+   "12:00 PM" — and the kernel keeps no timezone
+   and makes no correction, for the chip's time is
+   the owner's time, set by their hand; a bench
+   keeping UTC shows UTC, and that is stated, not
+   hidden. The uptime the bar carried since
+   milestone 16 retires to the Terminal, where
+   the `uptime` command has always kept it. The
+   leaving is a card, not a command: a Power
+   button at the Home button's left hand (Home
+   keeps the right corner it has kept since
+   milestone 16, and the clock's ground ends
+   before Power by the layout's own arithmetic)
+   opens the Power card, centred and never
+   carried, which holds the room while it stands
+   — presses elsewhere are swallowed, the wheel
+   is swallowed, Escape sets it aside. Its law is
+   the deliberate step: choosing Shut Down or
+   Restart moves nothing; the card asks "Are you
+   sure?" and says what will happen, and only the
+   plain Yes acts. Shut Down speaks ACPI, parsed
+   once in kmain while the floor's identity map
+   stands — the RSDP from the Multiboot2 tags
+   (15, then 14) or hunted by signature and
+   checksum through the EBDA's first page and the
+   last stretch below a megabyte; the RSDT or
+   XSDT walked to the FACP for its control ports;
+   the DSDT scanned for the `_S5_` name's package
+   and its two sleep values read by a small AML
+   integer reader. The asking writes the S5 value
+   with the enable bit to the named port (and to
+   the second port, when there is one); behind it
+   stand the two ports older chipsets answered,
+   0x604 and 0xB004, and behind those an honest
+   screen — "You can turn the computer off now."
+   — and rest. Restart walks the keyboard
+   controller's reset line (its input buffer
+   drained first, within a bound) and then the
+   reset control register's two-step. The bench's
+   proofs: the clock set to 11:59:35 morning and
+   night and watched across noon and midnight;
+   every road back from the card walked and the
+   machine untouched after (`mem` 1,595 used of
+   129,475); a confirmed Restart on the ownboot
+   image returning to a fresh desktop (uptime 36
+   seconds); a confirmed Shut Down on the
+   standard image ending the bench process
+   itself, exit 0; and the regressions whole —
+   the file family, the Write round trip, the
+   USB road's seven standings, one DORA for two
+   `net` commands, the Doxology note-exact on the
+   HDA chip and the speaker alike, a prepared
+   disk booting alone. The kernel stands at
+   21,494 lines and 379,920 bytes; the images at
+   3,796,992 bytes each — `dist/cardnull.iso`
+   sha256
+   134fa74ea60a0ecff873e3e6378273cf9680d479e353689f8c0e3de754a98bc2,
+   `dist/cardnull-ownboot.iso` sha256
+   d1215117bb0c94d1224317190aa19f86dfa5cc51959de75239626b4328b806dc.
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

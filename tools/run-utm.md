@@ -1047,3 +1047,69 @@ page does not claim your witness for you:
 your screen is the final word.** If any step
 answers differently there, that is a finding to
 record, not a failure to hide.
+
+## The clock and the Power button
+
+Milestone 33 gives the desktop its wall clock and
+its leaving. Both are witnessed by eye, in a
+minute or two.
+
+1. **Read the clock.** Start the VM from either
+   image and let the desktop come up. The bottom
+   bar now tells the time — plain digits and the
+   small word, "3:07 PM" — standing between the
+   Welcome button and the new Power button. The
+   time is the machine's own: UTM shows the Mac's
+   clock, so the bar should agree with the clock
+   on the Mac's own menu bar, to the minute.
+   Watch it a moment; the minute turns over as
+   the wall clock's does.
+2. **Open the Power card, and put it back.** Click
+   **Power** in the bar. A card stands at the
+   centre asking "What would you like to do?",
+   with **Shut Down**, **Restart**, and **Not
+   now**. Click **Not now**: the card goes, and
+   nothing has happened. Open it again and press
+   Escape: the same.
+3. **Meet the second asking.** Open the card and
+   click **Shut Down**. The card does *not* shut
+   anything down; it asks "Are you sure?" and
+   says "The computer will shut down." Click
+   **No, go back** — you are returned to the
+   choosing, and the machine stands untouched.
+   The same second asking stands behind
+   **Restart**.
+4. **Restart, when you are ready to see it.**
+   Open the card, click **Restart**, then **Yes,
+   restart**. A plain "Restarting..." screen
+   stands for a moment, and the machine comes
+   back up on its own to the desktop — the same
+   road it took when it was first started.
+5. **Shut Down, last.** Open the card, click
+   **Shut Down**, then **Yes, shut down**. The
+   "Shutting down..." screen stands, and the VM
+   powers off — UTM's window closes or shows the
+   machine stopped, as a real computer turning
+   off would leave it. Nothing is left running.
+
+Two honest bounds. The clock keeps no timezone
+of its own: it shows the time the machine itself
+keeps, exactly as set. And the shut-down asks by
+the machine's own ACPI tables; if a machine ever
+declined them, the screen would say "You can
+turn the computer off now." and rest — that
+screen, if you ever see it, is a finding to
+record.
+
+The bench proved this walk in QEMU — the clock
+set by hand and watched across noon and
+midnight, every road back from the card, a
+confirmed Restart returning to a fresh desktop,
+and a confirmed Shut Down ending the bench
+process itself — on November 13, 2026. But the
+bench is not your machine, and this page does
+not claim your witness for you: **whether it
+stands in UTM is yours to see, and your screen
+is the final word.** If any step answers
+differently there, that is a finding to record,
+not a failure to hide.

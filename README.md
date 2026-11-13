@@ -90,6 +90,87 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 33 stands (November 13, 2026): **the
+wall clock, and the power to leave.** The bottom
+bar's clock stops counting the session's age and
+starts telling the time. The machine's own
+timekeeping chip — the CMOS real-time clock every
+PC carries — is read once a second, each reading
+taken twice and believed only when the two agree,
+honouring the chip's own word for whether its
+numbers are binary or packed BCD and whether its
+hours run to twelve or twenty-four; the bar
+speaks what it reads the way a kitchen clock
+speaks it — "11:59 AM" turning to "12:00 PM" —
+in plain digits and the small word, no codes.
+The kernel keeps no timezone and makes no
+correction: the time shown is the machine's own,
+as its owner set it. (The uptime the bar used to
+show remains the Terminal's business, under the
+shell's `uptime` command.) At the Home button's
+left hand the bar gains a Power button, and with
+it the desktop learns how to leave. The button
+opens a card — centred, plain — asking "What
+would you like to do?", with three buttons: Shut
+Down, Restart, and Not now. Either leaving is
+asked twice: the card then asks "Are you sure?"
+and says plainly what will happen, and only the
+plain Yes acts, so a stray click can never kill
+the machine. While the card stands it holds the
+room: presses elsewhere do nothing, the wheel
+does nothing, and Escape sets it aside. Shut
+Down asks by the machine's own power tables —
+the ACPI pointers gathered once at boot, from
+the bootloader's tags when it left them, else
+hunted the old way through low memory; the root
+table walked to the FACP; the DSDT read for its
+_S5_ package; the sleep value written to the
+control port the tables named — with two older
+ports tried after, and, if nothing answers, a
+screen that says "You can turn the computer off
+now." and rests. Restart drains the keyboard
+controller and pulls its reset line, with the
+reset register behind it. The proofs are the
+bench's own, all on the final images. The bench's
+clock was set to 11:59:35 in the morning and
+watched turning to 12:00 PM, and set again to
+11:59:35 at night and watched turning to 12:00
+AM; on ordinary boots the bar showed the bench's
+own time of day. Every road back from the card
+was walked — "No, go back" from both
+confirmings, Escape, the close box — and the
+machine stood untouched after, its `mem`
+answering 1,595 used of 129,475 as at any fresh
+boot. Restart, pressed and confirmed on the
+own-bootloader image, brought the machine down
+and back to a fresh desktop whose `uptime` read
+36 seconds. Shut Down, pressed and confirmed on
+the standard image, ended the bench process
+itself, cleanly — exit 0, inside the confirming
+click's own moment. The regressions stand whole:
+the file family's manners in one pass; the Write
+window's round trip; the USB road's standings
+all seven (a Cardnull stick seen, listed and
+read, a prepared stick known bootable, the
+foreign and the blank named, the absence
+answered, the same behind SeaBIOS); one DORA in
+the capture for two `net` commands; the HDA
+Doxology's eight notes at nominal, 0.00% error,
+and the no-HDA speaker fallback in tune; a
+prepared disk booting alone. The kernel stands
+at 21,494 lines and 379,920 bytes (sha256
+66ecef5aadc3ee0f6b653d06dc37dfef5bb0484ce74ff607879bf2fcdaf19458).
+The images stand at 3,796,992 bytes each:
+`dist/cardnull.iso` sha256
+134fa74ea60a0ecff873e3e6378273cf9680d479e353689f8c0e3de754a98bc2,
+and `dist/cardnull-ownboot.iso` sha256
+d1215117bb0c94d1224317190aa19f86dfa5cc51959de75239626b4328b806dc.
+Tyler's own witness in UTM is still his to give —
+the bench proved the clock against a clock it
+set itself and the leaving against the bench's
+own power; his wall clock, and his machine's
+answer to the tables, are the final word.
+
 Milestone 32 stands (November 12, 2026): **seeing
 a USB stick.** The machine gains a fourth road for
 bytes to travel — the USB bus — and learns to see
