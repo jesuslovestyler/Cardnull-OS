@@ -90,6 +90,75 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 36 stands (November 13, 2026): **the
+Help window.** The desktop gains its plain
+answers. The ninth window, "How do I...", is
+one reading page of the questions a new person
+actually asks — how do I read the Bible, write
+something down, see my files, use the network,
+shut down or restart, get back to the start;
+what is the Shield; what can I type in the
+Terminal — each answered in the same plain
+words, the question in cardinal, the answer in
+ink, and every sentence checked against the
+system as it stands: the Write window's word
+is Save, deleting asks for the typed word
+DELETE, the Power card asks "Are you sure?",
+and the Shield's count is the wire's own, so
+the page promises nothing the house does not
+keep. The page scrolls by the wheel, the
+scroll keys, and its rail, and it keeps the
+family's manners entire: the room by focus,
+the drag, the maximize, the close box. Its
+doors are the family's two: the Welcome card —
+grown a row taller a third time where the
+screen allows — carries a "How do I..." button
+beneath "The Shield," and the Terminal gains
+a `howdoi` command, which the shell's own
+`help` listing now names in its plain order.
+The window's code stands in a new file,
+`Help.swift`, as the Split's standing rule
+asks. The bench caught one older fault on this
+milestone's road and it is repaired here: the
+drag's taking-hold (`guiBeginDrag`) had never
+been given branches for the Bible and Shield
+windows, so a title drag of either silently
+borrowed the Terminal's outline and would have
+set the window down by the wrong measure;
+milestone 36 adds the missing branches for
+windows 7 and 8 beside the Help window's own,
+with their held-title paintings, and the bench
+dragged all three windows to measured landings
+to prove it, the Terminal unmoved throughout.
+The proofs are the bench's own, all on the
+final images. The page opened from the Welcome
+card onto its head; the wheel's three notches
+advanced it exactly nine lines; Page Down a
+page; the scroll clamped at the foot with the
+closing lines standing — "That is the whole
+of it. The house is small, and it is yours." —
+and the rail stepped one line back; maximized,
+the page showed twenty-five rows; the `howdoi`
+command opened it from the Terminal; behind
+SeaBIOS the same page stood. The regressions
+stand whole: the suite's seventeen sessions,
+the USB road's seven standings, the clock and
+Power walk, one DORA in the capture, the HDA
+Doxology's eight notes at nominal, 0.00%
+error, and the speaker fallback in tune; a
+prepared disk booting alone. The kernel
+stands at 23,563 lines in nineteen files and
+419,896 bytes (sha256
+bfe3647f13f211742691fc07cefec4fc27d2af160492f0847f187f2e4ce9d8df).
+The images stand at 27,195,392 bytes each:
+`dist/cardnull.iso` sha256
+18b67d81ff8e708ebf62c1711f4a75247eb33e93b8ab86c9ee5df8ec9e542326,
+and `dist/cardnull-ownboot.iso` sha256
+29d40255af9b79e6ddff14f2f005a1949ffc231cc296fe007d563f37ef40982b.
+Tyler's own witness in UTM is still his to
+give: his reading of the plain answers in his
+own window is the final word.
+
 Milestone 35 stands (November 13, 2026): **the
 Shield's window.** The law of this house,
 settled on November 7, 2026 — the family filter

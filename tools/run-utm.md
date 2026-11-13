@@ -1227,3 +1227,57 @@ yours to see, and your screen is the final
 word.** If any step answers differently there,
 that is a finding to record, not a failure to
 hide.
+
+## The Help window
+
+Milestone 36 gives the desktop its plain
+answers: a window of "How do I..." questions,
+each answered in plain words. The witness is
+a reading, and a little scrolling.
+
+1. **Open it from the Welcome card.** Start
+   the VM from either image. Click **Welcome**
+   in the bottom bar: the greeting card stands
+   a row taller again, and beneath **Read the
+   Bible** and **The Shield** it carries a
+   third wide button, **How do I...**. Click
+   it. A window titled **How do I...** opens:
+   "Plain answers, in plain words." — and the
+   first questions, their questions in red,
+   their answers in black.
+2. **Open it from the Terminal.** The command
+   `howdoi` opens the same window, and the
+   Terminal's own `help` listing now names it
+   too, in its plain order.
+3. **Read down the page.** The mouse wheel
+   turns it (three notches, nine lines), the
+   Page Down key turns a page, and the little
+   arrows at the page's right edge step it a
+   line at a time. The last questions are how
+   to shut down and restart, and how to get
+   back to the start; the page ends, "That is
+   the whole of it. The house is small, and it
+   is yours." Every answer names a door that
+   really stands — try one: the Write answer
+   says **Save**, and the Write window's own
+   button says Save.
+4. **Its manners are the family's.** It can
+   be moved by its title bar, maximized by its
+   box, and closed by its close box — as can
+   the Bible and Shield windows, whose
+   title-bar drags this milestone also set
+   right (the bench had found them borrowing
+   the Terminal's outline; drag each one a
+   little way and watch it land where you
+   carried it).
+
+The bench proved this walk in QEMU — the page
+whole from both doors on both boot doors, the
+scrolling counted line by line, the drags
+measured — on November 13, 2026. But the bench
+is not your machine, and this page does not
+claim your witness for you: **whether it
+stands in UTM is yours to see, and your screen
+is the final word.** If any step answers
+differently there, that is a finding to
+record, not a failure to hide.

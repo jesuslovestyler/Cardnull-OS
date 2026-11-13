@@ -1163,6 +1163,60 @@ it bends.*
    14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
    `dist/cardnull-ownboot.iso` sha256
    486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
+   Milestone 36 — November 13, 2026 — gave the
+   desktop its plain answers. The Help window,
+   ninth of the windows, is one scrollable page
+   of "How do I…" questions with their answers,
+   and the design choices are three. First, the
+   page is one page: the questions are few and
+   the answers short, so they stand together in
+   the order a new person asks them — no list
+   to open and close, down the Reader's road of
+   a single standing — with the questions in
+   cardinal so the eye can hunt by them. Second,
+   every sentence is audited against the system
+   as built, not as remembered: the Write
+   window's keeping word is Save, the delete's
+   gate is the typed DELETE, the Power card's
+   question is "Are you sure?", and the answers
+   name only doors that exist — help describing
+   another machine is worse than none. Third,
+   the doors repeat the family's reckoning: the
+   Welcome card's button (the card a row taller
+   a third time, withheld where the screen
+   cannot stand it) and the Terminal's `howdoi`
+   command, which the shell's `help` listing
+   also carries; the bar takes no new launcher.
+   The window's code stands in its own file,
+   Help.swift, under the Split's standing rule.
+   The bench caught an older fault on this
+   road: guiBeginDrag, the drag's taking-hold,
+   had no branches for the Bible and Shield
+   windows — their title drags borrowed the
+   Terminal's outline and its held-title
+   painting — and the milestone repairs it for
+   windows 7 and 8 beside the new window's own
+   branch, proven by dragging all three windows
+   to measured landings with the Terminal
+   unmoved. The bench's proofs: the page whole
+   from the Welcome card, the wheel's nine
+   lines at three notches, Page Down's page,
+   the clamped foot with its closing lines, the
+   rail's single step, twenty-five rows at the
+   maximize, the `howdoi` road, the `help`
+   listing's new line, the same page behind
+   SeaBIOS; and the regressions whole — the
+   suite's seventeen sessions, the USB road's
+   seven standings, the clock and Power walk,
+   one DORA, the Doxology note-exact on HDA and
+   speaker alike, a prepared disk booting
+   alone. The kernel stands at 23,563 lines in
+   nineteen files and 419,896 bytes; the images
+   at 27,195,392 bytes each —
+   `dist/cardnull.iso` sha256
+   18b67d81ff8e708ebf62c1711f4a75247eb33e93b8ab86c9ee5df8ec9e542326,
+   `dist/cardnull-ownboot.iso` sha256
+   29d40255af9b79e6ddff14f2f005a1949ffc231cc296fe007d563f37ef40982b.
    Milestone 35 — November 13, 2026 — gave the
    Shield its window. The eighth window states
    the law settled on November 7, 2026 in plain
