@@ -90,6 +90,88 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 38 stands (November 13, 2026):
+**settings in plain words.** The desktop
+gains its tenth window, "Settings" — the
+house's choices, and only its true ones.
+Three stand on the page, each its question
+in cardinal and its answers as buttons with
+the standing choice marked in cardinal: how
+the clock should read — its two shapes
+standing as the choices themselves, "3:45
+PM" or "15:45," the bar's clock taking the
+new form the moment it is chosen; how fast
+the mouse should move — Slower, Steady, or
+Faster, Slower keeping its half-counts'
+remainders so a small movement is never
+rounded away; and whether the Welcome card
+stands at the desktop's start, a choice
+that takes hold at the next start and says
+so on the page. What is not there is
+designed as carefully as what is: the
+Shield has no setting, for its law is not
+a choice, and no switch governs the sound,
+for the house makes none of its own to
+govern — a switch over nothing would be a
+lie in a button's shape. The keeping is
+the disk family's own: the choices live in
+a small plain file, SETTINGS.TXT, three
+short lines a person can open and read,
+planted by hdCreateFile where it does not
+stand and rewritten in its own sector
+where it does — read once as the face
+opens, before the first painting. Where no
+Cardnull disk answers, the choices hold
+until shut down, and the page's foot line
+says which keeping stands, in plain words.
+Its doors are the family's two: the
+Welcome card — grown a fourth row taller
+where the screen allows — carries a
+"Settings" button beneath "How do I...,"
+and the Terminal gains a `settings`
+command, which the shell's `help` listing
+names; the Help page gains its own answer,
+"How do I change the clock?", checked
+against the system as it stands. The
+window's code stands in a new file,
+`Settings.swift`, as the Split's standing
+rule asks. The proofs are the bench's own,
+all on the final images: the window whole
+from both doors, its defaults marked; the
+clock's form changed in the bar at a
+press; the pointer's landings measured at
+both gears — a sent 120 counts landed at
+240 under Faster, at 60 under Slower; the
+keeping read back after a Power Restart,
+the desktop opening on the standing
+Welcome card with the clock in its kept
+form and the window showing its loaded
+standings; the record itself read on the
+host in the disk's own bytes; the
+diskless road answering honestly — its
+choice lived for the sitting and was gone
+after a Restart, as its foot line had
+promised; the window dragged to a measured
+landing, maximized, and restored. The
+regressions stand whole: the suite's
+seventeen sessions, the USB road's seven
+standings, the clock and Power walk, one
+DORA in the capture, the HDA Doxology's
+eight notes at nominal, 0.00% error, and
+the speaker fallback in tune; a prepared
+disk booting alone. The kernel stands at
+24,427 lines in twenty files and 433,080
+bytes (sha256
+a3162005549cb43ea29f6f98fda6d5b4587f678abd30bcbbd9fb3d71345d62d9).
+The images stand at 27,207,680 bytes each:
+`dist/cardnull.iso` sha256
+420c902e5eff9f4daece469bde518efc8959c5e8f3803fb6c265624953bce5ed,
+and `dist/cardnull-ownboot.iso` sha256
+2bed5c339d6fc3272cd69d6ff02014a87b2ee393ae38ff661d890a93d4a18cf9.
+Tyler's own witness in UTM is still his to
+give: his own choices, in his own window,
+are the final word.
+
 Milestone 37 stands (November 13, 2026): **the
 second screen.** The desktop is proven whole
 at other display sizes than its home

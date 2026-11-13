@@ -472,7 +472,7 @@ func bibleScrollBy(_ lines: Int) {
 func guiSetFocusBible() {
     if guiFocusBible && !guiFocusTerminal && !guiFocusFiles
         && !guiFocusReader && !guiFocusWrite && !guiFocusShield
-        && !guiFocusHelp {
+        && !guiFocusHelp && !guiFocusSettings {
         return
     }
     guiFocusTerminal = false
@@ -482,6 +482,7 @@ func guiSetFocusBible() {
     guiFocusBible = true
     guiFocusShield = false
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()

@@ -528,6 +528,7 @@ func guiOpenPower() {
     guiFocusBible = false
     guiFocusShield = false
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()

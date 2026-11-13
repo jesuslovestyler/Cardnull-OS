@@ -1163,6 +1163,65 @@ it bends.*
    14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
    `dist/cardnull-ownboot.iso` sha256
    486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
+   Milestone 38 — November 13, 2026 — gave the
+   desktop its settings, in plain words. The
+   tenth window carries the house's choices,
+   and the design choices are three. First,
+   only true choices stand: the clock's form
+   (its two shapes drawn as the buttons
+   themselves), the mouse's pace (Slower
+   keeping its remainders, Steady as sent,
+   Faster doubled), and the Welcome card's
+   standing at the start — while the Shield
+   takes no setting, its law not being a
+   choice, and no switch is drawn over the
+   sound, the house making none of its own;
+   a switch governing nothing would be a lie
+   in a button's shape. Second, the keeping
+   is the disk's own: a plain file,
+   SETTINGS.TXT, three short readable lines
+   at one fixed measure, planted and
+   rewritten in place by the disk family's
+   roads and read as the face opens — and
+   where no Cardnull disk answers, the page
+   says in plain words that the choices last
+   until shut down, and keeps that word
+   exactly. Third, the doors and manners
+   repeat the family's reckoning: the
+   Welcome card's fourth button (the card a
+   row taller a fourth time, withheld where
+   the screen cannot stand it), the
+   Terminal's `settings` command named in
+   its `help` listing, a new answer on the
+   Help page, and the room, the drag, the
+   maximize, and the close kept entire. The
+   window's code stands in its own file,
+   Settings.swift, under the Split's rule.
+   The bench's proofs: the page whole from
+   both doors with its defaults marked; the
+   bar's clock in its new form at a press;
+   the pointer's landings measured at both
+   gears (a sent 120 landed at 240, then at
+   60); a Power Restart returning the
+   desktop to the standing Welcome card and
+   the kept clock, the window reopened on
+   its loaded standings; the record read on
+   the host in the disk's bytes; the
+   diskless sitting's choice gone after its
+   Restart, as promised; the drag,
+   maximize, and restore. The regressions
+   stand whole: the suite's seventeen
+   sessions, the USB road's seven standings,
+   the clock and Power walk, one DORA, the
+   Doxology note-exact on HDA and speaker
+   alike, a prepared disk booting alone.
+   The kernel stands at 24,427 lines in
+   twenty files and 433,080 bytes; the
+   images at 27,207,680 bytes each —
+   `dist/cardnull.iso` sha256
+   420c902e5eff9f4daece469bde518efc8959c5e8f3803fb6c265624953bce5ed,
+   `dist/cardnull-ownboot.iso` sha256
+   2bed5c339d6fc3272cd69d6ff02014a87b2ee393ae38ff661d890a93d4a18cf9.
    Milestone 37 — November 13, 2026 — gave the
    desktop its second screen: the whole
    desktop proven at other display sizes, and

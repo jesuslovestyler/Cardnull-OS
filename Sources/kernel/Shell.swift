@@ -150,6 +150,7 @@ let writeCommand: StaticString = "write"
 let bibleCommand: StaticString = "bible"
 let shieldCommand: StaticString = "shield"
 let howdoiCommand: StaticString = "howdoi"
+let settingsCommand: StaticString = "settings"
 let guiCommand: StaticString = "gui"
 let mouseCommand: StaticString = "mouse"
 let soundCommand: StaticString = "sound"
@@ -195,6 +196,8 @@ let helpShieldLine: StaticString =
     "  shield  open the Shield window - the guard's standing"
 let helpHowdoiLine: StaticString =
     "  howdoi  open the Help window - plain answers to plain questions"
+let helpSettingsLine: StaticString =
+    "  settings  open the Settings window - the clock, the mouse, the start"
 let helpGuiLine: StaticString =
     "  gui     open the graphical desktop (Esc brings you home)"
 let helpMouseLine: StaticString =
@@ -527,6 +530,7 @@ func submitLine() {
     let isBible = commandMatches(bibleCommand)
     let isShield = commandMatches(shieldCommand)
     let isHowdoi = commandMatches(howdoiCommand)
+    let isSettings = commandMatches(settingsCommand)
     let isGui = commandMatches(guiCommand)
     let isMouse = commandMatches(mouseCommand)
     let isSound = commandMatches(soundCommand)
@@ -567,6 +571,7 @@ func submitLine() {
             writeLine(helpBibleLine)
             writeLine(helpShieldLine)
             writeLine(helpHowdoiLine)
+            writeLine(helpSettingsLine)
             writeLine(helpGuiLine)
             writeLine(helpMouseLine)
             writeLine(helpSoundLine)
@@ -624,6 +629,8 @@ func submitLine() {
             runShieldCommand()
         } else if isHowdoi {
             runHowdoiCommand()
+        } else if isSettings {
+            runSettingsCommand()
         } else if isGui {
             if consoleInTerminal {
                 // Already here: this window is the desktop's own

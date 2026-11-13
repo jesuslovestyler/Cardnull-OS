@@ -109,6 +109,16 @@ let helpLines: [StaticString] = [
     "on the Welcome card to read its",
     "standing.",
     "",
+    "How do I change the clock?",
+    "Press Welcome in the bottom bar,",
+    "then Settings - or type settings",
+    "in the Terminal. The clock can read",
+    "as 3:45 PM or as 15:45, the mouse",
+    "can move slower or faster, and the",
+    "Welcome card can stand at the",
+    "start. Your choices are kept on",
+    "the disk.",
+    "",
     "How do I shut down or restart?",
     "Press Power in the bottom bar. The",
     "card asks what you want, then asks",
@@ -125,7 +135,7 @@ let helpLines: [StaticString] = [
     "What can I type in the Terminal?",
     "Type help, and the Terminal lists",
     "its words in plain order - bible,",
-    "shield, howdoi, files, write, net,",
+    "shield, howdoi, settings, files,",
     "and the rest. Each one does what",
     "its name says.",
     "",
@@ -145,6 +155,8 @@ let helpLineFlags: [Bool] = [
     true, false, false, false, false, false, false,
     false,
     true, false, false, false, false, false, false, false,
+    false,
+    true, false, false, false, false, false, false, false, false,
     false,
     true, false, false, false, false,
     false,
@@ -211,7 +223,7 @@ func guiHelpDownContains(_ x: Int, _ y: Int) -> Bool {
 func guiSetFocusHelp() {
     if guiFocusHelp && !guiFocusTerminal && !guiFocusFiles
         && !guiFocusReader && !guiFocusWrite && !guiFocusBible
-        && !guiFocusShield {
+        && !guiFocusShield && !guiFocusSettings {
         return
     }
     guiFocusTerminal = false
@@ -221,6 +233,7 @@ func guiSetFocusHelp() {
     guiFocusBible = false
     guiFocusShield = false
     guiFocusHelp = true
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()

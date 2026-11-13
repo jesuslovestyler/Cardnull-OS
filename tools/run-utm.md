@@ -1326,3 +1326,61 @@ Power buttons had overlapped by eight
 pixels, and now stand clear. **Your screen
 remains the final word** for any size your
 own machine may one day offer.
+
+## The Settings window
+
+Milestone 38 gives the desktop its
+settings: a window of the house's choices,
+each in plain words. The witness is a few
+choosings, and one restart.
+
+1. **Open it from the Welcome card.** Start
+   the VM from either image. Click
+   **Welcome** in the bottom bar: the
+   greeting card stands a row taller again,
+   and beneath **How do I...** it carries a
+   fourth wide button, **Settings**. Click
+   it. A window titled **Settings** opens:
+   "Your choices, in plain words."
+2. **Open it from the Terminal.** The
+   command `settings` opens the same
+   window, and the Terminal's own `help`
+   listing names it too.
+3. **Choose the clock's form.** Two
+   buttons stand as the shapes themselves:
+   **3:45 PM** and **15:45**. The standing
+   choice is the red one. Click the other,
+   and the bar's clock takes its new form
+   at once.
+4. **Choose the mouse's pace.** **Slower**,
+   **Steady**, or **Faster** — move the
+   pointer after each and feel the
+   difference. Slower never swallows a
+   small movement; it keeps the halves.
+5. **Choose the start.** Under "Show the
+   Welcome card at the start?", **Show it**
+   makes the greeting card the first thing
+   standing at the next start; the page
+   tells you it takes hold then, not now.
+6. **Read the foot line.** With your
+   Cardnull disk in, it says, "Your choices
+   are kept on your disk." — and they are:
+   they live in a little file named
+   SETTINGS.TXT, which the Files window
+   will show you and the Reader will read
+   aloud in three short lines. Start the
+   machine again and your choices stand as
+   you left them.
+7. **Its manners are the family's.** It
+   can be moved by its title bar, maximized
+   by its box, and closed by its close box.
+
+The bench proved this walk in QEMU — both
+doors, every choice, the pointer's
+landings measured at both paces, the
+keeping read back after a Restart, and
+the honest diskless word kept — on
+November 13, 2026. But the bench is not
+your machine: **whether it stands in UTM
+is yours to see, and your screen is the
+final word.**

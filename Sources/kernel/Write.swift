@@ -1023,7 +1023,7 @@ func guiPaintWriteWindow() {
 func guiSetFocusWrite() {
     if guiFocusWrite && !guiFocusTerminal && !guiFocusFiles
         && !guiFocusReader && !guiFocusBible && !guiFocusShield
-        && !guiFocusHelp {
+        && !guiFocusHelp && !guiFocusSettings {
         return
     }
     guiFocusTerminal = false
@@ -1033,6 +1033,7 @@ func guiSetFocusWrite() {
     guiFocusBible = false
     guiFocusShield = false
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()

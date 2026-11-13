@@ -128,7 +128,7 @@ func guiShieldTitleContains(_ x: Int, _ y: Int) -> Bool {
 func guiSetFocusShield() {
     if guiFocusShield && !guiFocusTerminal && !guiFocusFiles
         && !guiFocusReader && !guiFocusWrite && !guiFocusBible
-        && !guiFocusHelp {
+        && !guiFocusHelp && !guiFocusSettings {
         return
     }
     guiFocusTerminal = false
@@ -138,6 +138,7 @@ func guiSetFocusShield() {
     guiFocusBible = false
     guiFocusShield = true
     guiFocusHelp = false
+    guiFocusSettings = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
