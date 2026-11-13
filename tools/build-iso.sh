@@ -120,6 +120,11 @@ for feather in greet face term keep; do
 done
 
 echo "==> [3/8] Compiling the Swift kernel (Embedded Swift, $TARGET)"
+# The kernel is one module in several files under
+# Sources/kernel/ (milestone 33.5, "The Split"): every
+# .swift file there is compiled together, whole-module,
+# into the one object. A new subsystem is a new file in
+# that directory; nothing else about the build changes.
 "$SWIFTC" \
     -target "$TARGET" \
     -enable-experimental-feature Embedded \
@@ -127,7 +132,7 @@ echo "==> [3/8] Compiling the Swift kernel (Embedded Swift, $TARGET)"
     -whole-module-optimization \
     -O \
     -module-name Kernel \
-    -c "$ROOT/Sources/kernel/Kernel.swift" \
+    -c "$ROOT"/Sources/kernel/*.swift \
     -o "$BUILD/Kernel.o"
 
 echo "==> [4/8] Linking kernel.bin"

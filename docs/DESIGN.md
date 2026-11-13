@@ -1163,6 +1163,37 @@ it bends.*
    14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
    `dist/cardnull-ownboot.iso` sha256
    486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
+   Milestone 33.5 — November 13, 2026 — the
+   Split, recorded here in its ladder place
+   between the clock and the Bible. The kernel,
+   one file since milestone 1 and 22,406 lines
+   with the Bible window, becomes seventeen
+   files under Sources/kernel/, cut at the
+   sections' own banners — Kernel.swift keeping
+   the boot and the entry, the rest named for
+   their subsystems (Screen, Floor, Disc,
+   Bundle, Guests, Feathers, Desktop, Files,
+   Bible, Sound, Network, Disk, Write, USB,
+   Shell, Power). The stone's law is that
+   nothing changes: the move was verified line
+   for line against the monolith before it
+   compiled, no access level needed widening,
+   the build compiles the set whole-module as
+   it compiled the one file, and the binary
+   stands at the same 395,248 bytes. It was
+   carried out on the tree as it stood after
+   milestone 34 and proven by the whole suite
+   run again — every session identical,
+   including the clock and Power walk and the
+   Bible walk on both doors. Its standing rule
+   outlives it: the kernel is built file by
+   file from here, and a new subsystem arrives
+   as a new file. The images stand at
+   27,168,768 bytes each — `dist/cardnull.iso`
+   sha256
+   9275a12b800c5030da05a3aab534325e7916e212eda09a38737fdae66509ccec,
+   `dist/cardnull-ownboot.iso` sha256
+   9c3f86f3747d700ea5569c680dba0d73e5e00787cd88721d9188375b0db2ad3c.
 6. Chirpy Browser and the Catholic Bible at home on it.
 
 ## Principles

@@ -13,8 +13,11 @@ here.
      feathers' programs in `feathers/`) with clang and flattens
      them with ld.lld — flat binaries the disc carries as files,
      never linked into the kernel (milestones 9 and 10);
-  3. compiles the Swift kernel (`Sources/kernel/Kernel.swift`) with
-     swiftc in **Embedded Swift** mode for `x86_64-unknown-none-elf`;
+  3. compiles the Swift kernel — one module in several files
+     under `Sources/kernel/`, named for their subsystems
+     (Kernel.swift keeps the boot and the entry; see its
+     header for the map) — with swiftc in **Embedded Swift**
+     mode for `x86_64-unknown-none-elf`;
   4. links `build/kernel.bin` with ld.lld and
      `Sources/boot/linker.ld`;
   5. packs the feathers with the packer below — each card source

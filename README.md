@@ -170,6 +170,50 @@ Tyler's own witness in UTM is still his to give:
 his reading of a chapter in his own window, at
 his own machine's pace, is the final word.
 
+Milestone 33.5 stands (November 13, 2026):
+**the Split.** The kernel stops being one file.
+It grew as a single `Kernel.swift` — 20,811
+lines at milestone 33, 22,406 with the Bible
+window — and at Tyler's word it is now seventeen
+files under `Sources/kernel/`, named for their
+subsystems: Kernel.swift (the boot and the
+entry, 499 lines), Screen, Floor (interrupts,
+memory, the heap), Disc, Bundle, Guests,
+Feathers, Desktop, Files, Bible, Sound, Network,
+Disk, Write, USB, Shell, and Power. This stone
+changes no behavior, and says so with its whole
+proof: the code moved at its sections' own
+seams, the gathering verified line for line
+against the file it came from before anything
+compiled; not one declaration needed its access
+widened — the module's parts were already
+spoken in the module's own voice. The build
+compiles the file set together, whole-module,
+exactly as it compiled the one file; the kernel
+binary stands at the same 395,248 bytes. The
+stone was carried out on the whole tree as it
+stood after milestone 34 — its place in the
+ladder is here, between the clock and the
+Bible, where Tyler set it — and its proof is
+the whole proof, run again on the split images
+and come back identical in every particular:
+the Bible walk on both boot doors, the clock
+and the Power card's walk (a confirmed Shut
+Down ending the bench process, exit 0), the
+file family's manners, the Write window's
+round trip, the USB road's seven standings,
+one DORA in the capture, the HDA Doxology's
+eight notes in tune and the speaker fallback
+the same, a prepared disk booting alone. The
+images stand at 27,168,768 bytes each:
+`dist/cardnull.iso` sha256
+9275a12b800c5030da05a3aab534325e7916e212eda09a38737fdae66509ccec,
+and `dist/cardnull-ownboot.iso` sha256
+9c3f86f3747d700ea5569c680dba0d73e5e00787cd88721d9188375b0db2ad3c.
+From this stone onward the kernel is built
+file by file: a new subsystem is a new file,
+and nothing is gathered back into one.
+
 Milestone 33 stands (November 13, 2026): **the
 wall clock, and the power to leave.** The bottom
 bar's clock stops counting the session's age and
