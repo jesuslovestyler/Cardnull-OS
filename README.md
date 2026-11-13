@@ -90,6 +90,80 @@ domain, like everything else here.
 
 ## Status
 
+Milestone 35 stands (November 13, 2026): **the
+Shield's window.** The law of this house,
+settled on November 7, 2026 — the family filter
+on with no way to turn it off, nothing watched,
+nothing reported, nothing sent anywhere — gains
+a face. The eighth window, "The Shield," states
+the standing in plain words on one page: the
+filter is on; there is no switch, no setting,
+no secret door; nothing a person does here is
+sent anywhere — no watching, no reporting, no
+phoning home, not now, not ever; and nothing
+from the network is let in to any window, the
+wire answering only the errands the person
+began. It carries one live, truthful line —
+"Times spoken on the network," counted at the
+network's one sending door, so the number
+cannot drift from the wire: it stands at 0
+until the person asks the wire for something,
+and every packet it counts is one an errand of
+theirs spoke (an address lease's renewals ride
+an errand already begun; the system begins
+nothing of its own). The window has no scroll
+and no settings, by design — there is nothing
+in it to change. It keeps the family's manners
+entire: the room by focus, the drag, the
+maximize, the close box. Its doors are two,
+both plain words: the Welcome card — grown a
+row taller again where the screen allows —
+carries a "The Shield" button beneath "Read
+the Bible," and the Terminal gains a `shield`
+command. The window's own code stands in a new
+file, `Shield.swift`, as the Split's standing
+rule asks. The bench caught one fault of the
+milestone's own making before it stood: the
+room's reckoning in `guiRoomHolder` had not
+been taught the eighth window, so a focused
+Shield painted beneath the Welcome card until
+the check was added — one line in Files.swift —
+and the window then stood on top as its
+siblings do. The proofs are the bench's own,
+all on the final images. The window opened
+from the Welcome card and from the Terminal
+onto its whole page, on the standard door and
+behind SeaBIOS alike; its count stood at 0 at
+rest and at 5 after one `net` errand — the
+address lease's discover and request, the
+gateway ARP, the DNS question, and the ping,
+the wire's own count of itself; the close box
+returned the desktop to the Terminal. The
+regressions stand whole: the suite's
+seventeen sessions, the USB road's seven
+standings, the clock and Power walk, one DORA
+Doxology's eight notes at nominal, 0.00%
+error, and the speaker fallback in tune; a
+prepared disk booting alone. One honest
+boundary: the window proclaims standings that
+are true of the system itself — no off switch
+exists anywhere in it, no telemetry code
+exists in it, and the count is the wire's own
+— while the reading of web pages' content,
+the filter's other half, arrives with the
+Chirpy browser feather, as the road has always
+said. The kernel stands at 23,006 lines in
+eighteen files and 400,768 bytes (sha256
+ef65ea3fcffd1ac62013eed09e5cb4fa0d6a568c7e7b6cd9c1596d9fe823858a).
+The images stand at 27,174,912 bytes each:
+`dist/cardnull.iso` sha256
+3ebe50c5e1d48088bc7238f7f9acb0b2c3568b4fac0bb2a030103728a54f1d91,
+and `dist/cardnull-ownboot.iso` sha256
+8e8686069a2e079dffeea7171d46373970825f77c35386a67218ebf4d437babe.
+Tyler's own witness in UTM is still his to
+give: his reading of the guard's standing in
+his own window is the final word.
+
 Milestone 34 stands (November 13, 2026): **the
 Bible window.** The desktop gains its own book.
 The whole Douay-Rheims Bible — Challoner

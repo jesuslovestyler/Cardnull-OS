@@ -433,6 +433,42 @@ func guiPaintBibleButton() {
                 2, guiReadBibleLabel, guiInkColor)
 }
 
+/// The Welcome card's Shield button (milestone 35): a
+/// second wide button beneath the Bible's, in the row the
+/// card's second growth makes — "The Shield", the door to
+/// the Shield window, standing on the greeting card beside
+/// the Bible's door, the house's two standings side by
+/// side. It stands only when the card's height gives it
+/// its own row clear of the Click-me button's; where it
+/// does not, the `shield` command opens the window.
+let guiShieldLabel: StaticString = "The Shield"
+
+func guiShieldButtonStands() -> Bool {
+    guiWinH >= 424
+}
+
+func guiShieldButtonContains(_ x: Int, _ y: Int) -> Bool {
+    guiShieldButtonStands()
+        && x >= guiWinX + 32 && x < guiWinX + guiWinW - 32
+        && y >= guiWinY + 288 && y < guiWinY + 332
+}
+
+func guiPaintShieldButton() {
+    if !guiShieldButtonStands() { return }
+    let buttonX = guiWinX + 32
+    let buttonY = guiWinY + 288
+    let buttonW = guiWinW - 64
+    guiFillRect(buttonX, buttonY, buttonW, 44, guiButtonColor)
+    guiFillRect(buttonX, buttonY, buttonW, 2, guiBorderColor)
+    guiFillRect(buttonX, buttonY + 42, buttonW, 2, guiBorderColor)
+    guiFillRect(buttonX, buttonY, 2, 44, guiBorderColor)
+    guiFillRect(buttonX + buttonW - 2, buttonY, 2, 44,
+                guiBorderColor)
+    let labelW = guiTextGlyphs(guiShieldLabel) * 16
+    guiDrawText(buttonX + (buttonW - labelW) / 2, buttonY + 14,
+                2, guiShieldLabel, guiInkColor)
+}
+
 /// Paints the click count beside the button: the label and the
 /// number, over a fresh patch of the window's parchment — the
 /// patch is repainted whole each time, so a shrinking count
@@ -500,6 +536,7 @@ func guiPaintWindow() {
     guiDrawText(guiWinX + 32, guiWinY + 204, 2, guiVerseAttribution,
                 guiInkColor)
     guiPaintBibleButton()
+    guiPaintShieldButton()
     guiPaintButton()
     guiPaintClicks()
 }
@@ -547,12 +584,14 @@ func guiPaintDesktop() {
     if holder != 4 && readerOpen { guiPaintReaderWindow() }
     if holder != 6 && writeOpen { guiPaintWriteWindow() }
     if holder != 7 && bibleOpen { guiPaintBibleWindow() }
+    if holder != 8 && shieldOpen { guiPaintShieldWindow() }
     if holder == 1 && welcomeOpen { guiPaintWindow() }
     if holder == 2 && termOpen { guiPaintTerminal() }
     if holder == 3 && filesOpen { guiPaintFilesWindow() }
     if holder == 4 && readerOpen { guiPaintReaderWindow() }
     if holder == 6 && writeOpen { guiPaintWriteWindow() }
     if holder == 7 && bibleOpen { guiPaintBibleWindow() }
+    if holder == 8 && shieldOpen { guiPaintShieldWindow() }
     // The feather's window stands over the elders while its
     // session stands (milestone 25): a guest's face has no
     // launcher in the bar to raise it from burial, and the
@@ -1338,6 +1377,10 @@ func guiEndDrag() {
         moved = dragRectX != guiBibleX || dragRectY != guiBibleY
         guiBibleX = dragRectX
         guiBibleY = dragRectY
+    } else if carried == 8 {
+        moved = dragRectX != guiShieldX || dragRectY != guiShieldY
+        guiShieldX = dragRectX
+        guiShieldY = dragRectY
     } else if carried == 5 {
         moved = dragRectX != guiFeatherX || dragRectY != guiFeatherY
         guiFeatherX = dragRectX
@@ -1360,6 +1403,8 @@ func guiEndDrag() {
         guiPaintWriteTitleBar(false)
     } else if carried == 7 {
         guiPaintBibleTitleBar(false)
+    } else if carried == 8 {
+        guiPaintShieldTitleBar(false)
     } else if carried == 5 {
         guiPaintFeatherTitleBar(false)
     } else {
@@ -1380,13 +1425,14 @@ func guiEndDrag() {
 /// road leaves exactly one holder standing.
 func guiSetFocus(_ toTerminal: Bool) {
     let filesHeld = guiFocusFiles || guiFocusReader
-        || guiFocusWrite || guiFocusBible
+        || guiFocusWrite || guiFocusBible || guiFocusShield
     if guiFocusTerminal == toTerminal && !filesHeld { return }
     guiFocusTerminal = toTerminal
     guiFocusFiles = false
     guiFocusReader = false
     guiFocusWrite = false
     guiFocusBible = false
+    guiFocusShield = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -1664,7 +1710,8 @@ func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
         // milestone 19's windows already holds it, in which
         // case the closing changes nothing about the room.
         if termOpen && !guiFocusFiles && !guiFocusReader
-            && !guiFocusWrite && !guiFocusBible {
+            && !guiFocusWrite && !guiFocusBible
+            && !guiFocusShield {
             guiFocusTerminal = true
         }
         pointerHide()
@@ -1684,6 +1731,10 @@ func guiPressWelcome(_ x: Int, _ y: Int) -> Bool {
     }
     if guiBibleButtonContains(x, y) {
         guiOpenBible()
+        return true
+    }
+    if guiShieldButtonContains(x, y) {
+        guiOpenShield()
         return true
     }
     if guiWinTitleContains(x, y) {
@@ -1844,7 +1895,7 @@ func guiPressAt(_ x: Int, _ y: Int) {
     }
     let holder = guiRoomHolder()
     if guiPressWindow(holder, x, y) { return }
-    var candidate = 7
+    var candidate = 8
     while candidate >= 1 {
         if candidate != holder && candidate != 5
             && guiPressWindow(candidate, x, y) { return }
@@ -1866,6 +1917,7 @@ func guiPressWindow(_ window: Int, _ x: Int, _ y: Int) -> Bool {
     if window == 3 { return guiPressFiles(x, y) }
     if window == 6 { return guiPressWrite(x, y) }
     if window == 7 { return guiPressBible(x, y) }
+    if window == 8 { return guiPressShield(x, y) }
     return guiPressReader(x, y)
 }
 
@@ -1888,6 +1940,9 @@ func guiWindowRect(_ window: Int) -> (Int, Int, Int, Int) {
     if window == 7 {
         return (guiBibleX, guiBibleY, guiBibleW, guiBibleH)
     }
+    if window == 8 {
+        return (guiShieldX, guiShieldY, guiShieldW, guiShieldH)
+    }
     return (guiFeatherX, guiFeatherY, guiFeatherW, guiFeatherH)
 }
 
@@ -1901,6 +1956,7 @@ func guiWindowStands(_ window: Int) -> Bool {
     if window == 4 { return readerOpen }
     if window == 6 { return writeOpen }
     if window == 7 { return bibleOpen }
+    if window == 8 { return shieldOpen }
     return featherWinOpen
 }
 
@@ -1940,9 +1996,11 @@ func guiSessionFocus(_ window: Int) {
     let reader = window == 4
     let write = window == 6
     let bible = window == 7
+    let shield = window == 8
     if guiFocusFeather == feather && guiFocusTerminal == terminal
         && guiFocusFiles == files && guiFocusReader == reader
-        && guiFocusWrite == write && guiFocusBible == bible {
+        && guiFocusWrite == write && guiFocusBible == bible
+        && guiFocusShield == shield {
         return
     }
     guiFocusFeather = feather
@@ -1951,6 +2009,7 @@ func guiSessionFocus(_ window: Int) {
     guiFocusReader = reader
     guiFocusWrite = write
     guiFocusBible = bible
+    guiFocusShield = shield
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -2009,7 +2068,7 @@ func guiPressAtSession(_ x: Int, _ y: Int) {
     if holder != 5 && guiPressWindowSession(holder, x, y) {
         return
     }
-    var candidate = 7
+    var candidate = 8
     while candidate >= 1 {
         if candidate != holder && candidate != 5
             && guiPressWindowSession(candidate, x, y) { return }
@@ -2193,7 +2252,7 @@ func guiWheelTurn(_ delta: Int) {
     }
     let holder = guiRoomHolder()
     if guiWheelWindow(holder, delta) { return }
-    var candidate = 7
+    var candidate = 8
     while candidate >= 1 {
         if candidate != holder && candidate != 5
             && guiWheelWindow(candidate, delta) { return }
@@ -2260,6 +2319,17 @@ func guiWheelWindow(_ window: Int, _ delta: Int) -> Bool {
             guiSetFocusBible()
         }
         bibleScrollBy(-guiWheelStep * delta)
+        return true
+    }
+    if window == 8 {
+        // The Shield's page does not scroll — there is
+        // nothing in it to set or to hunt for; the wheel
+        // over it only gives it the room (milestone 35).
+        if guestWindowed {
+            guiSessionFocus(8)
+        } else {
+            guiSetFocusShield()
+        }
         return true
     }
     if guestWindowed {
@@ -2793,6 +2863,8 @@ func runGui() {
     writeWantedAtFace = false
     let wantBible = bibleWantedAtFace
     bibleWantedAtFace = false
+    let wantShield = shieldWantedAtFace
+    shieldWantedAtFace = false
     if !useFramebuffer {
         writeLine(guiNoScreenLine)
         return
@@ -2804,9 +2876,11 @@ func runGui() {
     guiWinW = min(448, framebufferWidth - 32)
     // Milestone 34: the card stands a row taller where the
     // screen allows, for the Bible button's row beneath the
-    // verse (see guiPaintBibleButton); on a short screen it
-    // keeps its old measure and the button is withheld.
-    guiWinH = min(368, framebufferHeight - guiBarHeight - 140)
+    // verse (see guiPaintBibleButton); milestone 35 grows
+    // it a second row for the Shield button's. On a short
+    // screen it keeps the measure the screen affords and
+    // the buttons are withheld by their own standings.
+    guiWinH = min(424, framebufferHeight - guiBarHeight - 140)
     guiWinX = 48
     guiWinY = 120
     guiTermX = 16
@@ -2863,6 +2937,19 @@ func runGui() {
     bibleReading = false
     bibleScroll = 0
     bibleListScroll = 0
+    // Milestone 35's window joins the arrangement: the
+    // Shield window, a page's shape standing a step down
+    // and left of the Bible window's place, reckoned as
+    // its siblings' are.
+    guiShieldW = min(688, framebufferWidth - 32)
+    guiShieldH = min(420, guiBarTop() - guiWorkTop - 24)
+    guiShieldX = min(232, framebufferWidth - guiShieldW - 16)
+    guiShieldY = 128
+    if guiShieldY + guiShieldH > guiBarTop() - 8 {
+        guiShieldY = guiBarTop() - 8 - guiShieldH
+    }
+    if guiShieldY < guiWorkTop { guiShieldY = guiWorkTop }
+    shieldOpen = false
     // Milestone 33's card joins the arrangement: the Power
     // card, centred over the work area — the one card that is
     // never carried about, for the question it asks should be
@@ -2907,6 +2994,12 @@ func runGui() {
     bibleSavedW = guiBibleW
     bibleSavedH = guiBibleH
     guiFocusBible = false
+    shieldMaximized = false
+    shieldSavedX = guiShieldX
+    shieldSavedY = guiShieldY
+    shieldSavedW = guiShieldW
+    shieldSavedH = guiShieldH
+    guiFocusShield = false
     filesScroll = 0
     filesSelected = -1
     filesPressArmed = false
@@ -2959,6 +3052,9 @@ func runGui() {
     }
     if wantBible {
         guiOpenBible()
+    }
+    if wantShield {
+        guiOpenShield()
     }
     // The face's whole work: drain the mouse's ring (and poll
     // its port) into packets; give the keyboard's ring to the

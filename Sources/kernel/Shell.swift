@@ -148,6 +148,7 @@ let featherCommand: StaticString = "feather"
 let filesCommand: StaticString = "files"
 let writeCommand: StaticString = "write"
 let bibleCommand: StaticString = "bible"
+let shieldCommand: StaticString = "shield"
 let guiCommand: StaticString = "gui"
 let mouseCommand: StaticString = "mouse"
 let soundCommand: StaticString = "sound"
@@ -189,6 +190,8 @@ let helpWriteLine: StaticString =
     "  write   open the Write window - a page to write on"
 let helpBibleLine: StaticString =
     "  bible   open the Bible window - the Douay-Rheims Bible"
+let helpShieldLine: StaticString =
+    "  shield  open the Shield window - the guard's standing"
 let helpGuiLine: StaticString =
     "  gui     open the graphical desktop (Esc brings you home)"
 let helpMouseLine: StaticString =
@@ -519,6 +522,7 @@ func submitLine() {
     let isFiles = commandMatches(filesCommand)
     let isWrite = commandMatches(writeCommand)
     let isBible = commandMatches(bibleCommand)
+    let isShield = commandMatches(shieldCommand)
     let isGui = commandMatches(guiCommand)
     let isMouse = commandMatches(mouseCommand)
     let isSound = commandMatches(soundCommand)
@@ -557,6 +561,7 @@ func submitLine() {
             writeLine(helpFilesLine)
             writeLine(helpWriteLine)
             writeLine(helpBibleLine)
+            writeLine(helpShieldLine)
             writeLine(helpGuiLine)
             writeLine(helpMouseLine)
             writeLine(helpSoundLine)
@@ -610,6 +615,8 @@ func submitLine() {
             runWriteCommand()
         } else if isBible {
             runBibleCommand()
+        } else if isShield {
+            runShieldCommand()
         } else if isGui {
             if consoleInTerminal {
                 // Already here: this window is the desktop's own

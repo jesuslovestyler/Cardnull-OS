@@ -1173,3 +1173,57 @@ yours to see, and your screen is the final
 word.** If any step answers differently there,
 that is a finding to record, not a failure to
 hide.
+
+## The Shield window
+
+Milestone 35 gives the Shield — the family
+filter that is system law, on with no off
+switch and no telemetry, settled November 7,
+2026 — a window of its own that states the
+standing in plain words. The witness is a
+reading, and one number that must be true.
+
+1. **Open it from the Welcome card.** Start
+   the VM from either image. Click **Welcome**
+   in the bottom bar: the greeting card stands
+   a row taller again, and beneath **Read the
+   Bible** it carries a second wide button,
+   **The Shield**. Click it. A window titled
+   **The Shield** opens: "The Shield is on
+   guard." — the filter on, no way to turn it
+   off, nothing sent anywhere, the wire
+   answering only the errands you began — and
+   one live line, "Times spoken on the
+   network: 0", because nothing has been asked
+   of the wire yet.
+2. **Open it from the Terminal.** The command
+   `shield` opens the same window. There is
+   nothing in the window to click but its own
+   manners — it can be moved by its title bar,
+   maximized by its box, and closed by its
+   close box — because there is nothing in the
+   standing to change. That is not a missing
+   feature; it is the feature.
+3. **Watch the count tell the truth.** Give
+   the Terminal the room (click its title bar),
+   run `net`, and when the errand's report has
+   printed, run `shield` again. The line now
+   reads "Times spoken on the network: 5" —
+   the address lease's discover and request,
+   the gateway ARP, the DNS question, and the
+   ping: every packet the errand spoke, counted
+   at the one door every packet leaves by.
+   Leave the machine sitting and the number
+   does not grow on its own; the system begins
+   no errands of its own.
+
+The bench proved this walk in QEMU — the page
+whole from both doors on both boot doors, the
+count at rest and after one errand — on
+November 13, 2026. But the bench is not your
+machine, and this page does not claim your
+witness for you: **whether it stands in UTM is
+yours to see, and your screen is the final
+word.** If any step answers differently there,
+that is a finding to record, not a failure to
+hide.

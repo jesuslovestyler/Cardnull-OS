@@ -133,6 +133,18 @@ var netLeaseSeconds: UInt32 = 0
 var netLeaseKnown = false
 var netLeaseTakenTick: UInt64 = 0
 
+/// The wire's account of itself, kept since milestone 35
+/// for the Shield window's one live line: how many frames
+/// this machine has actually sent since it woke. Every
+/// send in the kernel passes through netSend's one door,
+/// so the count is the whole truth of the matter — and
+/// every conversation on the wire is one the person at
+/// the keyboard began (the `net` command's errands, and
+/// the lease's own renewals of an errand already begun).
+/// Nothing is sent that was not asked for; this number is
+/// how the Shield window can say so without guessing.
+var netSpeechCount: UInt64 = 0
+
 /// The offer's server identifier, reckoned at the offer: its
 /// option 54 when it carried one, else its siaddr — the name
 /// the DHCP request must answer to.
@@ -619,6 +631,7 @@ func netSend(length: Int) -> Bool {
     var waited: UInt64 = 0
     while waited < 200 {
         if netDescWord(netTxDescFrame, slot, 1) >> 32 & 1 != 0 {
+            netSpeechCount += 1
             return true
         }
         waitTicks(1)

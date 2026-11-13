@@ -1163,6 +1163,59 @@ it bends.*
    14e9393477888de5dd973b1c44d5b52e37b626022b2c0f3d2277e7d976548ae2,
    `dist/cardnull-ownboot.iso` sha256
    486581e6ceef677db97284d2abe80856c0e9644b13b25ac77358b1c963233eb6.
+   Milestone 35 — November 13, 2026 — gave the
+   Shield its window. The eighth window states
+   the law settled on November 7, 2026 in plain
+   words — the family filter on, no way to turn
+   it off, nothing watched or reported or sent
+   anywhere, the wire answering only errands the
+   person began — and the design choices are
+   three. First, the window is a proclamation,
+   not a panel: it carries no controls of its
+   own, no scroll, no settings, because there
+   is nothing in the standing to change; a
+   switch drawn here would be a lie about the
+   system beneath it. Second, its one live
+   line — the count of times the system has
+   spoken on the network — is counted at the
+   network's single sending door, so the number
+   is the wire's own and cannot drift from it;
+   every errand that speaks is one the person
+   began (a held lease's renewals ride an errand
+   already begun), and the system begins none
+   of its own. Third, the doors repeat
+   milestone 34's reckoning: the Welcome card's
+   button — the card a row taller again, the
+   button withheld where the screen cannot
+   stand it — and the Terminal's `shield`
+   command; the bar takes no new launcher. The
+   window's code stands in its own file,
+   Shield.swift, under the Split's standing
+   rule. The bench caught the milestone's own
+   fault before it stood: guiRoomHolder, the
+   room's reckoning in Files.swift, had not been
+   taught the eighth window and returned the
+   Welcome's number for a focused Shield, so
+   the card painted over the window's left
+   until the one-line check was added; a
+   maximize pressed from that very state proved
+   the painters innocent and the reckoning
+   guilty. The bench's proofs: the page whole
+   from both doors and on both boot doors; the
+   count at 0 at rest and at 5 after one `net`
+   errand, the wire's own arithmetic; the close
+   box; and the regressions whole — the suite's
+   seventeen sessions, the USB road's seven
+   standings, the clock and Power walk, one
+   DORA, the Doxology note-exact on HDA and
+   speaker alike, a prepared disk booting
+   alone. The kernel stands at 23,006 lines in
+   eighteen files and 400,768 bytes; the images
+   at 27,174,912 bytes each —
+   `dist/cardnull.iso` sha256
+   3ebe50c5e1d48088bc7238f7f9acb0b2c3568b4fac0bb2a030103728a54f1d91,
+   `dist/cardnull-ownboot.iso` sha256
+   8e8686069a2e079dffeea7171d46373970825f77c35386a67218ebf4d437babe.
    Milestone 33.5 — November 13, 2026 — the
    Split, recorded here in its ladder place
    between the clock and the Bible. The kernel,

@@ -214,7 +214,8 @@ let readerTruncatedLine: StaticString =
 /// painters and the press both read: 1 the Welcome side (the
 /// elder default — bare desktop included), 2 the Terminal,
 /// 3 the Files window, 4 the Reader — and 6 the Write
-/// window since milestone 31, checked first among the
+/// window since milestone 31 and 8 the Shield window
+/// since milestone 35, checked first among the
 /// document windows below, since exactly one focus flag
 /// ever stands at a time (the feather's 5 stands above all
 /// of them, as it always has). At most one of the younger
@@ -223,6 +224,7 @@ let readerTruncatedLine: StaticString =
 func guiRoomHolder() -> Int {
     if guiFocusFeather { return 5 }
     if guiFocusWrite { return 6 }
+    if guiFocusShield { return 8 }
     if guiFocusBible { return 7 }
     if guiFocusReader { return 4 }
     if guiFocusFiles { return 3 }
@@ -235,7 +237,7 @@ func guiRoomHolder() -> Int {
 /// for the elder two.
 func guiSetFocusFiles() {
     if guiFocusFiles && !guiFocusTerminal && !guiFocusReader
-        && !guiFocusWrite && !guiFocusBible {
+        && !guiFocusWrite && !guiFocusBible && !guiFocusShield {
         return
     }
     guiFocusTerminal = false
@@ -243,6 +245,7 @@ func guiSetFocusFiles() {
     guiFocusReader = false
     guiFocusWrite = false
     guiFocusBible = false
+    guiFocusShield = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
@@ -251,7 +254,7 @@ func guiSetFocusFiles() {
 /// Gives the room to the Reader, by the same road.
 func guiSetFocusReader() {
     if guiFocusReader && !guiFocusTerminal && !guiFocusFiles
-        && !guiFocusWrite && !guiFocusBible {
+        && !guiFocusWrite && !guiFocusBible && !guiFocusShield {
         return
     }
     guiFocusTerminal = false
@@ -259,6 +262,7 @@ func guiSetFocusReader() {
     guiFocusReader = true
     guiFocusWrite = false
     guiFocusBible = false
+    guiFocusShield = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
