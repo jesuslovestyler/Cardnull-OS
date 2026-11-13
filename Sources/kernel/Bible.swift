@@ -471,7 +471,8 @@ func bibleScrollBy(_ lines: Int) {
 /// Gives the room to the Bible window, by the Reader's road.
 func guiSetFocusBible() {
     if guiFocusBible && !guiFocusTerminal && !guiFocusFiles
-        && !guiFocusReader && !guiFocusWrite && !guiFocusShield {
+        && !guiFocusReader && !guiFocusWrite && !guiFocusShield
+        && !guiFocusHelp {
         return
     }
     guiFocusTerminal = false
@@ -480,6 +481,7 @@ func guiSetFocusBible() {
     guiFocusWrite = false
     guiFocusBible = true
     guiFocusShield = false
+    guiFocusHelp = false
     pointerHide()
     guiPaintDesktop()
     pointerShow()
