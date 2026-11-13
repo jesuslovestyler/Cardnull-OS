@@ -1222,6 +1222,49 @@ it bends.*
    420c902e5eff9f4daece469bde518efc8959c5e8f3803fb6c265624953bce5ed,
    `dist/cardnull-ownboot.iso` sha256
    2bed5c339d6fc3272cd69d6ff02014a87b2ee393ae38ff661d890a93d4a18cf9.
+   A repair — the same day, after Tyler's
+   witness — touched the loader and nothing
+   else. Its step down assumed the loader
+   itself stands below 4 GiB, in two places:
+   it stored the GDT's base through a 32-bit
+   absolute name in a file of RIP-relative
+   ones (linked at 0x140000000 the name
+   truncates, and the firmware's 32-bit
+   relocation restores it only while the
+   image stands below the line — past it
+   the store misses, the base stays zero,
+   and the machine resets before the kernel
+   wakes), and it ran the step down from the
+   image itself, whose middle act turns
+   paging off — a 32-bit address from that
+   moment, so a tail standing above the
+   line is stranded at its own truncation.
+   Behind the UEFI door only, at 3073 MB
+   and above on the bench's layout, latent
+   since milestone 22. The design rules it
+   leaves: in a relocated image, every
+   address of the image's own furniture is
+   reckoned from where the code stands — an
+   absolute name is a promise the address
+   fits in 32 bits, and this image's home
+   does not; and code that steps the
+   processor down must itself stand below
+   the last line it draws. The store is
+   RIP-relative now (the rebuilt loader
+   carries no relocations), and the step
+   down's tail runs from a copy of itself
+   at 0x8F000. Both images boot to the
+   desktop at 512, 1024, 2048, 4096, and
+   8192 MB behind the UEFI door, and at
+   512, 4096, and 8192 MB behind the BIOS
+   door, and the chain's regression suite
+   and companion proofs stand whole on
+   them; the kernel is milestone 38's, byte
+   for byte. The images stand at 27,207,680
+   bytes each — `dist/cardnull.iso` sha256
+   07b73c0a0aa077b2595b7afeb64625635603c2e8ab32949ea0417affd40228c2,
+   `dist/cardnull-ownboot.iso` sha256
+   96ac3a101b404a1c890cac67afea3cc22d66ac72be8c38dd113dc9f22f094ec4.
    Milestone 37 — November 13, 2026 — gave the
    desktop its second screen: the whole
    desktop proven at other display sizes, and

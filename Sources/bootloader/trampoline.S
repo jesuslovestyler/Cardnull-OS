@@ -17,12 +17,19 @@
  *
  *   1. quiets interrupts and keeps the two gifts — the
  *      information's address in EBX, the kernel's entry
- *      in EDI, registers nothing below disturbs;
+ *      in R8 (EDI is wanted for the copying in step 3
+ *      and takes the entry back before the stairs),
+ *      registers the tail disturbs neither;
  *   2. lays down a small GDT of our own — a flat 32-bit
  *      code segment and a flat 32-bit data segment, the
  *      same plain furniture GRUB's doorstep offered;
- *   3. steps into the 32-bit code segment (a return-far
- *      into compatibility mode), loads the data segments;
+ *   3. copies the 32-bit tail to low memory at 0x8F000
+ *      and steps into the 32-bit code segment there (a
+ *      return-far into compatibility mode), loads the
+ *      data segments — the tail runs low because the
+ *      moment it turns paging off, the processor's own
+ *      address is 32 bits wide, and this image may be
+ *      standing above the 4 GiB line;
  *   4. turns paging off, then long mode off at its own
  *      switch (EFER.LME), then the page-address extension
  *      off — the machine descending its stairs in order,
@@ -36,7 +43,10 @@
  * The 32-bit tail speaks in constants and registers only:
  * down there a program has no easy way to name its own
  * relocated addresses, and it needs none — every value it
- * touches was arranged above the stairs.
+ * touches was arranged above the stairs. That is also
+ * what lets it travel: copied byte for byte to low
+ * memory, it stands exactly as it stood, because
+ * nothing in it names the place it stands.
  *
  * Written by hand, in the open, in the public domain.
  */
@@ -47,22 +57,73 @@
 cardnull_enter_kernel:
     cli
     movl    %ecx, %ebx          # EBX: the Multiboot2 information
-    movl    %edx, %edi          # EDI: the kernel's entry point
+    movl    %edx, %r8d          # R8: the kernel's entry point,
+                                # kept aside while EDI works
+
+    # The step down runs from a copy of itself laid in
+    # low memory, and the copy is made here, while the
+    # machine is still 64-bit and can name any address
+    # it pleases. The reason is the tail's own trade:
+    # its middle act turns paging off, and a processor
+    # with paging off holds a 32-bit address — it can
+    # only stand below 4 GiB. This image links at
+    # 0x140000000, and on a machine whose RAM crosses
+    # that line the firmware may stand it at its linked
+    # home; a tail running from there is cut off at its
+    # own waist the moment paging goes, and lands at
+    # its address's low half, in whatever happens to
+    # lie there. (Found November 13, 2026, in the same
+    # witness that found the GDT store below: with that
+    # store repaired the machine stopped resetting and
+    # instead went silent at the handover, marching up
+    # through empty memory from 0x4003152 — the tail's
+    # own address with its high half gone.) The low
+    # room is chosen clear of everything: above the
+    # firmware's low data, below the kernel's home at
+    # 1 MiB, and below the scratch stack the tail takes
+    # at 0x90000, which grows down away from it. The
+    # GDT needs no copy: every reading of it happens
+    # while paging still stands, and the tail loads
+    # its segments before it touches the switch.
+    leaq    cardnull_step_down(%rip), %rsi
+    movl    $0x0008F000, %edi   # the low room
+    movl    $(cardnull_step_down_end - cardnull_step_down), %ecx
+    cld
+    rep     movsb
 
     # Our GDT's address is known only at runtime — the
     # firmware chose where to stand this image — so reckon
     # it here and lay it in the pointer before loading it.
+    # The store names its target the same RIP-relative way
+    # as its neighbours, and the naming is load-bearing:
+    # written without (%rip), the assembler lays down a
+    # 32-bit absolute address instead. This image links at
+    # 0x140000000, so the 32-bit form truncates the GDT
+    # pointer's address (0x14000501A became 0x4000501A),
+    # and the firmware's 32-bit relocation only makes the
+    # sum come right again while the image actually stands
+    # below 4 GiB. On a machine with RAM past that line
+    # the firmware may stand the image at its linked home
+    # above it; then the store lands a gigabyte low, in
+    # innocent memory, the pointer keeps the zero base it
+    # was assembled with, and the return-far below faults
+    # on a GDT that is not there — the machine resets
+    # before the kernel ever wakes. (Found November 13,
+    # 2026, on Tyler's UTM at 4096 MB: every disc since
+    # this loader's first day carried it, and every bench
+    # boot at 512 MB stood below the line and never knew.)
     leaq    cardnull_gdt(%rip), %rax
-    movq    %rax, cardnull_gdt_pointer + 2
+    movq    %rax, cardnull_gdt_pointer + 2(%rip)
     lgdt    cardnull_gdt_pointer(%rip)
 
-    # A return-far into the 32-bit code segment: the
-    # processor lands in compatibility mode, still with
-    # paging on, where the step down can be finished by
-    # hand.
-    leaq    cardnull_step_down(%rip), %rax
+    movl    %r8d, %edi          # EDI: the kernel's entry point
+
+    # A return-far into the 32-bit code segment — into
+    # the low copy of the step down: the processor lands
+    # in compatibility mode, still with paging on, where
+    # the step down can be finished by hand.
     pushq   $0x08               # the 32-bit code segment
-    pushq   %rax
+    pushq   $0x0008F000         # the low copy's first step
     lretq
 
     .code32
@@ -90,6 +151,7 @@ cardnull_step_down:
     movl    $0x90000, %esp      # a scratch stack, briefly
     movl    $0x36d76289, %eax   # the Multiboot2 magic
     jmp     *%edi               # _start — and no return
+cardnull_step_down_end:
 
     .data
     .balign 8

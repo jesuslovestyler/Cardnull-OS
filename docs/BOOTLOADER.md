@@ -81,6 +81,30 @@ Then, by Boot Services alone:
    boot since milestone 1. The kernel builds its own
    tables from there, as it always has.
 
+   One word of the step down is load-bearing in a way
+   the rest are not: the store that lays the GDT's
+   base into its pointer names the pointer from the
+   instruction's own place (RIP-relative), as every
+   reckoning in the trampoline does. Named absolutely
+   instead — as it was from this loader's first day
+   until November 13, 2026 — the assembler lays down
+   a 32-bit address, the link truncates it against
+   the image's home at 0x140000000, and the sum only
+   comes right while the firmware stands the image
+   below 4 GiB; on a machine with RAM past that line
+   the store misses, the base stays zero, and the
+   far return faults before the kernel wakes. And
+   the step down runs from a copy of its own tail
+   laid at 0x8F000, for the twin reason: the tail's
+   middle act turns paging off, and from that moment
+   the processor's address is 32 bits wide — a tail
+   standing above 4 GiB would be stranded at its own
+   truncation, as this one was, silently, until the
+   GDT fault above it was repaired and the bench's
+   trace could see it. Tyler's 4096 MB UTM witness
+   found both; the repairs and their proofs are
+   recorded in the README's status.
+
 Any failure along the way stops in plain words on the
 screen — what was being attempted, the firmware's own
 status word, and "Nothing was handed over. The machine

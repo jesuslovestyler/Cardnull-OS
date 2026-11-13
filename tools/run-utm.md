@@ -15,8 +15,12 @@ down. Nothing on the real machine is touched.
 ## Steps
 
 1. In UTM, open the x86-64 PC machine (or create one: **Create a New
-   Virtual Machine → Emulate → PC**; memory 128 MB is plenty; no hard
-   drive is needed yet — the OS lives entirely in the boot image).
+   Virtual Machine → Emulate → PC**; memory is yours to give it —
+   4096 MB is the standing witness size, and since the loader
+   repair of November 13, 2026 the house is proven to boot the
+   same from 512 MB to 8192 MB, so no size needs lowering for
+   its sake; no hard drive is needed yet — the OS lives
+   entirely in the boot image).
 2. Set the CD/DVD drive to `dist/cardnull.iso` (machine settings →
    Drives → the CD drive → Browse), and make sure the boot order puts
    the CD first. (Behind the BIOS door: or press Esc at the SeaBIOS

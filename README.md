@@ -90,6 +90,104 @@ domain, like everything else here.
 
 ## Status
 
+A repair stands (November 13, 2026): **the
+boot that only failed on Tyler's machine.**
+His UTM witness of milestone 38 met a dark
+screen — "display output is not active" —
+and a window that would not stop resizing
+itself, on both images alike, while every
+bench boot stood clean. The resizing was
+the tell: the machine was resetting in a
+loop, each reset renegotiating the display
+and settling nothing. The fault stood in
+our own UEFI loader's step down
+(`Sources/bootloader/trampoline.S`) —
+twice over, both halves born of one
+assumption: that the loader itself stands
+below 4 GiB. First: the instruction that
+lays the GDT's base into its pointer named
+the pointer by a 32-bit absolute address,
+in a file where every neighbour is
+reckoned from the instruction's own place.
+The loader links at 0x140000000, so the
+32-bit name truncated the address, and the
+firmware's 32-bit relocation only made the
+sum come right again while the image
+actually stood below that line. Give the
+machine RAM past it and the firmware may
+stand the image at its linked home above
+it; then the store lands a gigabyte low,
+in innocent memory, the pointer keeps the
+zero base it was assembled with, and the
+step down's far return faults on a GDT
+that is not there — before the kernel
+ever wakes. The bench puts the line
+exactly: behind the UEFI door the images
+boot at 3072 MB and fault at 3073 MB and
+above, Tyler's 4096 MB among them.
+Repairing that store let the step down
+start, and exposed the second half: the
+step down ran from the image itself, and
+its middle act turns paging off — and a
+processor with paging off holds a 32-bit
+address, so a tail standing above the
+line is cut off at its own waist at that
+moment. The resets stopped; in their
+place, silence at the handover, the
+machine marching up through empty memory
+from 0x4003152 — the tail's address with
+its high half gone — which the bench's
+execution trace read plainly. The BIOS
+door never passes through the trampoline
+and was never touched — it booted at 4096
+and 8192 MB even before the repair. The
+fault is as old as the loader itself,
+milestone 22's first day; every disc
+since has carried it. It hid behind two
+habits: the bench's UEFI sessions stand
+at 512 MB, and Tyler's earlier witnessing
+stood below the line. His 4096 MB witness
+found it, and his test at 1024 MB — the
+disc booting, the display steady —
+confirmed where the line was drawn. The
+repair keeps to the step down: the store
+now names its target from its own place,
+like its neighbours — the rebuilt loader
+carries no base relocations at all — and
+the step down's tail, which speaks in
+constants and registers only, is copied
+to low memory at 0x8F000 and run from
+there, so the stairs it descends stand
+below the line it draws. The proofs are
+on the rebuilt images: both boot to the
+desktop behind the UEFI door at 512,
+1024, 2048, 4096, and 8192 MB, and behind
+the BIOS door at 512, 4096, and 8192 MB —
+the desktop at 4096 MB matching the
+known-good desktop picture for picture
+but for the clock's own digits. The
+chain's own proofs stand whole on the
+rebuilt images: the regression suite's
+seventeen sessions, milestone 38's own
+Settings proofs, the USB road's seven
+standings, and the clock and Power walk.
+The kernel is untouched: 24,427 lines in
+twenty files and 433,080 bytes (sha256
+a3162005549cb43ea29f6f98fda6d5b4587f678abd30bcbbd9fb3d71345d62d9),
+the same as milestone 38 recorded. The
+images stand at 27,207,680 bytes each:
+`dist/cardnull.iso` sha256
+07b73c0a0aa077b2595b7afeb64625635603c2e8ab32949ea0417affd40228c2,
+and `dist/cardnull-ownboot.iso` sha256
+96ac3a101b404a1c890cac67afea3cc22d66ac72be8c38dd113dc9f22f094ec4.
+The house rule the fault leaves behind:
+a Cardnull machine boots on whatever
+memory it is given — no one is ever told
+to lower a setting to make it stand.
+Tyler's own witness of the repaired
+images, at his standing 4096 MB, is the
+final word.
+
 Milestone 38 stands (November 13, 2026):
 **settings in plain words.** The desktop
 gains its tenth window, "Settings" — the
