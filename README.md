@@ -1,5 +1,25 @@
 # Cardnull OS
 
+**RETIRED — November 14, 2026.**
+
+This was the first Cardnull OS, written in Swift and built stone by stone
+from November 6 to November 13, 2026 — milestones M1 through M38: a complete
+desktop, the Catholic Bible, the Shield, and two boot doors, proven on real
+hardware.
+
+At Tyler's word on November 14, 2026, it is retired in favor of its
+successor: **Cardnull OS 2**, written in **Nifla**, Cardnull's own
+public-domain language — so the whole stack, language and system together,
+is public domain with nothing borrowed underneath.
+
+This repository stands as the permanent record of the first system. The code
+remains public domain forever, free for anyone to read, learn from, and
+build on.
+
+*Unless Yahweh builds the house, they labor in vain who build it.* — Psalm 127:1 (WEB)
+
+---
+
 A Christian operating system, written from scratch in **Swift** — public domain.
 
 Cardnull OS is the operating system of [Cardnull](https://cardnull.com), a Christian
