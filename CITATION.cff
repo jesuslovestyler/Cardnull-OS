@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+authors:
+  - family-names: "Kovalevich"
+    given-names: "Tyler Austin James"
+title: "Cardnull OS"
+type: software
+repository-code: "https://github.com/jesuslovestyler/Cardnull-OS"
+url: "https://github.com/jesuslovestyler/Cardnull-OS"
+license: "Unlicense"
+abstract: "The first Cardnull operating system, written in Swift — retired in favor of Cardnull OS 2, kept as a public-domain record."
